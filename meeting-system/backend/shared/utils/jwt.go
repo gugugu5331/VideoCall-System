@@ -19,12 +19,23 @@ type JWTClaims struct {
 
 // GenerateToken 生成JWT token
 func GenerateToken(userID uint, username, email string) (string, error) {
+	// 使用默认值，避免依赖全局配置
+	expireTime := 24                              // 默认24小时
+	secretKey := "default-secret-key-for-testing" // 默认密钥
+
+	if config.GlobalConfig != nil && config.GlobalConfig.JWT.ExpireTime > 0 {
+		expireTime = config.GlobalConfig.JWT.ExpireTime
+	}
+	if config.GlobalConfig != nil && config.GlobalConfig.JWT.Secret != "" {
+		secretKey = config.GlobalConfig.JWT.Secret
+	}
+
 	claims := JWTClaims{
 		UserID:   userID,
 		Username: username,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(config.GlobalConfig.JWT.ExpireTime) * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireTime) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "meeting-system",
@@ -33,13 +44,18 @@ func GenerateToken(userID uint, username, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(config.GlobalConfig.JWT.Secret))
+	return token.SignedString([]byte(secretKey))
 }
 
 // ParseToken 解析JWT token
 func ParseToken(tokenString string) (*JWTClaims, error) {
+	secretKey := "default-secret-key-for-testing" // 默认密钥
+	if config.GlobalConfig != nil && config.GlobalConfig.JWT.Secret != "" {
+		secretKey = config.GlobalConfig.JWT.Secret
+	}
+
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(config.GlobalConfig.JWT.Secret), nil
+		return []byte(secretKey), nil
 	})
 
 	if err != nil {

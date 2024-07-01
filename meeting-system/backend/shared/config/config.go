@@ -28,14 +28,16 @@ type ServerConfig struct {
 	WriteTimeout int    `mapstructure:"write_timeout"`
 }
 
-// DatabaseConfig PostgreSQL数据库配置
+// DatabaseConfig 数据库配置
 type DatabaseConfig struct {
+	Driver       string `mapstructure:"driver"` // postgres, sqlite
 	Host         string `mapstructure:"host"`
 	Port         int    `mapstructure:"port"`
 	User         string `mapstructure:"user"`
 	Password     string `mapstructure:"password"`
 	DBName       string `mapstructure:"dbname"`
 	SSLMode      string `mapstructure:"sslmode"`
+	DSN          string `mapstructure:"dsn"` // 用于SQLite
 	MaxIdleConns int    `mapstructure:"max_idle_conns"`
 	MaxOpenConns int    `mapstructure:"max_open_conns"`
 }

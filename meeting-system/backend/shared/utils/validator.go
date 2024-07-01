@@ -27,10 +27,10 @@ func IsValidPassword(password string) bool {
 	if len(password) < 8 {
 		return false
 	}
-	
+
 	hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(password)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
-	
+
 	return hasLetter && hasNumber
 }
 
@@ -57,11 +57,11 @@ func SanitizeString(input string) string {
 	// 移除HTML标签
 	htmlRegex := regexp.MustCompile(`<[^>]*>`)
 	cleaned := htmlRegex.ReplaceAllString(input, "")
-	
+
 	// 移除SQL注入相关字符
 	sqlRegex := regexp.MustCompile(`[';\"\\]`)
 	cleaned = sqlRegex.ReplaceAllString(cleaned, "")
-	
+
 	return strings.TrimSpace(cleaned)
 }
 
@@ -70,19 +70,19 @@ func ValidateFileExtension(filename string, allowedExts []string) bool {
 	if len(allowedExts) == 0 {
 		return true
 	}
-	
+
 	parts := strings.Split(filename, ".")
 	if len(parts) < 2 {
 		return false
 	}
-	
+
 	ext := strings.ToLower(parts[len(parts)-1])
 	for _, allowedExt := range allowedExts {
 		if ext == strings.ToLower(allowedExt) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
