@@ -45,7 +45,7 @@ func InitMinIO(config config.MinIOConfig) error {
 		logger.Info("MinIO bucket created", logger.String("bucket", config.BucketName))
 	}
 
-	logger.Info("MinIO connected successfully", 
+	logger.Info("MinIO connected successfully",
 		logger.String("endpoint", config.Endpoint),
 		logger.String("bucket", config.BucketName))
 
@@ -80,7 +80,7 @@ func (s *StorageService) UploadFile(ctx context.Context, objectName string, read
 		return nil, fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	logger.Info("File uploaded successfully", 
+	logger.Info("File uploaded successfully",
 		logger.String("bucket", s.bucketName),
 		logger.String("object", objectName),
 		logger.Int64("size", objectSize))
@@ -105,7 +105,7 @@ func (s *StorageService) DeleteFile(ctx context.Context, objectName string) erro
 		return fmt.Errorf("failed to delete file: %w", err)
 	}
 
-	logger.Info("File deleted successfully", 
+	logger.Info("File deleted successfully",
 		logger.String("bucket", s.bucketName),
 		logger.String("object", objectName))
 
@@ -168,7 +168,7 @@ func (s *StorageService) CopyFile(ctx context.Context, srcObjectName, destObject
 		return fmt.Errorf("failed to copy file: %w", err)
 	}
 
-	logger.Info("File copied successfully", 
+	logger.Info("File copied successfully",
 		logger.String("bucket", s.bucketName),
 		logger.String("src", srcObjectName),
 		logger.String("dest", destObjectName))
@@ -188,7 +188,7 @@ type FileUploadResult struct {
 // UploadAvatar 上传用户头像
 func (s *StorageService) UploadAvatar(ctx context.Context, userID uint, reader io.Reader, size int64, contentType string) (*FileUploadResult, error) {
 	objectName := fmt.Sprintf("users/%d/avatars/%d.jpg", userID, time.Now().Unix())
-	
+
 	uploadInfo, err := s.UploadFile(ctx, objectName, reader, size, contentType)
 	if err != nil {
 		return nil, err
@@ -197,7 +197,7 @@ func (s *StorageService) UploadAvatar(ctx context.Context, userID uint, reader i
 	// 生成访问URL（24小时有效）
 	url, err := s.GeneratePresignedURL(ctx, objectName, 24*time.Hour)
 	if err != nil {
-		logger.Warn("Failed to generate presigned URL", logger.Error(err))
+		logger.Warn("Failed to generate presigned URL", logger.Err(err))
 		url = fmt.Sprintf("/api/v1/files/%s", objectName)
 	}
 
@@ -213,7 +213,7 @@ func (s *StorageService) UploadAvatar(ctx context.Context, userID uint, reader i
 // UploadMeetingFile 上传会议文件
 func (s *StorageService) UploadMeetingFile(ctx context.Context, meetingID uint, filename string, reader io.Reader, size int64, contentType string) (*FileUploadResult, error) {
 	objectName := fmt.Sprintf("meetings/%d/files/%d_%s", meetingID, time.Now().Unix(), filename)
-	
+
 	uploadInfo, err := s.UploadFile(ctx, objectName, reader, size, contentType)
 	if err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (s *StorageService) UploadMeetingFile(ctx context.Context, meetingID uint, 
 	// 生成访问URL（7天有效）
 	url, err := s.GeneratePresignedURL(ctx, objectName, 7*24*time.Hour)
 	if err != nil {
-		logger.Warn("Failed to generate presigned URL", logger.Error(err))
+		logger.Warn("Failed to generate presigned URL", logger.Err(err))
 		url = fmt.Sprintf("/api/v1/files/%s", objectName)
 	}
 
@@ -238,7 +238,7 @@ func (s *StorageService) UploadMeetingFile(ctx context.Context, meetingID uint, 
 // UploadRecording 上传会议录制
 func (s *StorageService) UploadRecording(ctx context.Context, meetingID uint, filename string, reader io.Reader, size int64) (*FileUploadResult, error) {
 	objectName := fmt.Sprintf("meetings/%d/recordings/%s", meetingID, filename)
-	
+
 	uploadInfo, err := s.UploadFile(ctx, objectName, reader, size, "video/mp4")
 	if err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ func (s *StorageService) UploadRecording(ctx context.Context, meetingID uint, fi
 // DeleteMeetingFiles 删除会议相关文件
 func (s *StorageService) DeleteMeetingFiles(ctx context.Context, meetingID uint) error {
 	prefix := fmt.Sprintf("meetings/%d/", meetingID)
-	
+
 	objects, err := s.ListFiles(ctx, prefix, true)
 	if err != nil {
 		return err
@@ -264,13 +264,13 @@ func (s *StorageService) DeleteMeetingFiles(ctx context.Context, meetingID uint)
 
 	for _, object := range objects {
 		if err := s.DeleteFile(ctx, object.Key); err != nil {
-			logger.Warn("Failed to delete file", 
+			logger.Warn("Failed to delete file",
 				logger.String("object", object.Key),
-				logger.Error(err))
+				logger.Err(err))
 		}
 	}
 
-	logger.Info("Meeting files deleted", 
+	logger.Info("Meeting files deleted",
 		logger.Uint("meeting_id", meetingID),
 		logger.Int("file_count", len(objects)))
 

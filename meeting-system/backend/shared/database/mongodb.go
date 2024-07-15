@@ -31,12 +31,11 @@ func InitMongoDB(config config.MongoConfig) error {
 	}
 
 	MongoDB = client.Database(config.Database)
-	logger.Info("MongoDB connected successfully", 
-		logger.String("database", config.Database))
+	logger.Info("MongoDB connected successfully")
 
 	// 创建索引
 	if err := createMongoIndexes(); err != nil {
-		logger.Warn("Failed to create MongoDB indexes", logger.Error(err))
+		logger.Warn("Failed to create MongoDB indexes")
 	}
 
 	return nil

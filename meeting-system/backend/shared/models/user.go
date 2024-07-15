@@ -15,6 +15,7 @@ type User struct {
 	Nickname  string         `json:"nickname" gorm:"size:50"`
 	Avatar    string         `json:"avatar" gorm:"size:255"`
 	Phone     string         `json:"phone" gorm:"size:20"`
+	Role      UserRole       `json:"role" gorm:"default:1"`
 	Status    UserStatus     `json:"status" gorm:"default:1"`
 	LastLogin *time.Time     `json:"last_login"`
 	CreatedAt time.Time      `json:"created_at"`
@@ -22,9 +23,20 @@ type User struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// 关联关系
-	CreatedMeetings []Meeting `json:"created_meetings,omitempty" gorm:"foreignKey:CreatorID"`
+	CreatedMeetings []Meeting            `json:"created_meetings,omitempty" gorm:"foreignKey:CreatorID"`
 	Participations  []MeetingParticipant `json:"participations,omitempty" gorm:"foreignKey:UserID"`
 }
+
+// UserRole 用户角色
+type UserRole int
+
+const (
+	UserRoleGuest UserRole = 0 // 访客
+	UserRoleUser  UserRole = 1 // 普通用户
+	UserRoleMod   UserRole = 2 // 版主
+	UserRoleAdmin UserRole = 3 // 管理员
+	UserRoleSuper UserRole = 4 // 超级管理员
+)
 
 // UserStatus 用户状态
 type UserStatus int
