@@ -1,0 +1,116 @@
+{
+    "unit_name": "meeting_ai_node_001",
+    "max_workers": 4,
+    "max_queue_size": 1000,
+    "model_base_path": "./models/",
+    
+    "log": {
+        "level": "INFO",
+        "log_dir": "./logs/",
+        "max_log_size": 100
+    },
+    
+    "monitoring": {
+        "enable": true,
+        "report_interval": 60
+    },
+    
+    "models": {
+        "speech_recognition": {
+            "enabled": true,
+            "model_path": "./models/speech_recognition.model",
+            "max_audio_length": 30,
+            "supported_formats": ["wav", "mp3", "flac"],
+            "sample_rates": [16000, 44100, 48000],
+            "languages": ["zh-CN", "en-US"]
+        },
+        
+        "emotion_detection": {
+            "enabled": true,
+            "model_path": "./models/emotion_detection.model",
+            "max_image_size": 2073600,
+            "supported_formats": ["jpg", "png", "bmp"],
+            "emotions": ["happy", "sad", "angry", "surprised", "neutral", "fear", "disgust"],
+            "confidence_threshold": 0.7
+        },
+        
+        "audio_denoising": {
+            "enabled": true,
+            "model_path": "./models/audio_denoising.model",
+            "noise_threshold": 0.3,
+            "max_audio_length": 60,
+            "supported_formats": ["wav", "mp3"],
+            "sample_rates": [16000, 44100, 48000]
+        },
+        
+        "video_enhancement": {
+            "enabled": true,
+            "model_path": "./models/video_enhancement.model",
+            "max_resolution": "1920x1080",
+            "supported_formats": ["mp4", "avi", "mov"],
+            "enhancement_types": ["super_resolution", "denoising", "stabilization"],
+            "max_fps": 60
+        },
+        
+        "text_to_speech": {
+            "enabled": false,
+            "model_path": "./models/text_to_speech.model",
+            "max_text_length": 1000,
+            "voices": ["male", "female"],
+            "languages": ["zh-CN", "en-US"],
+            "sample_rate": 22050
+        },
+        
+        "face_detection": {
+            "enabled": false,
+            "model_path": "./models/face_detection.model",
+            "max_image_size": 2073600,
+            "min_face_size": 20,
+            "confidence_threshold": 0.8
+        },
+        
+        "gesture_recognition": {
+            "enabled": false,
+            "model_path": "./models/gesture_recognition.model",
+            "max_video_length": 10,
+            "gestures": ["wave", "thumbs_up", "peace", "ok", "stop"],
+            "confidence_threshold": 0.75
+        }
+    },
+    
+    "performance": {
+        "max_cpu_usage": 80,
+        "max_memory_usage": 4096,
+        "task_timeout": 30,
+        "batch_processing": {
+            "enabled": true,
+            "batch_size": 10,
+            "batch_timeout": 5
+        }
+    },
+    
+    "edge_llm_infra": {
+        "unit_manager_host": "localhost",
+        "unit_manager_port": 5001,
+        "heartbeat_interval": 30,
+        "reconnect_interval": 10,
+        "max_reconnect_attempts": 5
+    },
+    
+    "security": {
+        "enable_encryption": false,
+        "api_key": "",
+        "allowed_clients": [],
+        "rate_limiting": {
+            "enabled": true,
+            "max_requests_per_minute": 100
+        }
+    },
+    
+    "storage": {
+        "temp_dir": "./temp/",
+        "max_temp_file_size": 100,
+        "cleanup_interval": 3600,
+        "max_temp_file_age": 86400
+    }
+}
