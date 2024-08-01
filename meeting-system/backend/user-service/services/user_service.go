@@ -76,9 +76,7 @@ func (s *UserService) Register(req *models.UserCreateRequest) (*models.User, err
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	logger.Info("User registered successfully", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User registered successfully")
 
 	return user, nil
 }
@@ -119,12 +117,10 @@ func (s *UserService) Login(req *models.UserLoginRequest) (*models.UserLoginResp
 	ctx := context.Background()
 	sessionKey := fmt.Sprintf("user:session:%d", user.ID)
 	if err := s.cache.Set(ctx, sessionKey, token, 24*time.Hour); err != nil {
-		logger.Warn("Failed to cache user session", logger.Error(err))
+		logger.Warn("Failed to cache user session: " + err.Error())
 	}
 
-	logger.Info("User logged in successfully", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User logged in successfully")
 
 	return &models.UserLoginResponse{
 		User:  user.ToProfile(),
@@ -170,9 +166,7 @@ func (s *UserService) UpdateProfile(userID uint, req *models.UserUpdateRequest) 
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
 
-	logger.Info("User profile updated", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User profile updated")
 
 	return user.ToProfile(), nil
 }
@@ -209,9 +203,7 @@ func (s *UserService) ChangePassword(userID uint, req *models.ChangePasswordRequ
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
-	logger.Info("User password changed", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User password changed")
 
 	return nil
 }
@@ -225,7 +217,7 @@ func (s *UserService) ListUsers(page, pageSize int, keyword string) ([]*models.U
 
 	// 搜索条件
 	if keyword != "" {
-		query = query.Where("username ILIKE ? OR email ILIKE ? OR nickname ILIKE ?", 
+		query = query.Where("username ILIKE ? OR email ILIKE ? OR nickname ILIKE ?",
 			"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
@@ -265,7 +257,7 @@ func (s *UserService) DeleteUser(userID uint) error {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
-	logger.Info("User deleted", logger.Uint("user_id", userID))
+	logger.Info("User deleted")
 	return nil
 }
 
@@ -284,9 +276,7 @@ func (s *UserService) BanUser(userID uint) error {
 		return fmt.Errorf("failed to ban user: %w", err)
 	}
 
-	logger.Info("User banned", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User banned")
 
 	return nil
 }
@@ -306,9 +296,7 @@ func (s *UserService) UnbanUser(userID uint) error {
 		return fmt.Errorf("failed to unban user: %w", err)
 	}
 
-	logger.Info("User unbanned", 
-		logger.Uint("user_id", user.ID),
-		logger.String("username", user.Username))
+	logger.Info("User unbanned")
 
 	return nil
 }

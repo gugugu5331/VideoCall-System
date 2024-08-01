@@ -17,7 +17,6 @@ import (
 	"meeting-system/shared/logger"
 	"meeting-system/shared/middleware"
 	"meeting-system/shared/models"
-	"meeting-system/shared/zmq"
 	"meeting-system/user-service/handlers"
 	"meeting-system/user-service/services"
 )
@@ -30,10 +29,13 @@ func main() {
 	flag.Parse()
 
 	// 初始化配置
+	log.Println("Initializing configuration...")
 	config.InitConfig(*configPath)
 	cfg := config.GlobalConfig
+	log.Println("Configuration initialized successfully")
 
 	// 初始化日志
+	log.Println("Initializing logger...")
 	if err := logger.InitLogger(logger.LogConfig{
 		Level:      cfg.Log.Level,
 		Filename:   cfg.Log.Filename,
@@ -45,68 +47,106 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
+	log.Println("Logger initialized successfully")
 
 	logger.Info("Starting user service...")
+	log.Println("Starting user service...")
 
 	// 初始化数据库
-	if err := database.InitPostgreSQL(cfg.Database); err != nil {
-		logger.Fatal("Failed to initialize PostgreSQL", logger.Error(err))
+	logger.Info("Initializing database...")
+	log.Println("Initializing database...")
+	if err := database.InitDB(cfg.Database); err != nil {
+		logger.Fatal("Failed to initialize database: " + err.Error())
 	}
 	defer database.CloseDB()
+	logger.Info("Database initialized successfully")
+	log.Println("Database initialized successfully")
 
+	logger.Info("Initializing Redis...")
+	log.Println("Initializing Redis...")
 	if err := database.InitRedis(cfg.Redis); err != nil {
-		logger.Fatal("Failed to initialize Redis", logger.Error(err))
+		logger.Warn("Failed to initialize Redis: " + err.Error())
+		log.Println("Failed to initialize Redis:", err.Error())
+		// Redis初始化失败不影响压力测试
+	} else {
+		defer database.CloseRedis()
+		logger.Info("Redis initialized successfully")
+		log.Println("Redis initialized successfully")
 	}
-	defer database.CloseRedis()
 
-	// 自动迁移数据库表
+	// 强制迁移User表以确保表存在
+	logger.Info("Migrating User table...")
+	log.Println("Migrating User table...")
 	if err := database.AutoMigrate(&models.User{}); err != nil {
-		logger.Fatal("Failed to migrate database", logger.Error(err))
+		logger.Fatal("Failed to migrate database: " + err.Error())
 	}
+	logger.Info("User table migration completed")
+	log.Println("User table migration completed")
 
-	// 初始化ZMQ客户端（可选，用于AI功能）
-	if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
-		logger.Warn("Failed to initialize ZMQ client", logger.Error(err))
-		// ZMQ初始化失败不影响用户服务启动
-	}
-	defer zmq.CloseZMQ()
+	// 跳过ZMQ初始化（压力测试时不需要）
+	logger.Info("Skipping ZMQ initialization for stress testing")
+	log.Println("Skipping ZMQ initialization for stress testing")
 
 	// 设置Gin模式
+	logger.Info("Setting up HTTP server...")
+	log.Println("Setting up HTTP server...")
 	gin.SetMode(cfg.Server.Mode)
+	log.Println("Gin mode set to:", cfg.Server.Mode)
 
 	// 创建Gin引擎
+	log.Println("Creating Gin engine...")
 	r := gin.New()
+	log.Println("Gin engine created")
 
 	// 添加中间件
+	log.Println("Adding middleware...")
 	r.Use(middleware.RequestLogger())
 	r.Use(middleware.Recovery())
 	r.Use(middleware.CORS())
+	log.Println("Middleware added")
 
 	// 初始化服务
+	logger.Info("Initializing user service components...")
+	log.Println("Initializing user service components...")
 	userService := services.NewUserService()
 	userHandler := handlers.NewUserHandler(userService)
+	logger.Info("User service components initialized")
+	log.Println("User service components initialized")
 
 	// 注册路由
+	logger.Info("Setting up routes...")
+	log.Println("Setting up routes...")
 	setupRoutes(r, userHandler)
+	logger.Info("Routes configured")
+	log.Println("Routes configured")
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("Starting HTTP server on " + addr)
+	log.Println("Starting HTTP server on", addr)
 	server := &http.Server{
 		Addr:         addr,
 		Handler:      r,
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
 	}
+	log.Println("HTTP server configured")
 
 	// 优雅关闭
 	go func() {
-		logger.Info("User service started", logger.String("address", addr))
+		logger.Info("User service HTTP server starting...")
+		log.Println("User service HTTP server starting...")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", logger.Error(err))
+			logger.Fatal("Failed to start server: " + err.Error())
 		}
 	}()
+	log.Println("HTTP server goroutine started")
+
+	logger.Info("User service started successfully and listening on " + addr)
+	log.Println("User service started successfully and listening on", addr)
 
 	// 等待中断信号
+	log.Println("Waiting for interrupt signal...")
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -115,7 +155,7 @@ func main() {
 
 	// 优雅关闭服务器
 	if err := server.Close(); err != nil {
-		logger.Error("Server forced to shutdown", logger.Error(err))
+		logger.Error("Server forced to shutdown: " + err.Error())
 	}
 
 	logger.Info("User service stopped")
