@@ -1,0 +1,338 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: meeting-postgres
+    environment:
+      POSTGRES_DB: meeting_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../backend/shared/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: meeting-redis
+    command: redis-server --appendonly yes --requirepass ""
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB 文档数据库
+  mongodb:
+    image: mongo:6
+    container_name: meeting-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: meeting_system
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO 对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: meeting-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Nginx 负载均衡器
+  nginx:
+    image: nginx:alpine
+    container_name: meeting-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      - user-service
+      - meeting-service
+      - signaling-service
+      - media-service
+      - ai-service
+      - notification-service
+
+  # 用户服务
+  user-service:
+    build:
+      context: ../../backend
+      dockerfile: user-service/Dockerfile
+    container_name: meeting-user-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - user_logs:/app/logs
+    ports:
+      - "8081:8080"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 会议服务
+  meeting-service:
+    build:
+      context: ../../backend
+      dockerfile: meeting-service/Dockerfile
+    container_name: meeting-meeting-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - meeting_logs:/app/logs
+    ports:
+      - "8082:8080"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  # 信令服务
+  signaling-service:
+    build:
+      context: ../../backend
+      dockerfile: signaling-service/Dockerfile
+    container_name: meeting-signaling-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - signaling_logs:/app/logs
+    ports:
+      - "8083:8080"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # 媒体服务 (SFU)
+  media-service:
+    build:
+      context: ../../backend
+      dockerfile: media-service/Dockerfile
+    container_name: meeting-media-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - media_logs:/app/logs
+    ports:
+      - "8084:8080"
+      - "10000-10100:10000-10100/udp"  # WebRTC UDP端口范围
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # AI检测服务
+  ai-service:
+    build:
+      context: ../../backend
+      dockerfile: ai-service/Dockerfile
+    container_name: meeting-ai-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - ai_logs:/app/logs
+    ports:
+      - "8085:8080"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+
+  # 通知服务
+  notification-service:
+    build:
+      context: ../../backend
+      dockerfile: notification-service/Dockerfile
+    container_name: meeting-notification-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+    volumes:
+      - ../../backend/config:/app/config
+      - notification_logs:/app/logs
+    ports:
+      - "8086:8080"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # AI推理节点 (C++)
+  ai-node:
+    build:
+      context: ../../ai-node
+      dockerfile: Dockerfile
+    container_name: meeting-ai-node
+    volumes:
+      - ../../ai-node/config:/app/config
+      - ../../ai-node/models:/app/models
+      - ai_node_logs:/app/logs
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      - ai-service
+
+  # Edge-LLM-Infra unit-manager
+  unit-manager:
+    build:
+      context: ../../Edge-LLM-Infra
+      dockerfile: unit-manager/Dockerfile
+    container_name: meeting-unit-manager
+    volumes:
+      - ../../Edge-LLM-Infra/unit-manager/sys_config.json:/app/sys_config.json
+      - unit_manager_logs:/app/logs
+    ports:
+      - "5001:5001"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Prometheus 监控
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: meeting-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Grafana 可视化
+  grafana:
+    image: grafana/grafana:latest
+    container_name: meeting-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    ports:
+      - "3000:3000"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+  minio_data:
+  nginx_logs:
+  user_logs:
+  meeting_logs:
+  signaling_logs:
+  media_logs:
+  ai_logs:
+  notification_logs:
+  ai_node_logs:
+  unit_manager_logs:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  meeting-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
