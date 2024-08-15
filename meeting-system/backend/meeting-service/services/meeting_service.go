@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 
 	"meeting-system/shared/database"
@@ -16,7 +16,7 @@ import (
 
 type MeetingService struct {
 	db    *gorm.DB
-	redis *database.RedisClient
+	redis *redis.Client
 }
 
 func NewMeetingService() *MeetingService {
@@ -24,6 +24,47 @@ func NewMeetingService() *MeetingService {
 		db:    database.GetDB(),
 		redis: database.GetRedis(),
 	}
+}
+
+// 辅助函数：将字符串转换为MeetingType
+func stringToMeetingType(s string) models.MeetingType {
+	switch s {
+	case "video":
+		return models.MeetingTypeVideo
+	case "audio":
+		return models.MeetingTypeAudio
+	default:
+		return models.MeetingTypeVideo
+	}
+}
+
+// 辅助函数：将MeetingSettings序列化为JSON字符串
+func settingsToJSON(settings models.MeetingSettings) string {
+	data, _ := json.Marshal(settings)
+	return string(data)
+}
+
+// 辅助函数：将MeetingType转换为字符串
+func meetingTypeToString(mt models.MeetingType) string {
+	switch mt {
+	case models.MeetingTypeVideo:
+		return "video"
+	case models.MeetingTypeAudio:
+		return "audio"
+	case models.MeetingTypePublic:
+		return "public"
+	case models.MeetingTypePrivate:
+		return "private"
+	default:
+		return "video"
+	}
+}
+
+// 辅助函数：将JSON字符串解析为MeetingSettings
+func jsonToSettings(jsonStr string) models.MeetingSettings {
+	var settings models.MeetingSettings
+	json.Unmarshal([]byte(jsonStr), &settings)
+	return settings
 }
 
 // CreateMeeting 创建会议
@@ -35,14 +76,14 @@ func (s *MeetingService) CreateMeeting(req *models.CreateMeetingRequest) (*model
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		MaxParticipants: req.MaxParticipants,
-		MeetingType:     req.MeetingType,
+		MeetingType:     stringToMeetingType(req.MeetingType),
 		Password:        req.Password,
-		Settings:        req.Settings,
+		Settings:        settingsToJSON(req.Settings),
 		Status:          models.MeetingStatusScheduled,
 	}
 
 	if err := s.db.Create(meeting).Error; err != nil {
-		logger.Error("Failed to create meeting", logger.Error(err))
+		logger.Error("Failed to create meeting", logger.Err(err))
 		return nil, err
 	}
 
@@ -55,14 +96,14 @@ func (s *MeetingService) CreateMeeting(req *models.CreateMeetingRequest) (*model
 	}
 
 	if err := s.db.Create(participant).Error; err != nil {
-		logger.Error("Failed to add creator as participant", logger.Error(err))
+		logger.Error("Failed to add creator as participant", logger.Err(err))
 		// 不回滚会议创建，只记录错误
 	}
 
 	// 缓存会议信息
 	s.cacheMeeting(meeting)
 
-	logger.Info("Meeting created successfully", 
+	logger.Info("Meeting created successfully",
 		logger.Uint("meeting_id", meeting.ID),
 		logger.Uint("creator_id", req.CreatorID))
 
@@ -113,23 +154,23 @@ func (s *MeetingService) UpdateMeeting(meetingID uint, userID uint, req *models.
 	}
 
 	// 更新字段
-	if req.Title != "" {
-		meeting.Title = req.Title
+	if req.Title != nil && *req.Title != "" {
+		meeting.Title = *req.Title
 	}
-	if req.Description != "" {
-		meeting.Description = req.Description
+	if req.Description != nil && *req.Description != "" {
+		meeting.Description = *req.Description
 	}
-	if !req.StartTime.IsZero() {
-		meeting.StartTime = req.StartTime
+	if req.StartTime != nil && !req.StartTime.IsZero() {
+		meeting.StartTime = *req.StartTime
 	}
-	if !req.EndTime.IsZero() {
-		meeting.EndTime = req.EndTime
+	if req.EndTime != nil && !req.EndTime.IsZero() {
+		meeting.EndTime = *req.EndTime
 	}
-	if req.MaxParticipants > 0 {
-		meeting.MaxParticipants = req.MaxParticipants
+	if req.MaxParticipants != nil && *req.MaxParticipants > 0 {
+		meeting.MaxParticipants = *req.MaxParticipants
 	}
 	if req.Settings != nil {
-		meeting.Settings = req.Settings
+		meeting.Settings = settingsToJSON(*req.Settings)
 	}
 
 	if err := s.db.Save(&meeting).Error; err != nil {
@@ -185,7 +226,7 @@ func (s *MeetingService) JoinMeeting(meetingID uint, userID uint, password strin
 	// 检查参与者是否已存在
 	var participant models.MeetingParticipant
 	err := s.db.Where("meeting_id = ? AND user_id = ?", meetingID, userID).First(&participant).Error
-	
+
 	if err == gorm.ErrRecordNotFound {
 		// 创建新参与者
 		participant = models.MeetingParticipant{
@@ -229,11 +270,11 @@ func (s *MeetingService) JoinMeeting(meetingID uint, userID uint, password strin
 	}
 
 	response := &models.JoinMeetingResponse{
-		MeetingID:   meetingID,
-		RoomID:      room.RoomID,
+		MeetingID:     meetingID,
+		RoomID:        room.RoomID,
 		ParticipantID: participant.ID,
-		Role:        participant.Role,
-		SFUNode:     room.SFUNode,
+		Role:          participant.Role,
+		SFUNode:       room.SFUNode,
 	}
 
 	return response, nil
@@ -273,12 +314,12 @@ func (s *MeetingService) GetParticipants(meetingID uint, userID uint) ([]*models
 	var responses []*models.ParticipantResponse
 	for _, p := range participants {
 		responses = append(responses, &models.ParticipantResponse{
-			ID:        p.ID,
-			UserID:    p.UserID,
-			Role:      p.Role,
-			Status:    p.Status,
-			JoinedAt:  p.JoinedAt,
-			LeftAt:    p.LeftAt,
+			ID:       p.ID,
+			UserID:   p.UserID,
+			Role:     p.Role,
+			Status:   p.Status,
+			JoinedAt: p.JoinedAt,
+			LeftAt:   p.LeftAt,
 		})
 	}
 
@@ -293,7 +334,7 @@ func (s *MeetingService) canAccessMeeting(meetingID uint, userID uint) bool {
 	s.db.Model(&models.MeetingParticipant{}).
 		Where("meeting_id = ? AND user_id = ?", meetingID, userID).
 		Count(&count)
-	
+
 	if count > 0 {
 		return true
 	}
@@ -321,7 +362,7 @@ func (s *MeetingService) canModifyMeeting(meetingID uint, userID uint) bool {
 
 	// 主持人可以修改
 	var participant models.MeetingParticipant
-	if err := s.db.Where("meeting_id = ? AND user_id = ? AND role = ?", 
+	if err := s.db.Where("meeting_id = ? AND user_id = ? AND role = ?",
 		meetingID, userID, models.ParticipantRoleHost).First(&participant).Error; err != nil {
 		return false
 	}
@@ -339,7 +380,7 @@ func (s *MeetingService) cacheMeeting(meeting *models.Meeting) {
 // getMeetingFromCache 从缓存获取会议信息
 func (s *MeetingService) getMeetingFromCache(meetingID uint) *models.Meeting {
 	key := fmt.Sprintf("meeting:%d", meetingID)
-	data, err := s.redis.Get(context.Background(), key)
+	data, err := s.redis.Get(context.Background(), key).Result()
 	if err != nil {
 		return nil
 	}
@@ -362,16 +403,16 @@ func (s *MeetingService) deleteMeetingFromCache(meetingID uint) {
 func (s *MeetingService) getOrCreateMeetingRoom(meetingID uint) (*models.MeetingRoom, error) {
 	var room models.MeetingRoom
 	err := s.db.Where("meeting_id = ?", meetingID).First(&room).Error
-	
+
 	if err == gorm.ErrRecordNotFound {
 		// 创建新会议室
 		room = models.MeetingRoom{
-			MeetingID: meetingID,
-			RoomID:    fmt.Sprintf("room_%d_%d", meetingID, time.Now().Unix()),
-			SFUNode:   "sfu-node-1", // TODO: 实现SFU节点选择逻辑
-			Status:    models.RoomStatusActive,
+			MeetingID:        meetingID,
+			RoomID:           fmt.Sprintf("room_%d_%d", meetingID, time.Now().Unix()),
+			SFUNode:          "sfu-node-1", // TODO: 实现SFU节点选择逻辑
+			Status:           models.RoomStatusActive,
 			ParticipantCount: 0,
-			MaxBitrate: 1000000,
+			MaxBitrate:       1000000,
 		}
 
 		if err := s.db.Create(&room).Error; err != nil {
@@ -395,19 +436,11 @@ func (s *MeetingService) buildMeetingResponse(meeting *models.Meeting) (*models.
 		EndTime:         meeting.EndTime,
 		MaxParticipants: meeting.MaxParticipants,
 		Status:          meeting.Status,
-		MeetingType:     meeting.MeetingType,
-		Settings:        meeting.Settings,
+		MeetingType:     meetingTypeToString(meeting.MeetingType),
+		Settings:        jsonToSettings(meeting.Settings),
 		CreatedAt:       meeting.CreatedAt,
 		UpdatedAt:       meeting.UpdatedAt,
 	}
-
-	// 获取参与者数量
-	var participantCount int64
-	s.db.Model(&models.MeetingParticipant{}).
-		Where("meeting_id = ? AND status = ?", meeting.ID, models.ParticipantStatusJoined).
-		Count(&participantCount)
-	
-	response.ParticipantCount = int(participantCount)
 
 	return response, nil
 }

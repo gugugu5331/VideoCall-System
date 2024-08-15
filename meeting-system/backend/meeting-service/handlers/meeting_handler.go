@@ -7,9 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"meeting-system/meeting-service/services"
 	"meeting-system/shared/logger"
 	"meeting-system/shared/models"
-	"meeting-system/meeting-service/services"
 )
 
 type MeetingHandler struct {
@@ -52,7 +52,7 @@ func (h *MeetingHandler) CreateMeeting(c *gin.Context) {
 
 	meeting, err := h.meetingService.CreateMeeting(&req)
 	if err != nil {
-		logger.Error("Failed to create meeting", logger.Error(err))
+		logger.Error("Failed to create meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create meeting"})
 		return
 	}
@@ -83,7 +83,7 @@ func (h *MeetingHandler) GetMeeting(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 			return
 		}
-		logger.Error("Failed to get meeting", logger.Error(err))
+		logger.Error("Failed to get meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get meeting"})
 		return
 	}
@@ -115,7 +115,7 @@ func (h *MeetingHandler) UpdateMeeting(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
 			return
 		}
-		logger.Error("Failed to update meeting", logger.Error(err))
+		logger.Error("Failed to update meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update meeting"})
 		return
 	}
@@ -142,7 +142,7 @@ func (h *MeetingHandler) DeleteMeeting(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
 			return
 		}
-		logger.Error("Failed to delete meeting", logger.Error(err))
+		logger.Error("Failed to delete meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete meeting"})
 		return
 	}
@@ -177,7 +177,7 @@ func (h *MeetingHandler) JoinMeeting(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
 			return
 		}
-		logger.Error("Failed to join meeting", logger.Error(err))
+		logger.Error("Failed to join meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join meeting"})
 		return
 	}
@@ -200,7 +200,7 @@ func (h *MeetingHandler) LeaveMeeting(c *gin.Context) {
 
 	err = h.meetingService.LeaveMeeting(uint(meetingID), userID.(uint))
 	if err != nil {
-		logger.Error("Failed to leave meeting", logger.Error(err))
+		logger.Error("Failed to leave meeting", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave meeting"})
 		return
 	}
@@ -226,7 +226,7 @@ func (h *MeetingHandler) GetParticipants(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
 			return
 		}
-		logger.Error("Failed to get participants", logger.Error(err))
+		logger.Error("Failed to get participants", logger.Err(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get participants"})
 		return
 	}

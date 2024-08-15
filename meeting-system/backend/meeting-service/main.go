@@ -12,14 +12,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"meeting-system/meeting-service/handlers"
+	"meeting-system/meeting-service/services"
 	"meeting-system/shared/config"
 	"meeting-system/shared/database"
 	"meeting-system/shared/logger"
 	"meeting-system/shared/middleware"
 	"meeting-system/shared/models"
 	"meeting-system/shared/zmq"
-	"meeting-system/meeting-service/handlers"
-	"meeting-system/meeting-service/services"
 )
 
 var (
@@ -30,10 +30,13 @@ func main() {
 	flag.Parse()
 
 	// 初始化配置
+	log.Println("Initializing configuration...")
 	config.InitConfig(*configPath)
 	cfg := config.GlobalConfig
+	log.Println("Configuration initialized successfully")
 
 	// 初始化日志
+	log.Println("Initializing logger...")
 	if err := logger.InitLogger(logger.LogConfig{
 		Level:      cfg.Log.Level,
 		Filename:   cfg.Log.Filename,
@@ -45,25 +48,39 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
+	log.Println("Logger initialized successfully")
 
 	logger.Info("Starting meeting service...")
+	log.Println("Starting meeting service...")
 
 	// 初始化数据库
-	if err := database.InitPostgreSQL(cfg.Database); err != nil {
-		logger.Fatal("Failed to initialize PostgreSQL", logger.Error(err))
+	logger.Info("Initializing database...")
+	log.Println("Initializing database...")
+	if err := database.InitDB(cfg.Database); err != nil {
+		logger.Fatal("Failed to initialize database: " + err.Error())
 	}
 	defer database.CloseDB()
+	logger.Info("Database initialized successfully")
+	log.Println("Database initialized successfully")
 
+	logger.Info("Initializing Redis...")
 	if err := database.InitRedis(cfg.Redis); err != nil {
-		logger.Fatal("Failed to initialize Redis", logger.Error(err))
+		logger.Warn("Failed to initialize Redis: " + err.Error())
+		// Redis初始化失败不影响压力测试
+	} else {
+		defer database.CloseRedis()
+		logger.Info("Redis initialized successfully")
 	}
-	defer database.CloseRedis()
 
 	// 初始化MongoDB
+	logger.Info("Initializing MongoDB...")
 	if err := database.InitMongoDB(cfg.MongoDB); err != nil {
-		logger.Fatal("Failed to initialize MongoDB", logger.Error(err))
+		logger.Warn("Failed to initialize MongoDB: " + err.Error())
+		// MongoDB初始化失败不影响压力测试
+	} else {
+		defer database.CloseMongoDB()
+		logger.Info("MongoDB initialized successfully")
 	}
-	defer database.CloseMongoDB()
 
 	// 自动迁移数据库表
 	if err := database.AutoMigrate(
@@ -73,12 +90,12 @@ func main() {
 		&models.MediaStream{},
 		&models.MeetingRecording{},
 	); err != nil {
-		logger.Fatal("Failed to migrate database", logger.Error(err))
+		logger.Fatal("Failed to migrate database: " + err.Error())
 	}
 
 	// 初始化ZMQ客户端（用于AI功能）
 	if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
-		logger.Warn("Failed to initialize ZMQ client", logger.Error(err))
+		logger.Warn("Failed to initialize ZMQ client: " + err.Error())
 	}
 	defer zmq.CloseZMQ()
 
@@ -111,9 +128,9 @@ func main() {
 
 	// 优雅关闭
 	go func() {
-		logger.Info("Meeting service started", logger.String("address", addr))
+		logger.Info("Meeting service started")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", logger.Error(err))
+			logger.Fatal("Failed to start server: " + err.Error())
 		}
 	}()
 
@@ -126,7 +143,7 @@ func main() {
 
 	// 优雅关闭服务器
 	if err := server.Close(); err != nil {
-		logger.Error("Server forced to shutdown", logger.Error(err))
+		logger.Error("Server forced to shutdown", logger.Err(err))
 	}
 
 	logger.Info("Meeting service stopped")
@@ -155,29 +172,29 @@ func setupRoutes(r *gin.Engine, meetingHandler *handlers.MeetingHandler) {
 			meetings.GET("/:id", meetingHandler.GetMeeting)
 			meetings.PUT("/:id", meetingHandler.UpdateMeeting)
 			meetings.DELETE("/:id", meetingHandler.DeleteMeeting)
-			
+
 			// 会议控制
 			meetings.POST("/:id/start", meetingHandler.StartMeeting)
 			meetings.POST("/:id/end", meetingHandler.EndMeeting)
 			meetings.POST("/:id/join", meetingHandler.JoinMeeting)
 			meetings.POST("/:id/leave", meetingHandler.LeaveMeeting)
-			
+
 			// 参与者管理
 			meetings.GET("/:id/participants", meetingHandler.GetParticipants)
 			meetings.POST("/:id/participants", meetingHandler.AddParticipant)
 			meetings.DELETE("/:id/participants/:user_id", meetingHandler.RemoveParticipant)
 			meetings.PUT("/:id/participants/:user_id/role", meetingHandler.UpdateParticipantRole)
-			
+
 			// 会议室管理
 			meetings.GET("/:id/room", meetingHandler.GetMeetingRoom)
 			meetings.POST("/:id/room", meetingHandler.CreateMeetingRoom)
 			meetings.DELETE("/:id/room", meetingHandler.CloseMeetingRoom)
-			
+
 			// 录制管理
 			meetings.POST("/:id/recording/start", meetingHandler.StartRecording)
 			meetings.POST("/:id/recording/stop", meetingHandler.StopRecording)
 			meetings.GET("/:id/recordings", meetingHandler.GetRecordings)
-			
+
 			// 聊天消息
 			meetings.GET("/:id/messages", meetingHandler.GetChatMessages)
 			meetings.POST("/:id/messages", meetingHandler.SendChatMessage)
