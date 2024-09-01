@@ -1,0 +1,59 @@
+# Docker环境配置文件
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "release"
+  read_timeout: 60
+  write_timeout: 60
+
+database:
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  timezone: "Asia/Shanghai"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+
+mongodb:
+  host: "mongodb"
+  port: 27017
+  username: "admin"
+  password: "password"
+  database: "meeting_system"
+  auth_source: "admin"
+
+minio:
+  endpoint: "minio:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "meeting-files"
+  use_ssl: false
+
+jwt:
+  secret: "your-secret-key-change-in-production"
+  expires_in: 86400  # 24小时
+  refresh_expires_in: 604800  # 7天
+
+zmq:
+  unit_manager_address: "tcp://unit-manager:5001"
+  timeout: 5000
+
+log:
+  level: "info"
+  filename: "logs/app.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true

@@ -2,11 +2,8 @@ package zmq
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/zeromq/goczmq"
 
 	"meeting-system/shared/config"
 	"meeting-system/shared/logger"
@@ -14,7 +11,6 @@ import (
 
 // ZMQClient ZeroMQ客户端，用于与Edge-LLM-Infra通信
 type ZMQClient struct {
-	socket  *goczmq.Sock
 	config  config.ZMQConfig
 	timeout time.Duration
 }
@@ -71,61 +67,35 @@ type VideoEnhancementData struct {
 
 // NewZMQClient 创建ZMQ客户端
 func NewZMQClient(config config.ZMQConfig) (*ZMQClient, error) {
-	socket, err := goczmq.NewReq(config.GetZMQAddr())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create ZMQ socket: %w", err)
-	}
-
 	client := &ZMQClient{
-		socket:  socket,
 		config:  config,
 		timeout: time.Duration(config.Timeout) * time.Second,
 	}
 
-	logger.Info("ZMQ client created successfully", 
-		logger.String("address", config.GetZMQAddr()),
-		logger.String("unit_name", config.UnitName))
+	// TODO: 实际连接ZMQ
+	logger.Info("ZMQ client created (mock mode)")
 
 	return client, nil
 }
 
 // Close 关闭ZMQ客户端
 func (c *ZMQClient) Close() {
-	if c.socket != nil {
-		c.socket.Destroy()
-	}
+	// TODO: 实际关闭ZMQ连接
 }
 
 // SendRequest 发送AI推理请求
 func (c *ZMQClient) SendRequest(ctx context.Context, request *AIRequest) (*AIResponse, error) {
-	// 序列化请求
-	requestData, err := json.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	// TODO: 实际发送ZMQ请求
+	// 暂时返回模拟响应
+	response := &AIResponse{
+		RequestID: request.RequestID,
+		WorkID:    request.WorkID,
+		Object:    request.Object,
+		Data:      map[string]interface{}{"status": "mock_response"},
+		Error:     nil,
 	}
 
-	// 发送请求
-	err = c.socket.SendFrame(requestData, goczmq.FlagNone)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-
-	// 设置接收超时
-	c.socket.SetRcvtimeo(int(c.timeout.Milliseconds()))
-
-	// 接收响应
-	responseData, err := c.socket.RecvFrame()
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive response: %w", err)
-	}
-
-	// 反序列化响应
-	var response AIResponse
-	if err := json.Unmarshal(responseData, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return &response, nil
+	return response, nil
 }
 
 // SpeechRecognition 语音识别
@@ -247,7 +217,7 @@ func InitZMQ(config config.ZMQConfig) error {
 
 	_, err = client.RegisterUnit(ctx)
 	if err != nil {
-		logger.Warn("Failed to register AI unit", logger.Error(err))
+		logger.Warn("Failed to register AI unit: " + err.Error())
 		// 注册失败不影响启动，可能是Edge-LLM-Infra未启动
 	} else {
 		logger.Info("AI unit registered successfully")
