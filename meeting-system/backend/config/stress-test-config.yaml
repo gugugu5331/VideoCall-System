@@ -1,0 +1,51 @@
+# 压力测试专用配置文件 - 使用内存数据库
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8081  # 用户服务端口
+  mode: "release"
+  read_timeout: 30
+  write_timeout: 30
+
+# 使用SQLite内存数据库进行压力测试
+database:
+  driver: "sqlite"
+  dsn: ":memory:"
+  max_idle_conns: 50
+  max_open_conns: 200
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 1
+  pool_size: 100
+
+# MongoDB配置
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "meeting_system_stress_test"
+
+# JWT配置
+jwt:
+  secret: "stress-test-secret-key-12345"
+  expire_time: 24
+
+# 日志配置
+log:
+  level: "info"  # 显示详细日志用于调试
+  filename: "./logs/stress-test.log"
+  max_size: 100
+  max_backups: 3
+  max_age: 7
+  compress: true
+
+# MinIO配置 - 可选
+minio:
+  endpoint: "localhost:9000"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  bucket: "meeting-system-test"
+  use_ssl: false
