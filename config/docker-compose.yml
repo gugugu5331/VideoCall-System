@@ -11,7 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ../core/database/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - videocall_network
 
