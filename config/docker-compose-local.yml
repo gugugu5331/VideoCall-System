@@ -1,0 +1,35 @@
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: videocall_postgres
+    environment:
+      POSTGRES_DB: videocall
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: videocall123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - videocall_network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: videocall_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - videocall_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  videocall_network:
+    driver: bridge
