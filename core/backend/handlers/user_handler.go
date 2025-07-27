@@ -13,14 +13,14 @@ import (
 
 // UserHandler 用户处理器
 type UserHandler struct {
-	db         *gorm.DB
+	db          *gorm.DB
 	authService *auth.AuthService
 }
 
 // NewUserHandler 创建用户处理器
 func NewUserHandler() *UserHandler {
 	return &UserHandler{
-		db:         DB,
+		db:          DB,
 		authService: auth.NewAuthService(Config),
 	}
 }
@@ -55,7 +55,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request data",
+			"error":   "Invalid request data",
 			"details": err.Error(),
 		})
 		return
@@ -105,12 +105,13 @@ func (h *UserHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
 		"message": "User registered successfully",
 		"user": gin.H{
-			"id":       user.ID,
-			"uuid":     user.UUID,
-			"username": user.Username,
-			"email":    user.Email,
+			"id":        user.ID,
+			"uuid":      user.UUID,
+			"username":  user.Username,
+			"email":     user.Email,
 			"full_name": user.FullName,
 		},
 	})
@@ -201,14 +202,15 @@ func (h *UserHandler) Login(c *gin.Context) {
 	h.db.Model(&user).Update("last_login", time.Now())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"token":   token,
+		"success":       true,
+		"message":       "Login successful",
+		"token":         token,
 		"refresh_token": refreshToken,
 		"user": gin.H{
-			"id":       user.ID,
-			"uuid":     user.UUID,
-			"username": user.Username,
-			"email":    user.Email,
+			"id":        user.ID,
+			"uuid":      user.UUID,
+			"username":  user.Username,
+			"email":     user.Email,
 			"full_name": user.FullName,
 		},
 	})
@@ -243,14 +245,14 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":        user.ID,
-			"uuid":      user.UUID,
-			"username":  user.Username,
-			"email":     user.Email,
-			"full_name": user.FullName,
+			"id":         user.ID,
+			"uuid":       user.UUID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"full_name":  user.FullName,
 			"avatar_url": user.AvatarURL,
-			"phone":     user.Phone,
-			"status":    user.Status,
+			"phone":      user.Phone,
+			"status":     user.Status,
 			"last_login": user.LastLogin,
 			"created_at": user.CreatedAt,
 		},
@@ -314,4 +316,44 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profile updated successfully",
 	})
-} 
+}
+
+// ValidateToken 验证token
+// @Summary 验证token
+// @Description 验证JWT token的有效性
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Router /auth/validate [get]
+func (h *UserHandler) ValidateToken(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid token",
+		})
+		return
+	}
+
+	// 获取用户信息
+	var user models.User
+	if err := h.db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"user": gin.H{
+			"id":        user.ID,
+			"uuid":      user.UUID,
+			"username":  user.Username,
+			"email":     user.Email,
+			"full_name": user.FullName,
+		},
+	})
+}

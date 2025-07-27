@@ -28,6 +28,12 @@ func SetupRoutes(r *gin.Engine) {
 		authenticated := v1.Group("/")
 		authenticated.Use(middleware.AuthMiddleware())
 		{
+			// Token验证
+			auth := authenticated.Group("/auth")
+			{
+				auth.GET("/validate", userHandler.ValidateToken)
+			}
+
 			// 用户相关
 			user := authenticated.Group("/user")
 			{
@@ -63,7 +69,7 @@ func SetupRoutes(r *gin.Engine) {
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status": "ok",
+			"status":  "ok",
 			"message": "VideoCall Backend is running",
 		})
 	})
@@ -76,4 +82,4 @@ func SetupRoutes(r *gin.Engine) {
 			"docs":    "/swagger/index.html",
 		})
 	})
-} 
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .form-group { margin: 10px 0; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .result { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>登录测试</h1>
+    
+    <div class="form-group">
+        <label>用户名:</label>
+        <input type="text" id="username" value="webuser">
+    </div>
+    
+    <div class="form-group">
+        <label>密码:</label>
+        <input type="password" id="password" value="test123">
+    </div>
+    
+    <button onclick="testLogin()">测试登录</button>
+    
+    <div id="result" class="result"></div>
+    
+    <script>
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                resultDiv.innerHTML = '正在登录...';
+                
+                const response = await fetch('http://localhost:8000/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3>登录成功!</h3>
+                        <p>用户: ${data.user.username}</p>
+                        <p>邮箱: ${data.user.email}</p>
+                        <p>Token: ${data.token.substring(0, 50)}...</p>
+                    `;
+                    resultDiv.style.backgroundColor = '#d4edda';
+                } else {
+                    resultDiv.innerHTML = `<h3>登录失败</h3><p>${data.message || '未知错误'}</p>`;
+                    resultDiv.style.backgroundColor = '#f8d7da';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<h3>网络错误</h3><p>${error.message}</p>`;
+                resultDiv.style.backgroundColor = '#f8d7da';
+            }
+        }
+    </script>
+</body>
+</html> 

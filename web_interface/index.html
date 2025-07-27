@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音视频通话系统</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- 登录界面 -->
+        <div id="loginPage" class="page active">
+            <div class="login-container">
+                <div class="login-card">
+                    <div class="login-header">
+                        <i class="fas fa-video"></i>
+                        <h1>音视频通话系统</h1>
+                        <p>安全、高效的视频通话平台</p>
+                    </div>
+                    
+                    <form id="loginForm" class="login-form">
+                        <div class="form-group">
+                            <label for="username">
+                                <i class="fas fa-user"></i>
+                                用户名
+                            </label>
+                            <input type="text" id="username" name="username" required placeholder="请输入用户名">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="password">
+                                <i class="fas fa-lock"></i>
+                                密码
+                            </label>
+                            <input type="password" id="password" name="password" required placeholder="请输入密码">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-sign-in-alt"></i>
+                                登录
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="showRegister()">
+                                <i class="fas fa-user-plus"></i>
+                                注册
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="loginStatus" class="status-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 注册界面 -->
+        <div id="registerPage" class="page">
+            <div class="login-container">
+                <div class="login-card">
+                    <div class="login-header">
+                        <i class="fas fa-user-plus"></i>
+                        <h1>用户注册</h1>
+                        <p>创建您的账户</p>
+                    </div>
+                    
+                    <form id="registerForm" class="login-form">
+                        <div class="form-group">
+                            <label for="regUsername">
+                                <i class="fas fa-user"></i>
+                                用户名
+                            </label>
+                            <input type="text" id="regUsername" name="username" required placeholder="请输入用户名">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="regEmail">
+                                <i class="fas fa-envelope"></i>
+                                邮箱
+                            </label>
+                            <input type="email" id="regEmail" name="email" required placeholder="请输入邮箱">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="regPassword">
+                                <i class="fas fa-lock"></i>
+                                密码
+                            </label>
+                            <input type="password" id="regPassword" name="password" required placeholder="请输入密码">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="confirmPassword">
+                                <i class="fas fa-lock"></i>
+                                确认密码
+                            </label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="请再次输入密码">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus"></i>
+                                注册
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="showLogin()">
+                                <i class="fas fa-arrow-left"></i>
+                                返回登录
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="registerStatus" class="status-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <div id="mainPage" class="page">
+            <div class="main-container">
+                <!-- 侧边栏 -->
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <div class="user-info">
+                            <div class="avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="user-details">
+                                <h3 id="currentUser">用户</h3>
+                                <span class="status online">在线</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <nav class="sidebar-nav">
+                        <a href="#" class="nav-item active" data-tab="dashboard">
+                            <i class="fas fa-home"></i>
+                            <span>仪表板</span>
+                        </a>
+                        <a href="#" class="nav-item" data-tab="calls">
+                            <i class="fas fa-phone"></i>
+                            <span>通话</span>
+                        </a>
+                        <a href="#" class="nav-item" data-tab="contacts">
+                            <i class="fas fa-address-book"></i>
+                            <span>联系人</span>
+                        </a>
+                        <a href="#" class="nav-item" data-tab="history">
+                            <i class="fas fa-history"></i>
+                            <span>通话记录</span>
+                        </a>
+                        <a href="#" class="nav-item" data-tab="security">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>安全检测</span>
+                        </a>
+                        <a href="#" class="nav-item" data-tab="settings">
+                            <i class="fas fa-cog"></i>
+                            <span>设置</span>
+                        </a>
+                    </nav>
+                    
+                    <div class="sidebar-footer">
+                        <button class="btn btn-logout" onclick="logout()">
+                            <i class="fas fa-sign-out-alt"></i>
+                            退出登录
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 主内容区域 -->
+                <div class="main-content">
+                    <!-- 顶部工具栏 -->
+                    <div class="toolbar">
+                        <div class="toolbar-left">
+                            <h2 id="pageTitle">仪表板</h2>
+                        </div>
+                        <div class="toolbar-right">
+                            <button class="btn btn-primary" onclick="startNewCall()">
+                                <i class="fas fa-phone"></i>
+                                发起通话
+                            </button>
+                            <div class="connection-status">
+                                <span class="status-indicator online"></span>
+                                <span>已连接</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 内容区域 -->
+                    <div class="content-area">
+                        <!-- 仪表板 -->
+                        <div id="dashboardTab" class="tab-content active">
+                            <div class="dashboard-grid">
+                                <div class="dashboard-card">
+                                    <div class="card-header">
+                                        <i class="fas fa-phone"></i>
+                                        <h3>快速通话</h3>
+                                    </div>
+                                    <div class="card-content">
+                                        <input type="text" id="callTarget" placeholder="输入用户名或ID">
+                                        <button class="btn btn-primary" onclick="quickCall()">
+                                            <i class="fas fa-phone"></i>
+                                            立即通话
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="dashboard-card">
+                                    <div class="card-header">
+                                        <i class="fas fa-shield-alt"></i>
+                                        <h3>安全状态</h3>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="security-status">
+                                            <span class="status-badge safe">安全</span>
+                                            <p>系统运行正常</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="dashboard-card">
+                                    <div class="card-header">
+                                        <i class="fas fa-chart-line"></i>
+                                        <h3>系统状态</h3>
+                                    </div>
+                                    <div class="card-content">
+                                        <div class="system-stats">
+                                            <div class="stat-item">
+                                                <span class="stat-label">后端服务</span>
+                                                <span class="stat-value" id="backendStatus">正常</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-label">AI服务</span>
+                                                <span class="stat-value" id="aiStatus">正常</span>
+                                            </div>
+                                            <div class="stat-item">
+                                                <span class="stat-label">数据库</span>
+                                                <span class="stat-value" id="dbStatus">正常</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 通话界面 -->
+                        <div id="callsTab" class="tab-content">
+                            <div class="calls-container">
+                                <div class="calls-header">
+                                    <h3>通话管理</h3>
+                                    <button class="btn btn-primary" onclick="startNewCall()">
+                                        <i class="fas fa-plus"></i>
+                                        新建通话
+                                    </button>
+                                </div>
+                                
+                                <div class="calls-list" id="callsList">
+                                    <!-- 通话列表将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 联系人 -->
+                        <div id="contactsTab" class="tab-content">
+                            <div class="contacts-container">
+                                <div class="contacts-header">
+                                    <h3>联系人</h3>
+                                    <button class="btn btn-primary" onclick="addContact()">
+                                        <i class="fas fa-plus"></i>
+                                        添加联系人
+                                    </button>
+                                </div>
+                                
+                                <div class="contacts-list" id="contactsList">
+                                    <!-- 联系人列表将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 通话记录 -->
+                        <div id="historyTab" class="tab-content">
+                            <div class="history-container">
+                                <div class="history-header">
+                                    <h3>通话记录</h3>
+                                    <div class="history-filters">
+                                        <select id="historyFilter">
+                                            <option value="all">全部</option>
+                                            <option value="incoming">来电</option>
+                                            <option value="outgoing">去电</option>
+                                            <option value="missed">未接</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="history-list" id="historyList">
+                                    <!-- 通话记录将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 安全检测 -->
+                        <div id="securityTab" class="tab-content">
+                            <div class="security-container">
+                                <div class="security-header">
+                                    <h3>安全检测</h3>
+                                    <button class="btn btn-primary" onclick="runSecurityCheck()">
+                                        <i class="fas fa-shield-alt"></i>
+                                        运行检测
+                                    </button>
+                                </div>
+                                
+                                <div class="security-results" id="securityResults">
+                                    <!-- 安全检测结果将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 设置 -->
+                        <div id="settingsTab" class="tab-content">
+                            <div class="settings-container">
+                                <div class="settings-header">
+                                    <h3>系统设置</h3>
+                                </div>
+                                
+                                <div class="settings-content">
+                                    <div class="setting-group">
+                                        <h4>音频设置</h4>
+                                        <div class="setting-item">
+                                            <label>输入设备</label>
+                                            <select id="audioInput">
+                                                <option value="">选择麦克风</option>
+                                            </select>
+                                        </div>
+                                        <div class="setting-item">
+                                            <label>输出设备</label>
+                                            <select id="audioOutput">
+                                                <option value="">选择扬声器</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-group">
+                                        <h4>视频设置</h4>
+                                        <div class="setting-item">
+                                            <label>摄像头</label>
+                                            <select id="videoInput">
+                                                <option value="">选择摄像头</option>
+                                            </select>
+                                        </div>
+                                        <div class="setting-item">
+                                            <label>视频质量</label>
+                                            <select id="videoQuality">
+                                                <option value="low">低质量</option>
+                                                <option value="medium" selected>中等质量</option>
+                                                <option value="high">高质量</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-group">
+                                        <h4>安全设置</h4>
+                                        <div class="setting-item">
+                                            <label>
+                                                <input type="checkbox" id="enableSecurity" checked>
+                                                启用安全检测
+                                            </label>
+                                        </div>
+                                        <div class="setting-item">
+                                            <label>
+                                                <input type="checkbox" id="enableRecording">
+                                                允许通话录制
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 通话界面 -->
+        <div id="callPage" class="page">
+            <div class="call-container">
+                <div class="call-header">
+                    <div class="call-info">
+                        <h2 id="callTitle">正在通话</h2>
+                        <p id="callDuration">00:00</p>
+                    </div>
+                    <div class="call-controls">
+                        <button class="btn btn-danger" onclick="endCall()">
+                            <i class="fas fa-phone-slash"></i>
+                            结束通话
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="call-content">
+                    <div class="video-container">
+                        <div class="remote-video">
+                            <video id="remoteVideo" autoplay muted></video>
+                            <div class="video-overlay">
+                                <span id="remoteUser">对方用户</span>
+                            </div>
+                        </div>
+                        <div class="local-video">
+                            <video id="localVideo" autoplay muted></video>
+                        </div>
+                    </div>
+                    
+                    <div class="call-controls-bottom">
+                        <button class="btn btn-control" onclick="toggleMute()" id="muteBtn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button class="btn btn-control" onclick="toggleVideo()" id="videoBtn">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button class="btn btn-control" onclick="toggleFullscreen()">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                        <button class="btn btn-control" onclick="takeScreenshot()">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
