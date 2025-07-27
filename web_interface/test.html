@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>智能视频通话系统 - 前端功能测试</h1>
+    
+    <div class="test-section">
+        <h2>浏览器兼容性测试</h2>
+        <div id="browser-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>API连接测试</h2>
+        <button onclick="testBackendAPI()">测试后端API</button>
+        <button onclick="testAIService()">测试AI服务</button>
+        <div id="api-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>媒体设备测试</h2>
+        <button onclick="testMediaDevices()">测试摄像头和麦克风</button>
+        <div id="media-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>WebRTC测试</h2>
+        <button onclick="testWebRTC()">测试WebRTC支持</button>
+        <div id="webrtc-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>本地存储测试</h2>
+        <button onclick="testLocalStorage()">测试本地存储</button>
+        <div id="storage-tests"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>测试结果</h2>
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        // 测试结果存储
+        let testResults = {};
+
+        // 添加测试结果
+        function addTestResult(category, test, result, message) {
+            if (!testResults[category]) {
+                testResults[category] = {};
+            }
+            testResults[category][test] = { result, message };
+            updateTestDisplay();
+        }
+
+        // 更新测试显示
+        function updateTestDisplay() {
+            const resultsDiv = document.getElementById('test-results');
+            let html = '<h3>测试摘要</h3>';
+            
+            for (const category in testResults) {
+                html += `<h4>${category}</h4>`;
+                for (const test in testResults[category]) {
+                    const { result, message } = testResults[category][test];
+                    const className = result ? 'success' : 'error';
+                    const status = result ? '✓ 通过' : '✗ 失败';
+                    html += `<p class="${className}">${test}: ${status} - ${message}</p>`;
+                }
+            }
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        // 浏览器兼容性测试
+        function runBrowserTests() {
+            const testsDiv = document.getElementById('browser-tests');
+            let html = '';
+
+            // 检查ES6支持
+            const es6Supported = (() => {
+                try {
+                    new Function('(a = 0) => a');
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            })();
+            addTestResult('浏览器', 'ES6支持', es6Supported, es6Supported ? '支持ES6语法' : '不支持ES6语法');
+
+            // 检查WebSocket支持
+            const wsSupported = 'WebSocket' in window;
+            addTestResult('浏览器', 'WebSocket支持', wsSupported, wsSupported ? '支持WebSocket' : '不支持WebSocket');
+
+            // 检查LocalStorage支持
+            const storageSupported = (() => {
+                try {
+                    localStorage.setItem('test', 'test');
+                    localStorage.removeItem('test');
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            })();
+            addTestResult('浏览器', 'LocalStorage支持', storageSupported, storageSupported ? '支持LocalStorage' : '不支持LocalStorage');
+
+            // 检查Fetch API
+            const fetchSupported = 'fetch' in window;
+            addTestResult('浏览器', 'Fetch API支持', fetchSupported, fetchSupported ? '支持Fetch API' : '不支持Fetch API');
+
+            html = `
+                <p class="${es6Supported ? 'success' : 'error'}">ES6支持: ${es6Supported ? '✓' : '✗'}</p>
+                <p class="${wsSupported ? 'success' : 'error'}">WebSocket支持: ${wsSupported ? '✓' : '✗'}</p>
+                <p class="${storageSupported ? 'success' : 'error'}">LocalStorage支持: ${storageSupported ? '✓' : '✗'}</p>
+                <p class="${fetchSupported ? 'success' : 'error'}">Fetch API支持: ${fetchSupported ? '✓' : '✗'}</p>
+            `;
+            testsDiv.innerHTML = html;
+        }
+
+        // API连接测试
+        async function testBackendAPI() {
+            const testsDiv = document.getElementById('api-tests');
+            testsDiv.innerHTML = '<p>正在测试后端API连接...</p>';
+
+            try {
+                const response = await fetch('http://localhost:8080/health');
+                const data = await response.json();
+                const success = response.ok;
+                addTestResult('API', '后端服务', success, success ? '后端服务正常' : '后端服务异常');
+                testsDiv.innerHTML = `<p class="${success ? 'success' : 'error'}">后端API: ${success ? '✓ 连接成功' : '✗ 连接失败'}</p>`;
+            } catch (error) {
+                addTestResult('API', '后端服务', false, '无法连接到后端服务');
+                testsDiv.innerHTML = `<p class="error">后端API: ✗ 连接失败 - ${error.message}</p>`;
+            }
+        }
+
+        async function testAIService() {
+            const testsDiv = document.getElementById('api-tests');
+            const currentContent = testsDiv.innerHTML;
+            testsDiv.innerHTML = currentContent + '<p>正在测试AI服务连接...</p>';
+
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                const success = response.ok;
+                addTestResult('API', 'AI服务', success, success ? 'AI服务正常' : 'AI服务异常');
+                testsDiv.innerHTML = currentContent + `<p class="${success ? 'success' : 'error'}">AI服务: ${success ? '✓ 连接成功' : '✗ 连接失败'}</p>`;
+            } catch (error) {
+                addTestResult('API', 'AI服务', false, '无法连接到AI服务');
+                testsDiv.innerHTML = currentContent + `<p class="error">AI服务: ✗ 连接失败 - ${error.message}</p>`;
+            }
+        }
+
+        // 媒体设备测试
+        async function testMediaDevices() {
+            const testsDiv = document.getElementById('media-tests');
+            testsDiv.innerHTML = '<p>正在测试媒体设备...</p>';
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                addTestResult('媒体设备', 'getUserMedia支持', false, '浏览器不支持getUserMedia API');
+                testsDiv.innerHTML = '<p class="error">媒体设备: ✗ 不支持getUserMedia API</p>';
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const videoTracks = stream.getVideoTracks();
+                const audioTracks = stream.getAudioTracks();
+                
+                const hasVideo = videoTracks.length > 0;
+                const hasAudio = audioTracks.length > 0;
+                
+                addTestResult('媒体设备', '摄像头', hasVideo, hasVideo ? '检测到摄像头' : '未检测到摄像头');
+                addTestResult('媒体设备', '麦克风', hasAudio, hasAudio ? '检测到麦克风' : '未检测到麦克风');
+                
+                // 停止媒体流
+                stream.getTracks().forEach(track => track.stop());
+                
+                testsDiv.innerHTML = `
+                    <p class="${hasVideo ? 'success' : 'warning'}">摄像头: ${hasVideo ? '✓ 可用' : '⚠ 不可用'}</p>
+                    <p class="${hasAudio ? 'success' : 'warning'}">麦克风: ${hasAudio ? '✓ 可用' : '⚠ 不可用'}</p>
+                `;
+            } catch (error) {
+                addTestResult('媒体设备', '权限', false, '无法获取媒体设备权限');
+                testsDiv.innerHTML = `<p class="error">媒体设备: ✗ 权限被拒绝 - ${error.message}</p>`;
+            }
+        }
+
+        // WebRTC测试
+        function testWebRTC() {
+            const testsDiv = document.getElementById('webrtc-tests');
+            
+            const rtcSupported = 'RTCPeerConnection' in window;
+            const rtcSessionDescription = 'RTCSessionDescription' in window;
+            const rtcIceCandidate = 'RTCIceCandidate' in window;
+            
+            addTestResult('WebRTC', 'RTCPeerConnection', rtcSupported, rtcSupported ? '支持RTCPeerConnection' : '不支持RTCPeerConnection');
+            addTestResult('WebRTC', 'RTCSessionDescription', rtcSessionDescription, rtcSessionDescription ? '支持RTCSessionDescription' : '不支持RTCSessionDescription');
+            addTestResult('WebRTC', 'RTCIceCandidate', rtcIceCandidate, rtcIceCandidate ? '支持RTCIceCandidate' : '不支持RTCIceCandidate');
+            
+            testsDiv.innerHTML = `
+                <p class="${rtcSupported ? 'success' : 'error'}">RTCPeerConnection: ${rtcSupported ? '✓ 支持' : '✗ 不支持'}</p>
+                <p class="${rtcSessionDescription ? 'success' : 'error'}">RTCSessionDescription: ${rtcSessionDescription ? '✓ 支持' : '✗ 不支持'}</p>
+                <p class="${rtcIceCandidate ? 'success' : 'error'}">RTCIceCandidate: ${rtcIceCandidate ? '✓ 支持' : '✗ 不支持'}</p>
+            `;
+        }
+
+        // 本地存储测试
+        function testLocalStorage() {
+            const testsDiv = document.getElementById('storage-tests');
+            
+            try {
+                localStorage.setItem('test_key', 'test_value');
+                const retrieved = localStorage.getItem('test_key');
+                localStorage.removeItem('test_key');
+                
+                const success = retrieved === 'test_value';
+                addTestResult('存储', 'LocalStorage读写', success, success ? 'LocalStorage读写正常' : 'LocalStorage读写异常');
+                
+                testsDiv.innerHTML = `<p class="${success ? 'success' : 'error'}">LocalStorage: ${success ? '✓ 正常' : '✗ 异常'}</p>`;
+            } catch (error) {
+                addTestResult('存储', 'LocalStorage', false, 'LocalStorage不可用');
+                testsDiv.innerHTML = `<p class="error">LocalStorage: ✗ 不可用 - ${error.message}</p>`;
+            }
+        }
+
+        // 页面加载时运行浏览器测试
+        window.addEventListener('load', runBrowserTests);
+    </script>
+</body>
+</html> 

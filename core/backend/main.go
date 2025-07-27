@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"sync"
 	"time"
 
 	"videocall-backend/config"
@@ -53,15 +52,15 @@ var (
 func main() {
 	// 设置最大CPU核心数
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	
+
 	// 创建全局上下文
 	globalCtx, cancelFunc = context.WithCancel(context.Background())
 	defer cancelFunc()
-	
+
 	// 初始化并发控制
 	maxConcurrentRequests := int64(1000) // 最大并发请求数
 	requestLimiter = middleware.NewConcurrencyLimiter(maxConcurrentRequests)
-	
+
 	// 加载环境变量
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found")
@@ -94,9 +93,9 @@ func main() {
 	r.Use(middleware.CORS())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
-	r.Use(middleware.RateLimit(redisClient)) // 添加限流中间件
+	r.Use(middleware.RateLimit(redisClient))           // 添加限流中间件
 	r.Use(middleware.ConcurrencyLimit(requestLimiter)) // 添加并发限制中间件
-	r.Use(middleware.Metrics()) // 添加监控中间件
+	r.Use(middleware.Metrics())                        // 添加监控中间件
 
 	// 初始化处理器
 	handlers.InitHandlers(db, redisClient, cfg)
@@ -112,26 +111,26 @@ func main() {
 
 	// 创建HTTP服务器
 	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      r,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:           ":" + port,
+		Handler:        r,
+		ReadTimeout:    30 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		IdleTimeout:    120 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 
 	// 启动监控协程
 	go utils.StartMetricsServer(":8080")
-	
+
 	// 启动健康检查协程
 	go utils.StartHealthCheck(globalCtx, db, redisClient)
-	
+
 	// 启动连接池监控协程
 	go utils.MonitorConnectionPools(globalCtx, db, redisClient)
 
 	log.Printf("Server starting on port %s with %d CPU cores", port, runtime.NumCPU())
 	log.Printf("Max concurrent requests: %d", maxConcurrentRequests)
-	
+
 	// 优雅关闭
 	go func() {
 		<-globalCtx.Done()
@@ -146,4 +145,4 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("Failed to start server:", err)
 	}
-} 
+}

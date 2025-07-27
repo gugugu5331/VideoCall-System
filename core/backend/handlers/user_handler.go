@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"videocall-backend/auth"
@@ -13,14 +14,14 @@ import (
 
 // UserHandler 用户处理器
 type UserHandler struct {
-	db         *gorm.DB
+	db          *gorm.DB
 	authService *auth.AuthService
 }
 
 // NewUserHandler 创建用户处理器
 func NewUserHandler() *UserHandler {
 	return &UserHandler{
-		db:         DB,
+		db:          DB,
 		authService: auth.NewAuthService(Config),
 	}
 }
@@ -55,7 +56,7 @@ func (h *UserHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request data",
+			"error":   "Invalid request data",
 			"details": err.Error(),
 		})
 		return
@@ -107,10 +108,10 @@ func (h *UserHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully",
 		"user": gin.H{
-			"id":       user.ID,
-			"uuid":     user.UUID,
-			"username": user.Username,
-			"email":    user.Email,
+			"id":        user.ID,
+			"uuid":      user.UUID,
+			"username":  user.Username,
+			"email":     user.Email,
 			"full_name": user.FullName,
 		},
 	})
@@ -179,6 +180,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// 清理该用户的旧会话（可选，用于防止会话过多）
+	h.db.Where("user_id = ? AND expires_at < ?", user.ID, time.Now()).Delete(&models.UserSession{})
+
 	// 创建用户会话
 	session := models.UserSession{
 		UserID:       user.ID,
@@ -190,6 +194,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 		IsActive:     true,
 	}
 
+	// 创建会话
 	if err := h.db.Create(&session).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to create session",
@@ -201,14 +206,14 @@ func (h *UserHandler) Login(c *gin.Context) {
 	h.db.Model(&user).Update("last_login", time.Now())
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Login successful",
-		"token":   token,
+		"message":       "Login successful",
+		"token":         token,
 		"refresh_token": refreshToken,
 		"user": gin.H{
-			"id":       user.ID,
-			"uuid":     user.UUID,
-			"username": user.Username,
-			"email":    user.Email,
+			"id":        user.ID,
+			"uuid":      user.UUID,
+			"username":  user.Username,
+			"email":     user.Email,
 			"full_name": user.FullName,
 		},
 	})
@@ -243,14 +248,14 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":        user.ID,
-			"uuid":      user.UUID,
-			"username":  user.Username,
-			"email":     user.Email,
-			"full_name": user.FullName,
+			"id":         user.ID,
+			"uuid":       user.UUID,
+			"username":   user.Username,
+			"email":      user.Email,
+			"full_name":  user.FullName,
 			"avatar_url": user.AvatarURL,
-			"phone":     user.Phone,
-			"status":    user.Status,
+			"phone":      user.Phone,
+			"status":     user.Status,
 			"last_login": user.LastLogin,
 			"created_at": user.CreatedAt,
 		},
@@ -314,4 +319,62 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Profile updated successfully",
 	})
-} 
+}
+
+// SearchUsers 搜索用户
+// @Summary 搜索用户
+// @Description 根据用户名或全名搜索用户
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param query query string true "搜索关键词"
+// @Param limit query int false "返回结果数量限制" default(10)
+// @Success 200 {object} gin.H
+// @Failure 400 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Router /users/search [get]
+func (h *UserHandler) SearchUsers(c *gin.Context) {
+	query := c.Query("query")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Query parameter is required",
+		})
+		return
+	}
+
+	limit := 10
+	if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 && parsedLimit <= 50 {
+		limit = parsedLimit
+	}
+
+	// 获取当前用户ID，排除自己
+	currentUserID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User not authenticated",
+		})
+		return
+	}
+
+	var users []models.User
+	err := h.db.Where("(username ILIKE ? OR full_name ILIKE ?) AND id != ? AND status = 'active'",
+		"%"+query+"%", "%"+query+"%", currentUserID).
+		Limit(limit).
+		Select("id, uuid, username, full_name, avatar_url, status").
+		Find(&users).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to search users",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+		"count": len(users),
+	})
+}

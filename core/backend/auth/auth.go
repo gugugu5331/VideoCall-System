@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -46,7 +48,7 @@ func (as *AuthService) CheckPassword(password, hash string) bool {
 // GenerateJWT 生成JWT token
 func (as *AuthService) GenerateJWT(user *models.User) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(as.config.JWT.ExpireTime) * time.Hour)
-	
+
 	claims := &JWTClaims{
 		UserID:   user.ID,
 		UserUUID: user.UUID.String(),
@@ -109,10 +111,7 @@ func (as *AuthService) ValidateUserCredentials(username, password string, user *
 
 // 辅助函数
 func generateRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[time.Now().UnixNano()%int64(len(charset))]
-	}
-	return string(b)
-} 
+	bytes := make([]byte, length/2)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
+}

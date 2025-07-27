@@ -1,134 +1,46 @@
-# VideoCall System - Git Ignore File
+# vcpkg
+core/frontend/vcpkg/
 
-# 编译输出文件
-*.exe
-*.dll
-*.so
-*.dylib
-*.a
-*.o
-*.obj
+# 编译输出
+core/frontend/bin/
+core/frontend/release/
+core/backend/bin/
+core/backend/release/
 
-# Go编译文件
-*.test
-*.out
-go.work
+# 日志文件
+data/logs/
+*.log
 
-# Python编译文件
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+# 临时文件
+data/temp/
+*.tmp
 
-# 虚拟环境
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+# 环境变量文件
+.env
+*.env
 
 # IDE文件
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # 操作系统文件
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# 日志文件
-*.log
-logs/
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
 
-# 临时文件
-temp/
-tmp/
-*.tmp
-*.temp
+# Go缓存
+*.exe
+*.test
 
-# 环境变量文件
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# 数据库文件
-*.db
-*.sqlite
-*.sqlite3
-
-# Docker相关
-.dockerignore
-
-# 备份文件
-backup_*/
-*.bak
-*.backup
-
-# 测试输出
-test_*.json
-concurrency_test_*.json
-*.test.out
-
-# 敏感信息
-secrets/
-keys/
-*.key
-*.pem
-*.p12
-
-# 大文件
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
-# 模型文件 (如果很大)
-models/*.pth
-models/*.h5
-models/*.pb
-models/*.onnx
-
-# 音视频文件
-*.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-*.webm
-*.mp3
-*.wav
-*.flac
-*.aac
-*.ogg
-
-# 其他
+# Node.js
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log* 
+
+# Docker
+.dockerignore 

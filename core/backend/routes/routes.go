@@ -35,6 +35,12 @@ func SetupRoutes(r *gin.Engine) {
 				user.PUT("/profile", userHandler.UpdateProfile)
 			}
 
+			// 用户搜索
+			users := authenticated.Group("/users")
+			{
+				users.GET("/search", userHandler.SearchUsers)
+			}
+
 			// 通话相关
 			calls := authenticated.Group("/calls")
 			{
@@ -42,6 +48,7 @@ func SetupRoutes(r *gin.Engine) {
 				calls.POST("/end", handlers.EndCall)
 				calls.GET("/history", handlers.GetCallHistory)
 				calls.GET("/:id", handlers.GetCallDetails)
+				calls.GET("/active", handlers.GetActiveCalls)
 			}
 
 			// 安全检测相关
@@ -54,8 +61,11 @@ func SetupRoutes(r *gin.Engine) {
 		}
 	}
 
-	// WebSocket 路由
+	// WebSocket 路由（暂时不需要认证，用于测试）
 	r.GET("/ws/call/:callId", handlers.WebSocketHandler)
+
+	// 通知WebSocket路由
+	r.GET("/ws/notifications", handlers.NotificationWebSocketHandler)
 
 	// Swagger 文档
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -63,7 +73,7 @@ func SetupRoutes(r *gin.Engine) {
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status": "ok",
+			"status":  "ok",
 			"message": "VideoCall Backend is running",
 		})
 	})
@@ -76,4 +86,4 @@ func SetupRoutes(r *gin.Engine) {
 			"docs":    "/swagger/index.html",
 		})
 	})
-} 
+}

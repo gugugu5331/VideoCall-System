@@ -141,7 +141,7 @@ def main():
     # 定义需要检查的端口
     ports = [
         (8000, "Backend Service"),
-        (5001, "AI Service"),
+        (5000, "AI Service"),
         (5432, "PostgreSQL"),
         (6379, "Redis")
     ]

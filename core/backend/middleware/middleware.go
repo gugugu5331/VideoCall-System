@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
+
+	"videocall-backend/auth"
+	"videocall-backend/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -14,7 +19,7 @@ func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, Pragma, Expires")
 		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
 		if c.Request.Method == "OPTIONS" {
@@ -91,8 +96,6 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-
-
 // RequestID 请求ID中间件
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -107,26 +110,37 @@ func RequestID() gin.HandlerFunc {
 }
 
 // 辅助函数
-func validateJWT(token string) (*JWTClaims, error) {
-	// JWT验证逻辑将在auth包中实现
-	// 这里暂时返回一个模拟的验证结果，实际应该调用auth包
-	return &JWTClaims{
-		UserID:   1,
-		UserUUID: "test-uuid",
-		Username: "test-user",
-		Exp:      time.Now().Add(time.Hour).Unix(),
-	}, nil
+func validateJWT(token string) (*auth.JWTClaims, error) {
+	// 从环境变量创建配置
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			Secret:     getEnv("JWT_SECRET", "your-secret-key-here-change-in-production"),
+			ExpireTime: getEnvAsInt("JWT_EXPIRE_HOURS", 24),
+		},
+	}
+
+	// 创建认证服务实例
+	authService := auth.NewAuthService(cfg)
+	return authService.ValidateJWT(token)
+}
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func getEnvAsInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
 }
 
 func generateRequestID() string {
 	// 生成请求ID的逻辑
 	return "req-" + time.Now().Format("20060102150405")
 }
-
-// JWTClaims JWT声明结构
-type JWTClaims struct {
-	UserID   uint   `json:"user_id"`
-	UserUUID string `json:"user_uuid"`
-	Username string `json:"username"`
-	Exp      int64  `json:"exp"`
-} 
