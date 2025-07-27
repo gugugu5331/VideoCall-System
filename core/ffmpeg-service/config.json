@@ -1,0 +1,50 @@
+{
+    "compression": {
+        "target_width": 640,
+        "target_height": 480,
+        "target_fps": 30,
+        "video_bitrate": 1000000,
+        "audio_bitrate": 128000,
+        "video_codec": "libx264",
+        "audio_codec": "aac",
+        "quality": 23
+    },
+    "detection": {
+        "model_path": "models/detection.onnx",
+        "input_width": 224,
+        "input_height": 224,
+        "input_channels": 3,
+        "use_gpu": false,
+        "gpu_device_id": 0,
+        "num_threads": 4,
+        "confidence_threshold": 0.5
+    },
+    "audio": {
+        "target_sample_rate": 16000,
+        "target_channels": 1,
+        "frame_size": 1024,
+        "hop_size": 512,
+        "min_frequency": 80.0,
+        "max_frequency": 8000.0,
+        "enable_noise_reduction": true,
+        "enable_spectral_subtraction": false
+    },
+    "processing": {
+        "batch_size": 1,
+        "enable_async": false,
+        "max_queue_size": 100,
+        "drop_frames_on_overflow": true
+    },
+    "logging": {
+        "level": "INFO",
+        "output_file": "logs/ffmpeg_detection.log",
+        "max_file_size_mb": 100,
+        "max_files": 10
+    },
+    "performance": {
+        "enable_profiling": true,
+        "profile_interval_seconds": 30,
+        "memory_monitoring": true,
+        "cpu_monitoring": true
+    }
+} 
