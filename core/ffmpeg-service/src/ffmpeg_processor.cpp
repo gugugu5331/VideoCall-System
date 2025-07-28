@@ -1,514 +1,1076 @@
-#include "ffmpeg_processor.h"
-#include "detection_engine.h"
-#include "video_compressor.h"
-#include "audio_processor.h"
-#include "utils.h"
+#include "../include/ffmpeg_processor.h"
+#include <iostream>
+#include <chrono>
+#include <algorithm>
+#include <cstring>
 
 extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/frame.h>
 #include <libavutil/imgutils.h>
-#include <libswscale/swscale.h>
-#include <libswresample/swresample.h>
+#include <libavutil/samplefmt.h>
+#include <libavutil/opt.h>
 }
 
-namespace ffmpeg_detection {
+namespace ffmpeg_service {
 
-FFmpegProcessor::FFmpegProcessor()
-    : format_ctx_(nullptr)
-    , video_codec_ctx_(nullptr)
-    , audio_codec_ctx_(nullptr)
-    , sws_ctx_(nullptr)
-    , swr_ctx_(nullptr)
-    , video_stream_idx_(-1)
-    , audio_stream_idx_(-1)
-    , is_processing_(false)
-    , is_initialized_(false)
-    , should_stop_(false) {
-    
+// FFmpegProcessor 实现
+FFmpegProcessor::FFmpegProcessor() 
+    : initialized_(false), processing_(false), should_stop_(false) {
     // 初始化FFmpeg
     av_register_all();
+    avcodec_register_all();
     avformat_network_init();
-    
-    // 初始化统计信息
-    stats_ = {0, 0, 0.0, 0.0};
 }
 
 FFmpegProcessor::~FFmpegProcessor() {
-    stop_realtime_processing();
     cleanup();
+    avformat_network_deinit();
 }
 
-bool FFmpegProcessor::initialize(const std::string& model_path, const CompressionConfig& config) {
-    LOG_INFO("初始化FFmpeg处理器...");
-    
-    config_ = config;
-    
-    // 创建检测引擎
-    detection_engine_ = std::make_unique<DetectionEngine>();
-    ModelConfig model_config;
-    model_config.model_path = model_path;
-    model_config.input_width = config.target_width;
-    model_config.input_height = config.target_height;
-    model_config.use_gpu = false; // 可以根据需要启用GPU
-    
-    if (!detection_engine_->initialize(model_config)) {
-        LOG_ERROR("检测引擎初始化失败");
-        return false;
+bool FFmpegProcessor::initialize(const EncodingParams& params) {
+    if (initialized_) {
+        return true;
     }
     
-    // 创建视频压缩器
-    video_compressor_ = std::make_unique<VideoCompressor>();
-    VideoCompressionConfig video_config;
-    video_config.target_width = config.target_width;
-    video_config.target_height = config.target_height;
-    video_config.bitrate = config.video_bitrate;
-    video_config.codec = config.video_codec;
-    video_config.quality = config.quality;
-    
-    if (!video_compressor_->initialize(video_config)) {
-        LOG_ERROR("视频压缩器初始化失败");
+    try {
+        current_params_ = params;
+        
+        // 初始化各个组件
+        if (!initializeCodecs()) {
+            std::cerr << "Failed to initialize codecs" << std::endl;
+            return false;
+        }
+        
+        if (!initializeFilters()) {
+            std::cerr << "Failed to initialize filters" << std::endl;
+            return false;
+        }
+        
+        initialized_ = true;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Initialization error: " << e.what() << std::endl;
         return false;
     }
-    
-    // 创建音频处理器
-    audio_processor_ = std::make_unique<AudioProcessor>();
-    AudioProcessingConfig audio_config;
-    audio_config.target_sample_rate = 16000;
-    audio_config.target_channels = 1;
-    audio_config.enable_noise_reduction = true;
-    
-    if (!audio_processor_->initialize(audio_config)) {
-        LOG_ERROR("音频处理器初始化失败");
-        return false;
-    }
-    
-    is_initialized_ = true;
-    LOG_INFO("FFmpeg处理器初始化成功");
-    
-    return true;
 }
 
-bool FFmpegProcessor::process_input_stream(const std::string& input_url) {
-    if (!is_initialized_) {
-        LOG_ERROR("处理器未初始化");
-        return false;
+void FFmpegProcessor::cleanup() {
+    if (processing_) {
+        stopRealTimeProcessing();
     }
     
-    LOG_INFO("开始处理输入流: %s", input_url.c_str());
-    
-    // 打开输入流
-    if (avformat_open_input(&format_ctx_, input_url.c_str(), nullptr, nullptr) != 0) {
-        LOG_ERROR("无法打开输入流: %s", input_url.c_str());
-        return false;
+    if (video_processor_) {
+        video_processor_->cleanup();
     }
     
-    // 查找流信息
-    if (avformat_find_stream_info(format_ctx_, nullptr) < 0) {
-        LOG_ERROR("无法查找流信息");
-        return false;
+    if (audio_processor_) {
+        audio_processor_->cleanup();
     }
     
-    // 初始化编解码器
-    if (!initialize_codecs()) {
-        LOG_ERROR("编解码器初始化失败");
-        return false;
+    if (compressor_) {
+        compressor_->cleanup();
     }
     
-    // 开始处理
-    return process_stream();
+    initialized_ = false;
 }
 
-bool FFmpegProcessor::process_input_file(const std::string& input_file) {
-    return process_input_stream(input_file);
-}
-
-bool FFmpegProcessor::start_realtime_processing(const std::string& input_url) {
-    if (is_processing_) {
-        LOG_WARNING("已经在处理中");
+bool FFmpegProcessor::processVideoFrame(const std::vector<uint8_t>& frame_data, 
+                                       int width, int height, 
+                                       AVPixelFormat format) {
+    if (!initialized_ || !video_processor_) {
         return false;
     }
     
+    try {
+        MediaFrame frame;
+        frame.data = frame_data;
+        frame.width = width;
+        frame.height = height;
+        frame.pixel_format = format;
+        frame.timestamp = av_gettime();
+        
+        std::lock_guard<std::mutex> lock(frame_queue_mutex_);
+        frame_queue_.push(frame);
+        frame_cv_.notify_one();
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Video frame processing error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool FFmpegProcessor::processAudioFrame(const std::vector<uint8_t>& audio_data,
+                                       int sample_rate, int channels,
+                                       AVSampleFormat format) {
+    if (!initialized_ || !audio_processor_) {
+        return false;
+    }
+    
+    try {
+        MediaFrame frame;
+        frame.data = audio_data;
+        frame.sample_rate = sample_rate;
+        frame.channels = channels;
+        frame.sample_format = format;
+        frame.timestamp = av_gettime();
+        
+        std::lock_guard<std::mutex> lock(frame_queue_mutex_);
+        frame_queue_.push(frame);
+        frame_cv_.notify_one();
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Audio frame processing error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+ProcessingResult FFmpegProcessor::compressVideo(const std::vector<uint8_t>& video_data,
+                                               const EncodingParams& params) {
+    ProcessingResult result;
+    
+    if (!initialized_ || !video_processor_) {
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        result = video_processor_->compress(video_data, params);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        result.processing_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end_time - start_time).count();
+        
+        if (result.success && !video_data.empty()) {
+            result.compression_ratio = static_cast<float>(video_data.size()) / 
+                                     static_cast<float>(result.processed_data.size());
+        }
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult FFmpegProcessor::compressAudio(const std::vector<uint8_t>& audio_data,
+                                               const EncodingParams& params) {
+    ProcessingResult result;
+    
+    if (!initialized_ || !audio_processor_) {
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        result = audio_processor_->compress(audio_data, params);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        result.processing_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            end_time - start_time).count();
+        
+        if (result.success && !audio_data.empty()) {
+            result.compression_ratio = static_cast<float>(audio_data.size()) / 
+                                     static_cast<float>(result.processed_data.size());
+        }
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult FFmpegProcessor::decompressVideo(const std::vector<uint8_t>& compressed_data) {
+    if (!initialized_ || !video_processor_) {
+        ProcessingResult result;
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    return video_processor_->decompress(compressed_data);
+}
+
+ProcessingResult FFmpegProcessor::decompressAudio(const std::vector<uint8_t>& compressed_data) {
+    if (!initialized_ || !audio_processor_) {
+        ProcessingResult result;
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    return audio_processor_->decompress(compressed_data);
+}
+
+ProcessingResult FFmpegProcessor::convertVideoFormat(const std::vector<uint8_t>& video_data,
+                                                    AVPixelFormat target_format,
+                                                    int target_width, int target_height) {
+    if (!initialized_ || !video_processor_) {
+        ProcessingResult result;
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    return video_processor_->convertFormat(video_data, target_format, target_width, target_height);
+}
+
+ProcessingResult FFmpegProcessor::convertAudioFormat(const std::vector<uint8_t>& audio_data,
+                                                    AVSampleFormat target_format,
+                                                    int target_sample_rate, int target_channels) {
+    if (!initialized_ || !audio_processor_) {
+        ProcessingResult result;
+        result.error_message = "Processor not initialized";
+        return result;
+    }
+    
+    return audio_processor_->convertFormat(audio_data, target_format, target_sample_rate, target_channels);
+}
+
+void FFmpegProcessor::startRealTimeProcessing(FrameCallback video_callback,
+                                             FrameCallback audio_callback) {
+    if (processing_) {
+        return;
+    }
+    
+    video_callback_ = video_callback;
+    audio_callback_ = audio_callback;
+    processing_ = true;
     should_stop_ = false;
-    is_processing_ = true;
     
-    // 启动处理线程
-    processing_thread_ = std::thread([this, input_url]() {
-        this->processing_thread();
-    });
-    
-    return true;
+    processing_thread_ = std::thread(&FFmpegProcessor::processingLoop, this);
 }
 
-void FFmpegProcessor::stop_realtime_processing() {
-    if (!is_processing_) {
+void FFmpegProcessor::stopRealTimeProcessing() {
+    if (!processing_) {
         return;
     }
     
     should_stop_ = true;
-    cv_.notify_all();
+    frame_cv_.notify_all();
     
     if (processing_thread_.joinable()) {
         processing_thread_.join();
     }
     
-    is_processing_ = false;
+    processing_ = false;
 }
 
-void FFmpegProcessor::set_frame_callback(FrameCallback callback) {
-    frame_callback_ = callback;
-}
-
-void FFmpegProcessor::set_result_callback(ResultCallback callback) {
-    result_callback_ = callback;
-}
-
-bool FFmpegProcessor::is_processing() const {
-    return is_processing_;
-}
-
-bool FFmpegProcessor::is_initialized() const {
-    return is_initialized_;
-}
-
-FFmpegProcessor::Statistics FFmpegProcessor::get_statistics() const {
-    std::lock_guard<std::mutex> lock(stats_mutex_);
-    return stats_;
-}
-
-bool FFmpegProcessor::initialize_ffmpeg() {
-    // FFmpeg已经在构造函数中初始化
-    return true;
-}
-
-bool FFmpegProcessor::initialize_codecs() {
-    // 查找视频流
-    video_stream_idx_ = av_find_best_stream(format_ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-    if (video_stream_idx_ >= 0) {
-        AVStream* video_stream = format_ctx_->streams[video_stream_idx_];
-        const AVCodec* video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-        
-        if (!video_codec) {
-            LOG_ERROR("不支持的视频编解码器");
-            return false;
-        }
-        
-        video_codec_ctx_ = avcodec_alloc_context3(video_codec);
-        if (!video_codec_ctx_) {
-            LOG_ERROR("无法分配视频编解码器上下文");
-            return false;
-        }
-        
-        if (avcodec_parameters_to_context(video_codec_ctx_, video_stream->codecpar) < 0) {
-            LOG_ERROR("无法复制视频编解码器参数");
-            return false;
-        }
-        
-        if (avcodec_open2(video_codec_ctx_, video_codec, nullptr) < 0) {
-            LOG_ERROR("无法打开视频编解码器");
-            return false;
-        }
-        
-        LOG_INFO("视频流初始化成功: %dx%d, %d fps", 
-                video_codec_ctx_->width, video_codec_ctx_->height, 
-                video_stream->r_frame_rate.num / video_stream->r_frame_rate.den);
+void FFmpegProcessor::setEncodingParams(const EncodingParams& params) {
+    current_params_ = params;
+    
+    if (video_processor_) {
+        video_processor_->cleanup();
+        video_processor_->initialize(params);
     }
     
-    // 查找音频流
-    audio_stream_idx_ = av_find_best_stream(format_ctx_, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-    if (audio_stream_idx_ >= 0) {
-        AVStream* audio_stream = format_ctx_->streams[audio_stream_idx_];
-        const AVCodec* audio_codec = avcodec_find_decoder(audio_stream->codecpar->codec_id);
-        
-        if (!audio_codec) {
-            LOG_ERROR("不支持的音频编解码器");
-            return false;
-        }
-        
-        audio_codec_ctx_ = avcodec_alloc_context3(audio_codec);
-        if (!audio_codec_ctx_) {
-            LOG_ERROR("无法分配音频编解码器上下文");
-            return false;
-        }
-        
-        if (avcodec_parameters_to_context(audio_codec_ctx_, audio_stream->codecpar) < 0) {
-            LOG_ERROR("无法复制音频编解码器参数");
-            return false;
-        }
-        
-        if (avcodec_open2(audio_codec_ctx_, audio_codec, nullptr) < 0) {
-            LOG_ERROR("无法打开音频编解码器");
-            return false;
-        }
-        
-        LOG_INFO("音频流初始化成功: %d Hz, %d 声道", 
-                audio_codec_ctx_->sample_rate, audio_codec_ctx_->channels);
+    if (audio_processor_) {
+        audio_processor_->cleanup();
+        audio_processor_->initialize(params);
     }
-    
-    return true;
 }
 
-bool FFmpegProcessor::process_video_frame(AVFrame* frame, int64_t timestamp) {
-    if (!frame || !video_compressor_ || !detection_engine_) {
-        return false;
-    }
-    
-    Timer timer;
-    timer.start();
-    
-    // 将AVFrame转换为字节数据
-    std::vector<uint8_t> frame_data;
-    int frame_size = frame->linesize[0] * frame->height * 3; // RGB
-    frame_data.resize(frame_size);
-    
-    // 这里需要根据实际的像素格式进行转换
-    // 简化处理，假设是RGB格式
-    memcpy(frame_data.data(), frame->data[0], frame_size);
-    
-    // 压缩视频帧
-    FrameInfo frame_info;
-    frame_info.width = frame->width;
-    frame_info.height = frame->height;
-    frame_info.channels = 3;
-    frame_info.timestamp = timestamp;
-    frame_info.is_keyframe = frame->key_frame;
-    frame_info.pixel_format = "RGB";
-    
-    auto compression_result = video_compressor_->compress_frame(frame_data, frame_info);
-    
-    if (compression_result.success) {
-        // 检测伪造
-        auto detection_result = detection_engine_->detect_video_frame(
-            compression_result.compressed_data,
-            config_.target_width,
-            config_.target_height,
-            3
-        );
-        
-        timer.stop();
-        
-        // 更新统计信息
-        {
-            std::lock_guard<std::mutex> lock(stats_mutex_);
-            stats_.frames_processed++;
-            if (detection_result.is_fake) {
-                stats_.fake_detections++;
-            }
-            stats_.average_processing_time_ms = 
-                (stats_.average_processing_time_ms * (stats_.frames_processed - 1) + timer.elapsed_ms()) / stats_.frames_processed;
-            stats_.compression_ratio = compression_result.compression_ratio;
+void FFmpegProcessor::setProcessingCallback(ProcessingCallback callback) {
+    processing_callback_ = callback;
+}
+
+bool FFmpegProcessor::initializeCodecs() {
+    try {
+        // 初始化视频处理器
+        video_processor_ = std::make_unique<VideoProcessor>();
+        if (!video_processor_->initialize(current_params_)) {
+            return false;
         }
         
-        // 调用回调
-        if (frame_callback_) {
-            FrameData frame_data_callback;
-            frame_data_callback.data = compression_result.compressed_data;
-            frame_data_callback.width = config_.target_width;
-            frame_data_callback.height = config_.target_height;
-            frame_data_callback.channels = 3;
-            frame_data_callback.timestamp = timestamp;
-            frame_data_callback.is_keyframe = frame->key_frame;
-            frame_data_callback.frame_type = "video";
-            
-            frame_callback_(frame_data_callback);
+        // 初始化音频处理器
+        audio_processor_ = std::make_unique<AudioProcessor>();
+        if (!audio_processor_->initialize(current_params_)) {
+            return false;
         }
         
-        if (result_callback_) {
-            ProcessingResult result;
-            result.is_fake = detection_result.is_fake;
-            result.confidence = detection_result.confidence;
-            result.detection_type = detection_result.details;
-            result.processing_time_ms = timer.elapsed_ms();
-            result.details = "视频帧检测完成";
-            
-            result_callback_(result);
+        // 初始化压缩器
+        compressor_ = std::make_unique<MediaCompressor>();
+        if (!compressor_->initialize(current_params_)) {
+            return false;
         }
         
         return true;
-    }
-    
-    return false;
-}
-
-bool FFmpegProcessor::process_audio_frame(AVFrame* frame, int64_t timestamp) {
-    if (!frame || !audio_processor_ || !detection_engine_) {
+    } catch (const std::exception& e) {
+        std::cerr << "Codec initialization error: " << e.what() << std::endl;
         return false;
     }
-    
-    Timer timer;
-    timer.start();
-    
-    // 将音频数据转换为浮点数组
-    std::vector<float> audio_data;
-    int samples = frame->nb_samples * frame->channels;
-    audio_data.resize(samples);
-    
-    // 根据音频格式转换
-    if (frame->format == AV_SAMPLE_FMT_FLT) {
-        memcpy(audio_data.data(), frame->data[0], samples * sizeof(float));
-    } else if (frame->format == AV_SAMPLE_FMT_S16) {
-        int16_t* samples_int16 = (int16_t*)frame->data[0];
-        for (int i = 0; i < samples; i++) {
-            audio_data[i] = samples_int16[i] / 32768.0f;
-        }
-    } else {
-        LOG_WARNING("不支持的音频格式: %d", frame->format);
-        return false;
-    }
-    
-    // 处理音频
-    auto audio_result = audio_processor_->process_float_audio(
-        audio_data, frame->sample_rate, frame->channels
-    );
-    
-    if (audio_result.success) {
-        // 检测音频伪造
-        auto detection_result = detection_engine_->detect_audio_frame(
-            audio_result.processed_audio,
-            audio_processor_->get_config().target_sample_rate,
-            audio_processor_->get_config().target_channels
-        );
-        
-        timer.stop();
-        
-        // 调用回调
-        if (result_callback_) {
-            ProcessingResult result;
-            result.is_fake = detection_result.is_fake;
-            result.confidence = detection_result.confidence;
-            result.detection_type = detection_result.details;
-            result.processing_time_ms = timer.elapsed_ms();
-            result.details = "音频帧检测完成";
-            
-            result_callback_(result);
-        }
-        
-        return true;
-    }
-    
-    return false;
 }
 
-void FFmpegProcessor::processing_thread() {
-    LOG_INFO("处理线程启动");
-    
-    // 打开输入流
-    if (avformat_open_input(&format_ctx_, input_url_.c_str(), nullptr, nullptr) != 0) {
-        LOG_ERROR("无法打开输入流: %s", input_url_.c_str());
-        return;
-    }
-    
-    // 查找流信息
-    if (avformat_find_stream_info(format_ctx_, nullptr) < 0) {
-        LOG_ERROR("无法查找流信息");
-        return;
-    }
-    
-    // 初始化编解码器
-    if (!initialize_codecs()) {
-        LOG_ERROR("编解码器初始化失败");
-        return;
-    }
-    
-    // 分配帧和包
-    AVFrame* frame = av_frame_alloc();
-    AVPacket* packet = av_packet_alloc();
-    
-    if (!frame || !packet) {
-        LOG_ERROR("无法分配帧或包");
-        return;
-    }
-    
-    // 主处理循环
+bool FFmpegProcessor::initializeFilters() {
+    // 这里可以初始化视频和音频过滤器
+    // 例如：降噪、锐化、均衡器等
+    return true;
+}
+
+void FFmpegProcessor::processingLoop() {
     while (!should_stop_) {
-        int ret = av_read_frame(format_ctx_, packet);
-        if (ret < 0) {
-            if (ret == AVERROR_EOF) {
-                LOG_INFO("到达文件末尾");
+        MediaFrame frame;
+        
+        {
+            std::unique_lock<std::mutex> lock(frame_queue_mutex_);
+            frame_cv_.wait(lock, [this] { return !frame_queue_.empty() || should_stop_; });
+            
+            if (should_stop_) {
                 break;
             }
-            LOG_WARNING("读取帧失败: %d", ret);
-            continue;
-        }
-        
-        // 处理视频包
-        if (packet->stream_index == video_stream_idx_ && video_codec_ctx_) {
-            ret = avcodec_send_packet(video_codec_ctx_, packet);
-            if (ret < 0) {
-                LOG_WARNING("发送视频包失败: %d", ret);
-                av_packet_unref(packet);
-                continue;
-            }
             
-            while (ret >= 0 && !should_stop_) {
-                ret = avcodec_receive_frame(video_codec_ctx_, frame);
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-                    break;
-                } else if (ret < 0) {
-                    LOG_WARNING("接收视频帧失败: %d", ret);
-                    break;
-                }
-                
-                process_video_frame(frame, frame->pts);
-                av_frame_unref(frame);
+            if (!frame_queue_.empty()) {
+                frame = frame_queue_.front();
+                frame_queue_.pop();
             }
         }
         
-        // 处理音频包
-        if (packet->stream_index == audio_stream_idx_ && audio_codec_ctx_) {
-            ret = avcodec_send_packet(audio_codec_ctx_, packet);
-            if (ret < 0) {
-                LOG_WARNING("发送音频包失败: %d", ret);
-                av_packet_unref(packet);
-                continue;
-            }
-            
-            while (ret >= 0 && !should_stop_) {
-                ret = avcodec_receive_frame(audio_codec_ctx_, frame);
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-                    break;
-                } else if (ret < 0) {
-                    LOG_WARNING("接收音频帧失败: %d", ret);
-                    break;
-                }
-                
-                process_audio_frame(frame, frame->pts);
-                av_frame_unref(frame);
-            }
+        // 处理帧
+        if (frame.pixel_format != AV_PIX_FMT_NONE) {
+            handleVideoFrame(frame);
+        } else if (frame.sample_format != AV_SAMPLE_FMT_NONE) {
+            handleAudioFrame(frame);
         }
-        
-        av_packet_unref(packet);
     }
-    
-    // 清理
-    av_frame_free(&frame);
-    av_packet_free(&packet);
-    
-    LOG_INFO("处理线程结束");
 }
 
-void FFmpegProcessor::cleanup() {
-    if (video_codec_ctx_) {
-        avcodec_free_context(&video_codec_ctx_);
+void FFmpegProcessor::handleVideoFrame(const MediaFrame& frame) {
+    if (video_callback_) {
+        video_callback_(frame);
     }
     
-    if (audio_codec_ctx_) {
-        avcodec_free_context(&audio_codec_ctx_);
+    // 这里可以添加额外的视频处理逻辑
+    // 例如：压缩、格式转换等
+}
+
+void FFmpegProcessor::handleAudioFrame(const MediaFrame& frame) {
+    if (audio_callback_) {
+        audio_callback_(frame);
     }
     
-    if (format_ctx_) {
-        avformat_close_input(&format_ctx_);
+    // 这里可以添加额外的音频处理逻辑
+    // 例如：压缩、格式转换等
+}
+
+// VideoProcessor 实现
+VideoProcessor::VideoProcessor() 
+    : encoder_ctx_(nullptr), decoder_ctx_(nullptr), filter_ctx_(nullptr), 
+      sws_ctx_(nullptr), initialized_(false) {
+}
+
+VideoProcessor::~VideoProcessor() {
+    cleanup();
+}
+
+bool VideoProcessor::initialize(const EncodingParams& params) {
+    if (initialized_) {
+        return true;
     }
+    
+    try {
+        params_ = params;
+        
+        if (!initializeCodec()) {
+            return false;
+        }
+        
+        if (!initializeFilter()) {
+            return false;
+        }
+        
+        initialized_ = true;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Video processor initialization error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void VideoProcessor::cleanup() {
+    cleanupCodec();
     
     if (sws_ctx_) {
         sws_freeContext(sws_ctx_);
         sws_ctx_ = nullptr;
     }
     
-    if (swr_ctx_) {
-        swr_free(&swr_ctx_);
+    if (filter_ctx_) {
+        avfilter_free(filter_ctx_);
+        filter_ctx_ = nullptr;
+    }
+    
+    initialized_ = false;
+}
+
+ProcessingResult VideoProcessor::processFrame(const std::vector<uint8_t>& frame_data,
+                                             int width, int height,
+                                             AVPixelFormat format) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Video processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 创建AVFrame
+        AVFrame* frame = av_frame_alloc();
+        if (!frame) {
+            result.error_message = "Failed to allocate frame";
+            return result;
+        }
+        
+        frame->width = width;
+        frame->height = height;
+        frame->format = format;
+        
+        if (av_frame_get_buffer(frame, 0) < 0) {
+            av_frame_free(&frame);
+            result.error_message = "Failed to allocate frame buffer";
+            return result;
+        }
+        
+        // 复制数据到frame
+        if (av_image_fill_arrays(frame->data, frame->linesize, frame_data.data(),
+                                format, width, height, 1) < 0) {
+            av_frame_free(&frame);
+            result.error_message = "Failed to fill frame data";
+            return result;
+        }
+        
+        // 编码帧
+        AVPacket packet;
+        av_init_packet(&packet);
+        packet.data = nullptr;
+        packet.size = 0;
+        
+        int ret = avcodec_send_frame(encoder_ctx_, frame);
+        if (ret < 0) {
+            av_frame_free(&frame);
+            result.error_message = "Failed to send frame to encoder";
+            return result;
+        }
+        
+        ret = avcodec_receive_packet(encoder_ctx_, &packet);
+        if (ret >= 0) {
+            result.processed_data.assign(packet.data, packet.data + packet.size);
+            result.success = true;
+        }
+        
+        av_packet_unref(&packet);
+        av_frame_free(&frame);
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult VideoProcessor::compress(const std::vector<uint8_t>& video_data,
+                                         const EncodingParams& params) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Video processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 这里实现视频压缩逻辑
+        // 可以使用H.264/H.265编码器进行压缩
+        
+        // 临时实现：简单复制数据
+        result.processed_data = video_data;
+        result.success = true;
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult VideoProcessor::decompress(const std::vector<uint8_t>& compressed_data) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Video processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 这里实现视频解压缩逻辑
+        
+        // 临时实现：简单复制数据
+        result.processed_data = compressed_data;
+        result.success = true;
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult VideoProcessor::convertFormat(const std::vector<uint8_t>& video_data,
+                                              AVPixelFormat target_format,
+                                              int target_width, int target_height) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Video processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 创建源帧
+        AVFrame* src_frame = av_frame_alloc();
+        AVFrame* dst_frame = av_frame_alloc();
+        
+        if (!src_frame || !dst_frame) {
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to allocate frames";
+            return result;
+        }
+        
+        // 设置目标帧参数
+        dst_frame->width = target_width;
+        dst_frame->height = target_height;
+        dst_frame->format = target_format;
+        
+        if (av_frame_get_buffer(dst_frame, 0) < 0) {
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to allocate destination frame buffer";
+            return result;
+        }
+        
+        // 创建缩放上下文
+        SwsContext* sws_ctx = sws_getContext(
+            params_.video_width, params_.video_height, params_.video_pixel_format,
+            target_width, target_height, target_format,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+        
+        if (!sws_ctx) {
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to create scaling context";
+            return result;
+        }
+        
+        // 填充源帧数据
+        if (av_image_fill_arrays(src_frame->data, src_frame->linesize, video_data.data(),
+                                params_.video_pixel_format, params_.video_width, 
+                                params_.video_height, 1) < 0) {
+            sws_freeContext(sws_ctx);
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to fill source frame data";
+            return result;
+        }
+        
+        // 执行格式转换
+        if (sws_scale(sws_ctx, src_frame->data, src_frame->linesize, 0, params_.video_height,
+                     dst_frame->data, dst_frame->linesize) < 0) {
+            sws_freeContext(sws_ctx);
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to scale frame";
+            return result;
+        }
+        
+        // 提取转换后的数据
+        int buffer_size = av_image_get_buffer_size(target_format, target_width, target_height, 1);
+        result.processed_data.resize(buffer_size);
+        
+        if (av_image_copy_to_buffer(result.processed_data.data(), buffer_size,
+                                   dst_frame->data, dst_frame->linesize,
+                                   target_format, target_width, target_height, 1) < 0) {
+            sws_freeContext(sws_ctx);
+            av_frame_free(&src_frame);
+            av_frame_free(&dst_frame);
+            result.error_message = "Failed to copy frame data";
+            return result;
+        }
+        
+        result.success = true;
+        
+        // 清理
+        sws_freeContext(sws_ctx);
+        av_frame_free(&src_frame);
+        av_frame_free(&dst_frame);
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+bool VideoProcessor::initializeCodec() {
+    try {
+        // 查找编码器
+        const AVCodec* encoder = avcodec_find_encoder(params_.video_codec_id);
+        if (!encoder) {
+            std::cerr << "Failed to find video encoder" << std::endl;
+            return false;
+        }
+        
+        // 创建编码器上下文
+        encoder_ctx_ = avcodec_alloc_context3(encoder);
+        if (!encoder_ctx_) {
+            std::cerr << "Failed to allocate encoder context" << std::endl;
+            return false;
+        }
+        
+        // 设置编码参数
+        encoder_ctx_->width = params_.video_width;
+        encoder_ctx_->height = params_.video_height;
+        encoder_ctx_->time_base = {1, params_.video_fps};
+        encoder_ctx_->framerate = {params_.video_fps, 1};
+        encoder_ctx_->pix_fmt = params_.video_pixel_format;
+        encoder_ctx_->bit_rate = params_.video_bitrate;
+        encoder_ctx_->gop_size = params_.gop_size;
+        encoder_ctx_->max_b_frames = params_.max_b_frames;
+        
+        // 打开编码器
+        if (avcodec_open2(encoder_ctx_, encoder, nullptr) < 0) {
+            std::cerr << "Failed to open video encoder" << std::endl;
+            return false;
+        }
+        
+        // 查找解码器
+        const AVCodec* decoder = avcodec_find_decoder(params_.video_codec_id);
+        if (!decoder) {
+            std::cerr << "Failed to find video decoder" << std::endl;
+            return false;
+        }
+        
+        // 创建解码器上下文
+        decoder_ctx_ = avcodec_alloc_context3(decoder);
+        if (!decoder_ctx_) {
+            std::cerr << "Failed to allocate decoder context" << std::endl;
+            return false;
+        }
+        
+        // 打开解码器
+        if (avcodec_open2(decoder_ctx_, decoder, nullptr) < 0) {
+            std::cerr << "Failed to open video decoder" << std::endl;
+            return false;
+        }
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Video codec initialization error: " << e.what() << std::endl;
+        return false;
     }
 }
 
-} // namespace ffmpeg_detection 
+bool VideoProcessor::initializeFilter() {
+    // 这里可以初始化视频过滤器
+    // 例如：降噪、锐化等
+    return true;
+}
+
+void VideoProcessor::cleanupCodec() {
+    if (encoder_ctx_) {
+        avcodec_free_context(&encoder_ctx_);
+    }
+    
+    if (decoder_ctx_) {
+        avcodec_free_context(&decoder_ctx_);
+    }
+}
+
+// AudioProcessor 实现
+AudioProcessor::AudioProcessor() 
+    : encoder_ctx_(nullptr), decoder_ctx_(nullptr), swr_ctx_(nullptr), 
+      initialized_(false) {
+}
+
+AudioProcessor::~AudioProcessor() {
+    cleanup();
+}
+
+bool AudioProcessor::initialize(const EncodingParams& params) {
+    if (initialized_) {
+        return true;
+    }
+    
+    try {
+        params_ = params;
+        
+        if (!initializeCodec()) {
+            return false;
+        }
+        
+        if (!initializeResampler()) {
+            return false;
+        }
+        
+        initialized_ = true;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Audio processor initialization error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void AudioProcessor::cleanup() {
+    cleanupCodec();
+    
+    if (swr_ctx_) {
+        swr_free(&swr_ctx_);
+    }
+    
+    initialized_ = false;
+}
+
+ProcessingResult AudioProcessor::processFrame(const std::vector<uint8_t>& audio_data,
+                                             int sample_rate, int channels,
+                                             AVSampleFormat format) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Audio processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 创建AVFrame
+        AVFrame* frame = av_frame_alloc();
+        if (!frame) {
+            result.error_message = "Failed to allocate frame";
+            return result;
+        }
+        
+        frame->nb_samples = audio_data.size() / (av_get_bytes_per_sample(format) * channels);
+        frame->sample_rate = sample_rate;
+        frame->channels = channels;
+        frame->format = format;
+        frame->channel_layout = av_get_default_channel_layout(channels);
+        
+        if (av_frame_get_buffer(frame, 0) < 0) {
+            av_frame_free(&frame);
+            result.error_message = "Failed to allocate frame buffer";
+            return result;
+        }
+        
+        // 复制音频数据
+        memcpy(frame->data[0], audio_data.data(), audio_data.size());
+        
+        // 编码帧
+        AVPacket packet;
+        av_init_packet(&packet);
+        packet.data = nullptr;
+        packet.size = 0;
+        
+        int ret = avcodec_send_frame(encoder_ctx_, frame);
+        if (ret < 0) {
+            av_frame_free(&frame);
+            result.error_message = "Failed to send frame to encoder";
+            return result;
+        }
+        
+        ret = avcodec_receive_packet(encoder_ctx_, &packet);
+        if (ret >= 0) {
+            result.processed_data.assign(packet.data, packet.data + packet.size);
+            result.success = true;
+        }
+        
+        av_packet_unref(&packet);
+        av_frame_free(&frame);
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult AudioProcessor::compress(const std::vector<uint8_t>& audio_data,
+                                         const EncodingParams& params) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Audio processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 这里实现音频压缩逻辑
+        // 可以使用AAC、MP3等编码器进行压缩
+        
+        // 临时实现：简单复制数据
+        result.processed_data = audio_data;
+        result.success = true;
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult AudioProcessor::decompress(const std::vector<uint8_t>& compressed_data) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Audio processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 这里实现音频解压缩逻辑
+        
+        // 临时实现：简单复制数据
+        result.processed_data = compressed_data;
+        result.success = true;
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+ProcessingResult AudioProcessor::convertFormat(const std::vector<uint8_t>& audio_data,
+                                              AVSampleFormat target_format,
+                                              int target_sample_rate, int target_channels) {
+    ProcessingResult result;
+    
+    if (!initialized_) {
+        result.error_message = "Audio processor not initialized";
+        return result;
+    }
+    
+    try {
+        // 使用重采样器进行格式转换
+        if (!swr_ctx_) {
+            result.error_message = "Resampler not initialized";
+            return result;
+        }
+        
+        // 计算源音频参数
+        int src_samples = audio_data.size() / (av_get_bytes_per_sample(params_.audio_sample_format) * params_.audio_channels);
+        
+        // 计算目标音频大小
+        int dst_samples = av_rescale_rnd(swr_get_delay(swr_ctx_, params_.audio_sample_rate) + src_samples,
+                                       target_sample_rate, params_.audio_sample_rate, AV_ROUND_UP);
+        
+        // 分配目标缓冲区
+        int dst_buffer_size = av_samples_get_buffer_size(nullptr, target_channels, dst_samples,
+                                                        target_format, 0);
+        result.processed_data.resize(dst_buffer_size);
+        
+        // 执行重采样
+        uint8_t* dst_data = result.processed_data.data();
+        const uint8_t* src_data = audio_data.data();
+        
+        int samples_converted = swr_convert(swr_ctx_, &dst_data, dst_samples,
+                                          &src_data, src_samples);
+        
+        if (samples_converted < 0) {
+            result.error_message = "Failed to convert audio format";
+            return result;
+        }
+        
+        // 调整缓冲区大小
+        int actual_buffer_size = av_samples_get_buffer_size(nullptr, target_channels,
+                                                          samples_converted, target_format, 0);
+        result.processed_data.resize(actual_buffer_size);
+        result.success = true;
+        
+    } catch (const std::exception& e) {
+        result.error_message = e.what();
+    }
+    
+    return result;
+}
+
+bool AudioProcessor::initializeCodec() {
+    try {
+        // 查找编码器
+        const AVCodec* encoder = avcodec_find_encoder(params_.audio_codec_id);
+        if (!encoder) {
+            std::cerr << "Failed to find audio encoder" << std::endl;
+            return false;
+        }
+        
+        // 创建编码器上下文
+        encoder_ctx_ = avcodec_alloc_context3(encoder);
+        if (!encoder_ctx_) {
+            std::cerr << "Failed to allocate encoder context" << std::endl;
+            return false;
+        }
+        
+        // 设置编码参数
+        encoder_ctx_->sample_fmt = params_.audio_sample_format;
+        encoder_ctx_->sample_rate = params_.audio_sample_rate;
+        encoder_ctx_->channels = params_.audio_channels;
+        encoder_ctx_->channel_layout = av_get_default_channel_layout(params_.audio_channels);
+        encoder_ctx_->bit_rate = params_.audio_bitrate;
+        
+        // 打开编码器
+        if (avcodec_open2(encoder_ctx_, encoder, nullptr) < 0) {
+            std::cerr << "Failed to open audio encoder" << std::endl;
+            return false;
+        }
+        
+        // 查找解码器
+        const AVCodec* decoder = avcodec_find_decoder(params_.audio_codec_id);
+        if (!decoder) {
+            std::cerr << "Failed to find audio decoder" << std::endl;
+            return false;
+        }
+        
+        // 创建解码器上下文
+        decoder_ctx_ = avcodec_alloc_context3(decoder);
+        if (!decoder_ctx_) {
+            std::cerr << "Failed to allocate decoder context" << std::endl;
+            return false;
+        }
+        
+        // 打开解码器
+        if (avcodec_open2(decoder_ctx_, decoder, nullptr) < 0) {
+            std::cerr << "Failed to open audio decoder" << std::endl;
+            return false;
+        }
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Audio codec initialization error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+bool AudioProcessor::initializeResampler() {
+    try {
+        // 创建重采样上下文
+        swr_ctx_ = swr_alloc_set_opts(nullptr,
+                                    av_get_default_channel_layout(params_.audio_channels),
+                                    params_.audio_sample_format,
+                                    params_.audio_sample_rate,
+                                    av_get_default_channel_layout(params_.audio_channels),
+                                    params_.audio_sample_format,
+                                    params_.audio_sample_rate,
+                                    0, nullptr);
+        
+        if (!swr_ctx_) {
+            std::cerr << "Failed to allocate resampler context" << std::endl;
+            return false;
+        }
+        
+        // 初始化重采样器
+        if (swr_init(swr_ctx_) < 0) {
+            std::cerr << "Failed to initialize resampler" << std::endl;
+            return false;
+        }
+        
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Resampler initialization error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void AudioProcessor::cleanupCodec() {
+    if (encoder_ctx_) {
+        avcodec_free_context(&encoder_ctx_);
+    }
+    
+    if (decoder_ctx_) {
+        avcodec_free_context(&decoder_ctx_);
+    }
+}
+
+// MediaCompressor 实现
+MediaCompressor::MediaCompressor() : initialized_(false) {
+}
+
+MediaCompressor::~MediaCompressor() {
+    cleanup();
+}
+
+bool MediaCompressor::initialize(const EncodingParams& params) {
+    if (initialized_) {
+        return true;
+    }
+    
+    try {
+        params_ = params;
+        
+        video_processor_ = std::make_unique<VideoProcessor>();
+        audio_processor_ = std::make_unique<AudioProcessor>();
+        
+        if (!video_processor_->initialize(params) || !audio_processor_->initialize(params)) {
+            return false;
+        }
+        
+        initialized_ = true;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Media compressor initialization error: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void MediaCompressor::cleanup() {
+    if (video_processor_) {
+        video_processor_->cleanup();
+    }
+    
+    if (audio_processor_) {
+        audio_processor_->cleanup();
+    }
+    
+    initialized_ = false;
+}
+
+ProcessingResult MediaCompressor::compressVideo(const std::vector<uint8_t>& video_data,
+                                               const EncodingParams& params) {
+    if (!initialized_ || !video_processor_) {
+        ProcessingResult result;
+        result.error_message = "Media compressor not initialized";
+        return result;
+    }
+    
+    return video_processor_->compress(video_data, params);
+}
+
+ProcessingResult MediaCompressor::compressAudio(const std::vector<uint8_t>& audio_data,
+                                               const EncodingParams& params) {
+    if (!initialized_ || !audio_processor_) {
+        ProcessingResult result;
+        result.error_message = "Media compressor not initialized";
+        return result;
+    }
+    
+    return audio_processor_->compress(audio_data, params);
+}
+
+ProcessingResult MediaCompressor::decompressVideo(const std::vector<uint8_t>& compressed_data) {
+    if (!initialized_ || !video_processor_) {
+        ProcessingResult result;
+        result.error_message = "Media compressor not initialized";
+        return result;
+    }
+    
+    return video_processor_->decompress(compressed_data);
+}
+
+ProcessingResult MediaCompressor::decompressAudio(const std::vector<uint8_t>& compressed_data) {
+    if (!initialized_ || !audio_processor_) {
+        ProcessingResult result;
+        result.error_message = "Media compressor not initialized";
+        return result;
+    }
+    
+    return audio_processor_->decompress(compressed_data);
+}
+
+} // namespace ffmpeg_service 
