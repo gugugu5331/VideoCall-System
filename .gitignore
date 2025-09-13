@@ -1,0 +1,245 @@
+# 操作系统生成的文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Go相关
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Go构建输出
+/backend/services/*/main
+/backend/services/*/*.exe
+/demo/main
+/demo/*.exe
+
+# Go模块缓存
+go.sum
+
+# C++相关
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+*.out
+*.app
+
+# Qt相关
+build/
+build-*/
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+*.moc
+*.moc.cpp
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+Makefile*
+*build-*
+*.autosave
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Python虚拟环境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch模型文件
+*.pth
+*.pt
+*.pkl
+
+# TensorFlow模型文件
+*.pb
+*.h5
+saved_model/
+
+# 日志文件
+*.log
+logs/
+*.log.*
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker相关
+.dockerignore
+
+# 存储目录
+storage/media/*
+storage/uploads/*
+storage/detection/*
+!storage/media/.gitkeep
+!storage/uploads/.gitkeep
+!storage/detection/.gitkeep
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.temp
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Node.js相关（如果有前端构建）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# 测试覆盖率
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# AI模型和数据文件
+ai-detection/models/*.pth
+ai-detection/models/*.pt
+ai-detection/models/*.h5
+ai-detection/models/*.pb
+ai-detection/uploads/*
+!ai-detection/uploads/.gitkeep
+
+# 配置文件中的敏感信息
+config/production.yml
+config/secrets.yml
+
+# SSL证书
+*.pem
+*.key
+*.crt
+*.cert
+
+# 监控和性能分析
+*.prof
+*.trace
+
+# 本地开发文件
+.local/
+local/
+
+# 编译输出
+bin/
+obj/
+out/
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.vcxproj.filters
+
+# 其他
+*.pid
+*.seed
+*.pid.lock
+.nyc_output
+.grunt
+bower_components
+.lock-wscript
+.npm
+.node_repl_history
+*.tgz
+.yarn-integrity
+.env.test
+.cache
+.parcel-cache
+.next
+.nuxt
+dist
+.cache/
+.vuepress/dist
+.serverless
+.fusebox/
+.dynamodb/
+.tern-port
+
+# 特定于项目的忽略文件
+data/
+volumes/

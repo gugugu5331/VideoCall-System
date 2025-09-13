@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多人会议测试 - 视频会议系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #4facfe;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .test-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .user-window {
+            background: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid #444;
+        }
+
+        .user-window.connected {
+            border-color: #28a745;
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+
+        .user-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .user-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-offline {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-connecting {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-connected {
+            background: #28a745;
+            color: white;
+        }
+
+        .user-controls {
+            margin-bottom: 15px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .control-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #3d3d3d;
+            color: white;
+            font-size: 14px;
+        }
+
+        .control-group input:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 5px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #4facfe;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3d8bfe;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .video-area {
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 10px;
+            min-height: 200px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .local-video {
+            width: 100%;
+            height: 150px;
+            background: #000;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        .remote-videos {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .remote-video {
+            width: 100%;
+            height: 80px;
+            background: #000;
+            border-radius: 4px;
+            object-fit: cover;
+            border: 1px solid #444;
+        }
+
+        .remote-video.speaking {
+            border-color: #28a745;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+        }
+
+        .info-panel {
+            background: #3d3d3d;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .info-item {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            border-bottom: 1px solid #555;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 10px;
+        }
+
+        .instructions {
+            background: #2d2d2d;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 4px solid #4facfe;
+        }
+
+        .instructions h3 {
+            color: #4facfe;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+
+        .global-controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .global-controls .btn {
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎥 多人视频会议测试</h1>
+        <p>模拟多个用户同时加入会议，测试WebRTC多人连接功能</p>
+    </div>
+
+    <div class="instructions">
+        <h3>📋 测试说明</h3>
+        <ol>
+            <li>每个窗口代表一个独立的用户</li>
+            <li>输入不同的用户名，使用相同的会议ID</li>
+            <li>点击"加入会议"按钮连接</li>
+            <li>观察用户之间的音视频连接状态</li>
+            <li>测试摄像头、麦克风控制功能</li>
+            <li>查看实时检测和连接信息</li>
+        </ol>
+    </div>
+
+    <div class="global-controls">
+        <button class="btn btn-success" onclick="connectAllUsers()">🚀 一键连接所有用户</button>
+        <button class="btn btn-danger" onclick="disconnectAllUsers()">❌ 断开所有连接</button>
+        <button class="btn btn-primary" onclick="toggleAllCameras()">📹 切换所有摄像头</button>
+        <button class="btn btn-primary" onclick="toggleAllMicrophones()">🎤 切换所有麦克风</button>
+    </div>
+
+    <div class="test-container" id="testContainer">
+        <!-- 用户窗口将通过JavaScript动态生成 -->
+    </div>
+
+    <script>
+        // 全局变量
+        const users = [];
+        const defaultMeetingId = 'test-meeting-' + Date.now();
+        let userCounter = 1;
+
+        // 初始化测试环境
+        function initializeTest() {
+            // 创建4个用户窗口
+            for (let i = 1; i <= 4; i++) {
+                createUserWindow(i);
+            }
+        }
+
+        // 创建用户窗口
+        function createUserWindow(userIndex) {
+            const container = document.getElementById('testContainer');
+            const userWindow = document.createElement('div');
+            userWindow.className = 'user-window';
+            userWindow.id = `user-${userIndex}`;
+            
+            userWindow.innerHTML = `
+                <div class="user-header">
+                    <div class="user-title">用户 ${userIndex}</div>
+                    <div class="user-status status-offline" id="status-${userIndex}">离线</div>
+                </div>
+                
+                <div class="user-controls">
+                    <div class="control-group">
+                        <label>用户名:</label>
+                        <input type="text" id="username-${userIndex}" value="测试用户${userIndex}" placeholder="输入用户名">
+                    </div>
+                    <div class="control-group">
+                        <label>会议ID:</label>
+                        <input type="text" id="meetingId-${userIndex}" value="${defaultMeetingId}" placeholder="输入会议ID">
+                    </div>
+                    <div class="control-group">
+                        <button class="btn btn-primary" onclick="joinMeeting(${userIndex})" id="joinBtn-${userIndex}">加入会议</button>
+                        <button class="btn btn-danger" onclick="leaveMeeting(${userIndex})" id="leaveBtn-${userIndex}" disabled>离开会议</button>
+                    </div>
+                    <div class="control-group">
+                        <button class="btn btn-success" onclick="toggleCamera(${userIndex})" id="cameraBtn-${userIndex}" disabled>📹 摄像头</button>
+                        <button class="btn btn-success" onclick="toggleMicrophone(${userIndex})" id="micBtn-${userIndex}" disabled>🎤 麦克风</button>
+                    </div>
+                </div>
+                
+                <div class="video-area">
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size: 12px; color: #ccc;">主视频:</label>
+                        <select id="mainVideoSelect-${userIndex}" onchange="changeMainVideo(${userIndex})" style="margin-left: 5px; padding: 2px; background: #3d3d3d; color: white; border: 1px solid #555;">
+                            <option value="local">本地视频</option>
+                        </select>
+                    </div>
+                    <video class="local-video" id="localVideo-${userIndex}" autoplay muted playsinline></video>
+                    <div class="remote-videos" id="remoteVideos-${userIndex}">
+                        <!-- 远程视频将动态添加 -->
+                    </div>
+                </div>
+                
+                <div class="info-panel" id="infoPanel-${userIndex}">
+                    <div class="info-item">
+                        <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+                        用户窗口已创建
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(userWindow);
+            
+            // 初始化用户对象
+            const user = {
+                index: userIndex,
+                webrtcManager: null,
+                detectionManager: null,
+                isConnected: false,
+                localStream: null,
+                peerConnections: new Map(),
+                remoteStreams: new Map()
+            };
+            
+            users[userIndex] = user;
+        }
+
+        // 加入会议
+        async function joinMeeting(userIndex) {
+            const user = users[userIndex];
+            const username = document.getElementById(`username-${userIndex}`).value.trim();
+            const meetingId = document.getElementById(`meetingId-${userIndex}`).value.trim();
+            
+            if (!username || !meetingId) {
+                addInfoMessage(userIndex, '请输入用户名和会议ID', 'error');
+                return;
+            }
+            
+            try {
+                updateUserStatus(userIndex, 'connecting', '连接中...');
+                addInfoMessage(userIndex, `正在加入会议: ${meetingId}`);
+                
+                // 创建WebRTC管理器实例
+                user.webrtcManager = new WebRTCManager(userIndex);
+                user.detectionManager = new DetectionManager(userIndex);
+                
+                // 初始化
+                await user.webrtcManager.initialize();
+                user.detectionManager.initialize();
+                
+                // 加入会议
+                await user.webrtcManager.joinMeeting(username, meetingId);
+                
+                user.isConnected = true;
+                updateUserStatus(userIndex, 'connected', '已连接');
+                addInfoMessage(userIndex, `成功加入会议，用户ID: ${user.webrtcManager.currentUser.id}`);
+                
+                // 更新按钮状态
+                document.getElementById(`joinBtn-${userIndex}`).disabled = true;
+                document.getElementById(`leaveBtn-${userIndex}`).disabled = false;
+                document.getElementById(`cameraBtn-${userIndex}`).disabled = false;
+                document.getElementById(`micBtn-${userIndex}`).disabled = false;
+                
+                // 添加连接样式
+                document.getElementById(`user-${userIndex}`).classList.add('connected');
+                
+            } catch (error) {
+                console.error(`用户${userIndex}加入会议失败:`, error);
+                updateUserStatus(userIndex, 'offline', '连接失败');
+                addInfoMessage(userIndex, `连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 离开会议
+        function leaveMeeting(userIndex) {
+            const user = users[userIndex];
+            
+            if (user.webrtcManager) {
+                user.webrtcManager.leaveMeeting();
+            }
+            
+            if (user.detectionManager) {
+                user.detectionManager.toggleDetection(false);
+            }
+            
+            user.isConnected = false;
+            updateUserStatus(userIndex, 'offline', '离线');
+            addInfoMessage(userIndex, '已离开会议');
+            
+            // 更新按钮状态
+            document.getElementById(`joinBtn-${userIndex}`).disabled = false;
+            document.getElementById(`leaveBtn-${userIndex}`).disabled = true;
+            document.getElementById(`cameraBtn-${userIndex}`).disabled = true;
+            document.getElementById(`micBtn-${userIndex}`).disabled = true;
+            
+            // 移除连接样式
+            document.getElementById(`user-${userIndex}`).classList.remove('connected');
+            
+            // 清空远程视频
+            document.getElementById(`remoteVideos-${userIndex}`).innerHTML = '';
+        }
+
+        // 切换摄像头
+        async function toggleCamera(userIndex) {
+            const user = users[userIndex];
+            if (user.webrtcManager) {
+                await user.webrtcManager.toggleCamera();
+                const isEnabled = user.webrtcManager.isVideoEnabled;
+                const btn = document.getElementById(`cameraBtn-${userIndex}`);
+                btn.textContent = isEnabled ? '📹 摄像头' : '📹 摄像头(关)';
+                btn.className = isEnabled ? 'btn btn-success' : 'btn btn-danger';
+                addInfoMessage(userIndex, `摄像头${isEnabled ? '开启' : '关闭'}`);
+            }
+        }
+
+        // 切换麦克风
+        async function toggleMicrophone(userIndex) {
+            const user = users[userIndex];
+            if (user.webrtcManager) {
+                await user.webrtcManager.toggleMicrophone();
+                const isEnabled = user.webrtcManager.isAudioEnabled;
+                const btn = document.getElementById(`micBtn-${userIndex}`);
+                btn.textContent = isEnabled ? '🎤 麦克风' : '🎤 麦克风(关)';
+                btn.className = isEnabled ? 'btn btn-success' : 'btn btn-danger';
+                addInfoMessage(userIndex, `麦克风${isEnabled ? '开启' : '关闭'}`);
+            }
+        }
+
+        // 更新用户状态
+        function updateUserStatus(userIndex, status, text) {
+            const statusElement = document.getElementById(`status-${userIndex}`);
+            statusElement.className = `user-status status-${status}`;
+            statusElement.textContent = text;
+        }
+
+        // 添加信息消息
+        function addInfoMessage(userIndex, message, type = 'info') {
+            const infoPanel = document.getElementById(`infoPanel-${userIndex}`);
+            const messageElement = document.createElement('div');
+            messageElement.className = 'info-item';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            
+            messageElement.innerHTML = `
+                <span class="timestamp">${timestamp}</span>
+                ${icon} ${message}
+            `;
+            
+            infoPanel.appendChild(messageElement);
+            infoPanel.scrollTop = infoPanel.scrollHeight;
+            
+            // 限制消息数量
+            while (infoPanel.children.length > 20) {
+                infoPanel.removeChild(infoPanel.firstChild);
+            }
+        }
+
+        // 切换主视频
+        function changeMainVideo(userIndex) {
+            const user = users[userIndex];
+            const select = document.getElementById(`mainVideoSelect-${userIndex}`);
+            const selectedUserId = select.value;
+
+            if (user.webrtcManager) {
+                user.webrtcManager.selectMainVideo(selectedUserId);
+                addInfoMessage(userIndex, `切换主视频到: ${selectedUserId}`);
+            }
+        }
+
+        // 添加远程用户到主视频选择列表
+        function addUserToMainVideoSelect(userIndex, userId, userName) {
+            const select = document.getElementById(`mainVideoSelect-${userIndex}`);
+            if (select) {
+                // 检查是否已存在
+                const existingOption = select.querySelector(`option[value="${userId}"]`);
+                if (!existingOption) {
+                    const option = document.createElement('option');
+                    option.value = userId;
+                    option.textContent = userName;
+                    select.appendChild(option);
+                }
+            }
+        }
+
+        // 从主视频选择列表移除用户
+        function removeUserFromMainVideoSelect(userIndex, userId) {
+            const select = document.getElementById(`mainVideoSelect-${userIndex}`);
+            if (select) {
+                const option = select.querySelector(`option[value="${userId}"]`);
+                if (option) {
+                    option.remove();
+                }
+                // 如果当前选中的是被移除的用户，切换到本地视频
+                if (select.value === userId) {
+                    select.value = 'local';
+                    changeMainVideo(userIndex);
+                }
+            }
+        }
+
+        // 全局控制函数
+        async function connectAllUsers() {
+            for (let i = 1; i <= 4; i++) {
+                if (!users[i].isConnected) {
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 延迟避免同时连接
+                    await joinMeeting(i);
+                }
+            }
+        }
+
+        function disconnectAllUsers() {
+            for (let i = 1; i <= 4; i++) {
+                if (users[i].isConnected) {
+                    leaveMeeting(i);
+                }
+            }
+        }
+
+        async function toggleAllCameras() {
+            for (let i = 1; i <= 4; i++) {
+                if (users[i].isConnected) {
+                    await toggleCamera(i);
+                }
+            }
+        }
+
+        async function toggleAllMicrophones() {
+            for (let i = 1; i <= 4; i++) {
+                if (users[i].isConnected) {
+                    await toggleMicrophone(i);
+                }
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTest();
+            console.log('多人会议测试环境初始化完成');
+        });
+    </script>
+
+    <!-- 引入WebRTC和检测模块 -->
+    <script src="js/webrtc-multi.js"></script>
+    <script src="js/detection-multi.js"></script>
+</body>
+</html>

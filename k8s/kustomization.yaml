@@ -1,0 +1,108 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 命名空间
+namespace: video-conference
+
+# 资源文件
+resources:
+  # 基础配置
+  - base/namespace.yaml
+  - base/configmap.yaml
+  - base/secrets.yaml
+  - base/ingress.yaml
+  
+  # 存储配置
+  - storage/persistent-volumes.yaml
+  - storage/persistent-volume-claims.yaml
+  
+  # 数据库服务
+  - databases/postgres.yaml
+  - databases/mongodb.yaml
+  - databases/redis.yaml
+  - databases/rabbitmq.yaml
+  
+  # 微服务
+  - services/gateway-service.yaml
+  - services/user-service.yaml
+  - services/meeting-service.yaml
+  - services/signaling-service.yaml
+  - services/ai-detection-service.yaml
+  - services/web-client-service.yaml
+
+# 通用标签
+commonLabels:
+  app.kubernetes.io/name: video-conference
+  app.kubernetes.io/version: v1.0.0
+  app.kubernetes.io/component: microservice
+  app.kubernetes.io/part-of: video-conference-system
+  app.kubernetes.io/managed-by: kustomize
+
+# 通用注解
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+  kubernetes.io/managed-by: kustomize
+
+# 镜像标签替换
+images:
+  - name: video-conference/gateway-service
+    newTag: latest
+  - name: video-conference/user-service
+    newTag: latest
+  - name: video-conference/meeting-service
+    newTag: latest
+  - name: video-conference/signaling-service
+    newTag: latest
+  - name: video-conference/ai-detection-service
+    newTag: latest
+  - name: video-conference/web-client
+    newTag: latest
+
+# 配置生成器
+configMapGenerator:
+  - name: postgres-init-scripts
+    files:
+      - databases/init.sql
+    options:
+      disableNameSuffixHash: true
+
+# 密钥生成器
+secretGenerator:
+  - name: tls-secret
+    type: kubernetes.io/tls
+    files:
+      - tls.crt=certs/tls.crt
+      - tls.key=certs/tls.key
+    options:
+      disableNameSuffixHash: true
+
+# 补丁配置
+patchesStrategicMerge:
+  - patches/resource-limits.yaml
+  - patches/security-context.yaml
+
+# JSON补丁
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: gateway-service
+    path: patches/gateway-hpa.yaml
+
+# 变量替换
+vars:
+  - name: POSTGRES_HOST
+    objref:
+      kind: Service
+      name: postgres-service
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.name
+  - name: REDIS_HOST
+    objref:
+      kind: Service
+      name: redis-service
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.name

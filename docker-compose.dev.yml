@@ -1,0 +1,405 @@
+version: '3.8'
+
+# 开发环境配置
+# 包含热重载、调试端口、开发工具等
+
+services:
+  # 数据库服务
+  postgres:
+    image: postgres:15
+    container_name: postgres_dev
+    environment:
+      POSTGRES_DB: video_conference_dev
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./backend/deploy/sql:/docker-entrypoint-initdb.d
+    networks:
+      - backend
+
+  mongodb:
+    image: mongo:6
+    container_name: mongodb_dev
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_dev_data:/data/db
+    networks:
+      - backend
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - backend
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_dev
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_dev_data:/var/lib/rabbitmq
+    networks:
+      - backend
+
+  # 服务发现
+  consul:
+    image: consul:latest
+    container_name: consul_dev
+    ports:
+      - "8500:8500"
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0
+    networks:
+      - backend
+
+  # 开发工具
+  adminer:
+    image: adminer
+    container_name: adminer_dev
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - backend
+
+  mongo-express:
+    image: mongo-express
+    container_name: mongo_express_dev
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
+    depends_on:
+      - mongodb
+    networks:
+      - backend
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander_dev
+    ports:
+      - "8082:8081"
+    environment:
+      REDIS_HOSTS: local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - backend
+
+  # AI检测服务（开发模式）
+  ai-detection-dev:
+    build:
+      context: ./ai-detection
+      dockerfile: Dockerfile.dev
+    container_name: ai_detection_dev
+    ports:
+      - "8501:8501"
+      - "5678:5678"  # 调试端口
+    volumes:
+      - ./ai-detection:/app
+      - ./ai-detection/models:/app/models
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONPATH=/app
+    networks:
+      - backend
+
+  # 用户服务（开发模式）
+  user-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/user/Dockerfile.dev
+    container_name: user_service_dev
+    ports:
+      - "8091:8080"
+      - "2345:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=video_conference_dev
+      - DB_USER=admin
+      - DB_PASSWORD=password123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - GO_ENV=development
+    depends_on:
+      - postgres
+      - redis
+      - consul
+    networks:
+      - backend
+
+  # 会议服务（开发模式）
+  meeting-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/meeting/Dockerfile.dev
+    container_name: meeting_service_dev
+    ports:
+      - "8092:8080"
+      - "2346:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=video_conference_dev
+      - DB_USER=admin
+      - DB_PASSWORD=password123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - GO_ENV=development
+    depends_on:
+      - postgres
+      - redis
+      - consul
+    networks:
+      - backend
+
+  # 信令服务（开发模式）
+  signaling-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/signaling/Dockerfile.dev
+    container_name: signaling_service_dev
+    ports:
+      - "8093:8080"
+      - "2347:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - GO_ENV=development
+    depends_on:
+      - redis
+      - consul
+    networks:
+      - backend
+
+  # 媒体服务（开发模式）
+  media-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/media/Dockerfile.dev
+    container_name: media_service_dev
+    ports:
+      - "8094:8080"
+      - "2348:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+      - ./storage/media:/app/storage/media
+    environment:
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672/
+      - GO_ENV=development
+    depends_on:
+      - consul
+      - rabbitmq
+    networks:
+      - backend
+
+  # 检测服务（开发模式）
+  detection-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/detection/Dockerfile.dev
+    container_name: detection_service_dev
+    ports:
+      - "8095:8080"
+      - "2349:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+      - ./storage/detection:/app/storage/detection
+    environment:
+      - MONGODB_URL=mongodb://admin:password123@mongodb:27017
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672/
+      - AI_SERVICE_URL=http://ai-detection-dev:8501
+      - GO_ENV=development
+    depends_on:
+      - mongodb
+      - consul
+      - rabbitmq
+      - ai-detection-dev
+    networks:
+      - backend
+
+  # 记录服务（开发模式）
+  record-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/record/Dockerfile.dev
+    container_name: record_service_dev
+    ports:
+      - "8096:8080"
+      - "2350:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - MONGODB_URL=mongodb://admin:password123@mongodb:27017
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - GO_ENV=development
+    depends_on:
+      - mongodb
+      - consul
+    networks:
+      - backend
+
+  # 通知服务（开发模式）
+  notification-service-dev:
+    build:
+      context: ./backend
+      dockerfile: services/notification/Dockerfile.dev
+    container_name: notification_service_dev
+    ports:
+      - "8097:8080"
+      - "2351:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - RABBITMQ_URL=amqp://admin:password123@rabbitmq:5672/
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - GO_ENV=development
+    depends_on:
+      - rabbitmq
+      - consul
+    networks:
+      - backend
+
+  # API网关（开发模式）
+  gateway-dev:
+    build:
+      context: ./backend
+      dockerfile: services/gateway/Dockerfile.dev
+    container_name: gateway_dev
+    ports:
+      - "8090:8080"
+      - "2352:2345"  # Delve调试端口
+    volumes:
+      - ./backend:/app
+    environment:
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - GO_ENV=development
+    depends_on:
+      - consul
+      - redis
+    networks:
+      - backend
+      - frontend
+
+  # Nginx（开发模式）
+  nginx-dev:
+    image: nginx:alpine
+    container_name: nginx_dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./backend/deploy/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
+      - ./frontend/dist:/usr/share/nginx/html
+    depends_on:
+      - gateway-dev
+    networks:
+      - frontend
+
+  # 日志聚合
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    container_name: elasticsearch_dev
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_dev_data:/usr/share/elasticsearch/data
+    networks:
+      - backend
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.8.0
+    container_name: kibana_dev
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - backend
+
+  # 监控
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus_dev
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_dev_data:/prometheus
+    networks:
+      - backend
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana_dev
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - backend
+
+volumes:
+  postgres_dev_data:
+  mongodb_dev_data:
+  redis_dev_data:
+  rabbitmq_dev_data:
+  elasticsearch_dev_data:
+  prometheus_dev_data:
+  grafana_dev_data:
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge

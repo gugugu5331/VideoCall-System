@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: video-conference
+  labels:
+    name: video-conference
+    app: video-conference-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: video-conference-monitoring
+  labels:
+    name: video-conference-monitoring
+    app: video-conference-system

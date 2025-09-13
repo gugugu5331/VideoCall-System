@@ -1,0 +1,176 @@
+# Google Cloud GKE集成配置
+# GCP Load Balancer配置
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-conference-gcp-lb
+  namespace: video-conference
+  annotations:
+    # GCP Load Balancer配置
+    cloud.google.com/load-balancer-type: "External"
+    cloud.google.com/backend-config: '{"default": "video-conference-backendconfig"}'
+    cloud.google.com/neg: '{"ingress": true}'
+    
+    # SSL配置
+    service.beta.kubernetes.io/gcp-load-balancer-ssl-cert: "video-conference-ssl"
+    
+    # 健康检查
+    service.beta.kubernetes.io/gcp-load-balancer-health-check-path: "/health"
+    service.beta.kubernetes.io/gcp-load-balancer-health-check-port: "8080"
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 443
+    protocol: TCP
+  selector:
+    app: gateway-service
+---
+# GCP Backend Config
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: video-conference-backendconfig
+  namespace: video-conference
+spec:
+  # 健康检查配置
+  healthCheck:
+    checkIntervalSec: 30
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /health
+    port: 8080
+  
+  # 会话亲和性
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 3600
+  
+  # 连接排空
+  connectionDraining:
+    drainingTimeoutSec: 60
+  
+  # 超时配置
+  timeoutSec: 600
+  
+  # CDN配置
+  cdn:
+    enabled: true
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: false
+---
+# GCP Ingress配置
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: video-conference-gcp-ingress
+  namespace: video-conference
+  annotations:
+    # GCP Ingress配置
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "video-conference-ip"
+    ingress.gcp.kubernetes.io/managed-certificates: "video-conference-ssl"
+    
+    # 后端配置
+    cloud.google.com/backend-config: '{"default": "video-conference-backendconfig"}'
+    
+    # 负载均衡器配置
+    ingress.gcp.kubernetes.io/load-balancer-type: "External"
+    
+    # SSL重定向
+    ingress.gcp.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+  - host: your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-client-service
+            port:
+              number: 80
+  - host: api.your-domain.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: gateway-service
+            port:
+              number: 8080
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: signaling-service
+            port:
+              number: 8083
+---
+# GCP Managed Certificate
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: video-conference-ssl
+  namespace: video-conference
+spec:
+  domains:
+    - your-domain.com
+    - www.your-domain.com
+    - api.your-domain.com
+    - admin.your-domain.com
+---
+# Cloud CDN配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gcp-cdn-config
+  namespace: video-conference
+data:
+  cdn-config.yaml: |
+    # Cloud CDN配置
+    name: video-conference-cdn
+    description: "Video Conference System CDN"
+    
+    # 缓存策略
+    cacheKeyPolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: false
+      queryStringWhitelist: []
+      
+    # 缓存模式
+    cacheMode: CACHE_ALL_STATIC
+    
+    # 默认TTL
+    defaultTtl: 3600
+    maxTtl: 86400
+    clientTtl: 3600
+    
+    # 压缩
+    compressionMode: AUTOMATIC
+    
+    # 自定义响应头
+    responseHeadersToAdd:
+      - headerName: "X-Cache-Status"
+        headerValue: "HIT"
+        replace: false
+    
+    # 负缓存TTL
+    negativeCaching: true
+    negativeCachingPolicy:
+      - code: 404
+        ttl: 120
+      - code: 410
+        ttl: 120

@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling-service
+  namespace: video-conference
+  labels:
+    app: signaling-service
+spec:
+  ports:
+    - port: 8083
+      targetPort: 8083
+      name: http
+  selector:
+    app: signaling-service
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling-service
+  namespace: video-conference
+  labels:
+    app: signaling-service
+spec:
+  replicas: 3  # 信令服务需要更多实例
+  selector:
+    matchLabels:
+      app: signaling-service
+  template:
+    metadata:
+      labels:
+        app: signaling-service
+    spec:
+      containers:
+      - name: signaling-service
+        image: video-conference/signaling-service:latest
+        ports:
+        - containerPort: 8083
+          name: http
+        env:
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: video-conference-config
+              key: SIGNALING_SERVICE_PORT
+        envFrom:
+        - configMapRef:
+            name: video-conference-config
+        - secretRef:
+            name: video-conference-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "800m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8083
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8083
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        imagePullPolicy: Always
+      restartPolicy: Always
