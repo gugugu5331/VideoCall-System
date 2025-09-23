@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  video-processing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video-processing-app
+    
+    # 设备访问
+    devices:
+      - /dev/video0:/dev/video0  # 摄像头设备
+      - /dev/dri:/dev/dri        # GPU设备
+    
+    # 特权模式（用于硬件访问）
+    privileged: true
+    
+    # 环境变量
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - PULSE_RUNTIME_PATH=/run/user/1000/pulse
+    
+    # 卷挂载
+    volumes:
+      # X11显示
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.Xauthority:/home/videouser/.Xauthority:rw
+      
+      # 音频
+      - /run/user/1000/pulse:/run/user/1000/pulse:rw
+      - /var/lib/dbus:/var/lib/dbus:ro
+      
+      # 输出目录
+      - ./output:/app/output
+      - ./recordings:/app/recordings
+      - ./screenshots:/app/screenshots
+      
+      # 配置文件
+      - ./config:/app/config:ro
+      - ./assets:/app/assets:ro
+      - ./textures:/app/textures:ro
+    
+    # 网络模式
+    network_mode: host
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "pgrep", "VideoProcessing"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 依赖服务
+    depends_on:
+      - redis
+      - nginx
+    
+    # 标签
+    labels:
+      - "com.videocall.service=video-processing"
+      - "com.videocall.version=1.0.0"
+
+  # Redis缓存服务
+  redis:
+    image: redis:7-alpine
+    container_name: video-processing-redis
+    
+    ports:
+      - "6379:6379"
+    
+    volumes:
+      - redis_data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    
+    command: redis-server /usr/local/etc/redis/redis.conf
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: video-processing-nginx
+    
+    ports:
+      - "80:80"
+      - "443:443"
+    
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/ssl:/etc/nginx/ssl:ro
+      - ./web:/usr/share/nginx/html:ro
+    
+    restart: unless-stopped
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # 监控服务
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: video-processing-prometheus
+    
+    ports:
+      - "9090:9090"
+    
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    
+    restart: unless-stopped
+
+  # Grafana仪表板
+  grafana:
+    image: grafana/grafana:latest
+    container_name: video-processing-grafana
+    
+    ports:
+      - "3000:3000"
+    
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana:/etc/grafana/provisioning:ro
+    
+    restart: unless-stopped
+    
+    depends_on:
+      - prometheus
+
+# 网络配置
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# 卷定义
+volumes:
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# 扩展配置
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# 应用默认日志配置
+services:
+  video-processing:
+    logging: *default-logging
+  redis:
+    logging: *default-logging
+  nginx:
+    logging: *default-logging
+  prometheus:
+    logging: *default-logging
+  grafana:
+    logging: *default-logging
