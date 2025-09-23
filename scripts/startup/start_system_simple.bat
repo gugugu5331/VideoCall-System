@@ -9,7 +9,7 @@ echo.
 
 :: 启动数据库服务
 echo [1/3] Starting database services...
-docker-compose --project-name videocall-system -f config/docker-compose.yml up -d postgres redis
+docker-compose --project-name videocall-system -f deployment/docker/docker-compose.yml up -d postgres redis
 if %errorlevel% neq 0 (
     echo ERROR: Database services failed to start
     pause
@@ -44,8 +44,8 @@ echo - Backend service: http://localhost:8000
 echo - AI service: http://localhost:5001
 echo.
 echo Test commands:
-echo - Full test: python %~dp0\..\testing\run_all_tests.py
-echo - Quick test: python %~dp0\..\testing\test_api.py
+echo - Full test: python %~dp0\..\..\tests\api\run_all_tests.py
+echo - Quick test: python %~dp0\..\..\tests\api\test_api.py
 echo.
 echo Press any key to exit...
 pause >nul 

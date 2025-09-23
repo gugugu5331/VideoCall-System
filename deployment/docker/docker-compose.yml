@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./src/backend/deploy/sql:/docker-entrypoint-initdb.d
+      - ../../src/backend/deploy/sql:/docker-entrypoint-initdb.d
     networks:
       - backend
 
@@ -67,7 +67,7 @@ services:
   # API网关
   gateway:
     build:
-      context: ./src/backend/services/gateway
+      context: ../../src/backend/services/gateway
       dockerfile: Dockerfile
     container_name: gateway_service
     ports:
@@ -85,7 +85,7 @@ services:
   # 用户服务
   user-service:
     build:
-      context: ./src/backend/services/user
+      context: ../../src/backend/services/user
       dockerfile: Dockerfile
     container_name: user_service
     environment:
@@ -106,7 +106,7 @@ services:
   # 会议服务
   meeting-service:
     build:
-      context: ./src/backend/services/meeting
+      context: ../../src/backend/services/meeting
       dockerfile: Dockerfile
     container_name: meeting_service
     environment:
@@ -127,7 +127,7 @@ services:
   # 信令服务
   signaling-service:
     build:
-      context: ./src/backend/services/signaling
+      context: ../../src/backend/services/signaling
       dockerfile: Dockerfile
     container_name: signaling_service
     environment:
@@ -142,7 +142,7 @@ services:
   # 媒体服务
   media-service:
     build:
-      context: ./src/backend/services/media
+      context: ../../src/backend/services/media
       dockerfile: Dockerfile
     container_name: media_service
     environment:
@@ -157,7 +157,7 @@ services:
   # 检测服务
   detection-service:
     build:
-      context: ./src/backend/services/detection
+      context: ../../src/backend/services/detection
       dockerfile: Dockerfile
     container_name: detection_service
     environment:
@@ -176,7 +176,7 @@ services:
   # 记录服务
   record-service:
     build:
-      context: ./src/backend/services/record
+      context: ../../src/backend/services/record
       dockerfile: Dockerfile
     container_name: record_service
     environment:
@@ -191,7 +191,7 @@ services:
   # 通知服务
   notification-service:
     build:
-      context: ./src/backend/services/notification
+      context: ../../src/backend/services/notification
       dockerfile: Dockerfile
     container_name: notification_service
     environment:
@@ -206,13 +206,13 @@ services:
   # AI检测服务
   ai-detection:
     build:
-      context: ./src/ai-detection
+      context: ../../src/ai-detection
       dockerfile: Dockerfile
     container_name: ai_detection
     ports:
       - "8501:8501"
     volumes:
-      - ./src/ai-detection/models:/models
+      - ../../src/ai-detection/models:/models
     networks:
       - backend
 
@@ -224,8 +224,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./src/backend/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./src/backend/deploy/nginx/ssl:/etc/nginx/ssl
+      - ../../src/backend/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ../../src/backend/deploy/nginx/ssl:/etc/nginx/ssl
     depends_on:
       - gateway
     networks:

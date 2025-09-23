@@ -3,7 +3,7 @@ chcp 65001 >nul
 title VideoCall System - Quick Start
 
 echo ==========================================
-echo VideoCall System - Quick Start
+echo 🚀 VideoCall System - Quick Start
 echo ==========================================
 echo.
 
@@ -12,5 +12,5 @@ cd /d "%~dp0"
 call scripts\startup\start_system_simple.bat
 
 echo.
-echo Quick start completed!
+echo ✅ Quick start completed!
 pause
