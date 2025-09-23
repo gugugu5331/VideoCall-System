@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Unit Manager - Central coordination service
+  unit-manager:
+    build:
+      context: ./unit-manager
+      dockerfile: Dockerfile
+    container_name: edge-unit-manager
+    ports:
+      - "10001:10001"
+    volumes:
+      - ./unit-manager/master_config.json:/app/master_config.json
+      - /tmp/llm:/tmp/llm
+    networks:
+      - edge-network
+    depends_on:
+      - ai-detection
+    restart: unless-stopped
+
+  # AI Detection Node - New C++ based detection service
+  ai-detection:
+    build:
+      context: ./node/ai-detection
+      dockerfile: Dockerfile
+    container_name: edge-ai-detection
+    volumes:
+      - ./node/ai-detection/models:/app/models
+      - ./node/ai-detection/config:/app/config
+      - /tmp/llm:/tmp/llm
+      - /tmp/detection_uploads:/tmp/detection_uploads
+    networks:
+      - edge-network
+    restart: unless-stopped
+    environment:
+      - MODEL_PATH=/app/models
+      - UPLOAD_PATH=/tmp/detection_uploads
+
+  # Legacy AI Detection Service (Python) - Keep for comparison/fallback
+  ai-detection-legacy:
+    build:
+      context: ../../ai-detection
+      dockerfile: Dockerfile
+    container_name: ai-detection-legacy
+    ports:
+      - "5001:5000"
+    volumes:
+      - ../../ai-detection/models:/app/models
+      - ../../ai-detection/uploads:/app/uploads
+    networks:
+      - edge-network
+    environment:
+      - FLASK_ENV=production
+      - REDIS_HOST=redis
+      - RABBITMQ_HOST=rabbitmq
+    restart: unless-stopped
+    profiles:
+      - legacy
+
+  # Redis for caching (if needed)
+  redis:
+    image: redis:7-alpine
+    container_name: edge-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - edge-network
+    restart: unless-stopped
+    profiles:
+      - legacy
+
+  # RabbitMQ for task queuing (if needed)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: edge-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - edge-network
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    restart: unless-stopped
+    profiles:
+      - legacy
+
+networks:
+  edge-network:
+    driver: bridge
+
+volumes:
+  models:
+  uploads:
