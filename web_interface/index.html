@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能视频通话系统</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- 加载动画 -->
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>正在加载...</p>
+        </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-video"></i>
+                <span>智能视频通话</span>
+            </div>
+            <div class="nav-menu" id="nav-menu">
+                <a href="#home" class="nav-link active" data-page="home">
+                    <i class="fas fa-home"></i>
+                    <span>首页</span>
+                </a>
+                <a href="#call" class="nav-link" data-page="call">
+                    <i class="fas fa-phone"></i>
+                    <span>通话</span>
+                </a>
+                <a href="#history" class="nav-link" data-page="history">
+                    <i class="fas fa-history"></i>
+                    <span>历史</span>
+                </a>
+                <a href="#profile" class="nav-link" data-page="profile">
+                    <i class="fas fa-user"></i>
+                    <span>个人</span>
+                </a>
+            </div>
+            <div class="nav-user" id="nav-user" style="display: none;">
+                <div class="user-info">
+                    <img src="assets/default-avatar.png" alt="用户头像" class="user-avatar">
+                    <span class="user-name" id="user-name">用户名</span>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+            <div class="nav-auth" id="nav-auth">
+                <button class="auth-btn login-btn" onclick="showLoginModal()">登录</button>
+                <button class="auth-btn register-btn" onclick="showRegisterModal()">注册</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <main class="main-content">
+        <!-- 首页 -->
+        <div id="home-page" class="page active">
+            <div class="hero-section">
+                <div class="hero-content">
+                    <h1>智能视频通话系统</h1>
+                    <p>基于深度学习的音视频通话系统，具备先进的伪造检测功能，确保通话安全</p>
+                    <div class="hero-features">
+                        <div class="feature">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>AI安全检测</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-video"></i>
+                            <span>高清视频通话</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-clock"></i>
+                            <span>通话记录</span>
+                        </div>
+                    </div>
+                    <button class="cta-btn" onclick="navigateToPage('call')">
+                        <i class="fas fa-phone"></i>
+                        开始通话
+                    </button>
+                </div>
+                <div class="hero-image">
+                    <div class="video-placeholder">
+                        <i class="fas fa-video"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 通话页面 -->
+        <div id="call-page" class="page">
+            <div class="call-container">
+                <!-- 用户搜索区域 -->
+                <div class="user-search-section">
+                    <div class="search-container">
+                        <h3>搜索用户</h3>
+                        <div class="search-input-group">
+                            <input type="text" id="user-search-input" placeholder="输入用户名或姓名搜索..." 
+                                   onkeyup="searchUsers(event)">
+                            <button class="search-btn" onclick="searchUsers()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                        <div class="search-results" id="search-results">
+                            <!-- 搜索结果将在这里显示 -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="call-header">
+                    <h2>视频通话</h2>
+                    <div class="call-status" id="call-status">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">准备就绪</span>
+                    </div>
+                    <div class="connection-status" id="connection-status">未连接</div>
+                    <div class="room-info" id="room-info"></div>
+                </div>
+                
+                <div class="video-container">
+                    <div class="main-video">
+                        <video id="remote-video" autoplay playsinline></video>
+                        <div class="video-overlay">
+                            <div class="call-info">
+                                <span class="caller-name" id="caller-name">对方用户</span>
+                                <span class="call-duration" id="call-duration">00:00</span>
+                            </div>
+                            <div class="security-status" id="security-status">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>安全检测中...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="local-video">
+                        <video id="local-video" autoplay playsinline muted></video>
+                        <div class="video-controls">
+                            <button class="control-btn" id="mute-btn" onclick="toggleMute()">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <button class="control-btn" id="video-btn" onclick="toggleVideo()">
+                                <i class="fas fa-video"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="call-controls">
+                    <button class="call-btn start-btn" id="start-call-btn" onclick="startCall()">
+                        <i class="fas fa-phone"></i>
+                        开始通话
+                    </button>
+                    <button class="call-btn end-btn" id="end-call-btn" onclick="endCall()" style="display: none;">
+                        <i class="fas fa-phone-slash"></i>
+                        结束通话
+                    </button>
+                </div>
+
+                <div class="security-panel" id="security-panel">
+                    <h3>安全检测</h3>
+                    <div class="security-metrics">
+                        <div class="metric">
+                            <span class="metric-label">风险评分</span>
+                            <span class="metric-value" id="risk-score">0.0</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">置信度</span>
+                            <span class="metric-value" id="confidence">0.0%</span>
+                        </div>
+                    </div>
+                    <div class="security-details" id="security-details">
+                        <!-- 安全检测详情将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史记录页面 -->
+        <div id="history-page" class="page">
+            <div class="history-container">
+                <div class="history-header">
+                    <h2>通话历史</h2>
+                    <div class="history-filters">
+                        <select id="filter-type" onchange="filterHistory()">
+                            <option value="all">全部通话</option>
+                            <option value="incoming">来电</option>
+                            <option value="outgoing">去电</option>
+                        </select>
+                        <input type="date" id="filter-date" onchange="filterHistory()">
+                    </div>
+                </div>
+                
+                <div class="history-list" id="history-list">
+                    <!-- 通话记录将在这里显示 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 个人资料页面 -->
+        <div id="profile-page" class="page">
+            <div class="profile-container">
+                <div class="profile-header">
+                    <h2>个人资料</h2>
+                </div>
+                
+                <div class="profile-content">
+                    <div class="profile-avatar">
+                        <img src="assets/default-avatar.png" alt="用户头像" id="profile-avatar">
+                        <button class="avatar-upload-btn">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                    
+                    <form class="profile-form" id="profile-form">
+                        <div class="form-group">
+                            <label for="username">用户名</label>
+                            <input type="text" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">邮箱</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">手机号</label>
+                            <input type="tel" id="phone" name="phone">
+                        </div>
+                        <button type="submit" class="save-btn">
+                            <i class="fas fa-save"></i>
+                            保存更改
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 登录模态框 -->
+    <div id="login-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>用户登录</h3>
+                <button class="close-btn" onclick="closeModal('login-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form class="auth-form" id="login-form">
+                <div class="form-group">
+                    <label for="login-username">用户名</label>
+                    <input type="text" id="login-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">密码</label>
+                    <input type="password" id="login-password" name="password" required>
+                </div>
+                <button type="submit" class="auth-submit-btn">
+                    <i class="fas fa-sign-in-alt"></i>
+                    登录
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 注册模态框 -->
+    <div id="register-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>用户注册</h3>
+                <button class="close-btn" onclick="closeModal('register-modal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label for="register-username">用户名</label>
+                    <input type="text" id="register-username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-email">邮箱</label>
+                    <input type="email" id="register-email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-password">密码</label>
+                    <input type="password" id="register-password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm-password">确认密码</label>
+                    <input type="password" id="register-confirm-password" name="confirm_password" required>
+                </div>
+                <button type="submit" class="auth-submit-btn">
+                    <i class="fas fa-user-plus"></i>
+                    注册
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 通知组件 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- JavaScript -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/tab-communication.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/call.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html> 

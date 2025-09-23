@@ -1,0 +1,404 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{E2DC29CC-535F-373D-AEFF-9908D65C992E}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <VcpkgEnabled>false</VcpkgEnabled>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>ffmpeg_service_example</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="do_not_import_user.props" Condition="exists('do_not_import_user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\c++\yspth\core\ffmpeg-service\build\bin\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ffmpeg_service_example.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ffmpeg_service_example</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\c++\yspth\core\ffmpeg-service\build\bin\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ffmpeg_service_example.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">ffmpeg_service_example</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">D:\c++\yspth\core\ffmpeg-service\build\bin\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">ffmpeg_service_example.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">ffmpeg_service_example</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">true</GenerateManifest>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">D:\c++\yspth\core\ffmpeg-service\build\bin\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">ffmpeg_service_example.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">ffmpeg_service_example</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.exe</TargetExt>
+    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</LinkIncremental>
+    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">true</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include" /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include/opencv4" /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4251;4275</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+"C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file D:/c++/yspth/core/frontend/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary D:/c++/yspth/core/ffmpeg-service/build/bin/Debug/ffmpeg_service_example.exe -installedDir D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/debug/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>lib\Debug\ffmpeg_service.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\avdevice.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\avfilter.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\avformat.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\avcodec.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\swresample.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\swscale.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\avutil.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_highgui4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_ml4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_objdetect4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_photo4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_stitching4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_video4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_calib3d4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_dnn4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_features2d4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_flann4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_videoio4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_imgcodecs4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_imgproc4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\opencv_core4d.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\spdlogd.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\debug\lib\fmtd.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/c++/yspth/core/ffmpeg-service/build/Debug/ffmpeg_service_example.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/c++/yspth/core/ffmpeg-service/build/bin/Debug/ffmpeg_service_example.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include" /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include/opencv4" /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DisableSpecificWarnings>4251;4275</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+"C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file D:/c++/yspth/core/frontend/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary D:/c++/yspth/core/ffmpeg-service/build/bin/Release/ffmpeg_service_example.exe -installedDir D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>lib\Release\ffmpeg_service.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avdevice.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avfilter.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avformat.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avcodec.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swresample.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swscale.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avutil.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_highgui4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_ml4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_objdetect4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_photo4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_stitching4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_video4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_calib3d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_dnn4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_features2d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_flann4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_videoio4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgcodecs4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgproc4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_core4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\spdlog.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\fmt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/c++/yspth/core/ffmpeg-service/build/Release/ffmpeg_service_example.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/c++/yspth/core/ffmpeg-service/build/bin/Release/ffmpeg_service_example.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include" /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include/opencv4" /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DisableSpecificWarnings>4251;4275</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+"C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file D:/c++/yspth/core/frontend/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary D:/c++/yspth/core/ffmpeg-service/build/bin/MinSizeRel/ffmpeg_service_example.exe -installedDir D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>lib\MinSizeRel\ffmpeg_service.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avdevice.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avfilter.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avformat.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avcodec.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swresample.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swscale.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avutil.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_highgui4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_ml4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_objdetect4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_photo4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_stitching4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_video4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_calib3d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_dnn4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_features2d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_flann4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_videoio4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgcodecs4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgproc4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_core4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\spdlog.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\fmt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/c++/yspth/core/ffmpeg-service/build/MinSizeRel/ffmpeg_service_example.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/c++/yspth/core/ffmpeg-service/build/bin/MinSizeRel/ffmpeg_service_example.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include" /external:I "D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/include/opencv4" /utf-8</AdditionalOptions>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <DisableSpecificWarnings>4251;4275</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ScanSourceForModuleDependencies>false</ScanSourceForModuleDependencies>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;SPDLOG_SHARED_LIB;SPDLOG_COMPILED_LIB;SPDLOG_FMT_EXTERNAL;FMT_SHARED;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>D:\c++\yspth\core\ffmpeg-service\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <PostBuildEvent>
+      <Message></Message>
+      <Command>setlocal
+"C:\Program Files\PowerShell\7\pwsh.exe" -noprofile -executionpolicy Bypass -file D:/c++/yspth/core/frontend/vcpkg/scripts/buildsystems/msbuild/applocal.ps1 -targetBinary D:/c++/yspth/core/ffmpeg-service/build/bin/RelWithDebInfo/ffmpeg_service_example.exe -installedDir D:/c++/yspth/core/frontend/vcpkg/installed/x64-windows/bin -OutVariable out
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+    </PostBuildEvent>
+    <Link>
+      <AdditionalDependencies>lib\RelWithDebInfo\ffmpeg_service.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avdevice.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avfilter.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avformat.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avcodec.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swresample.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\swscale.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\avutil.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_highgui4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_ml4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_objdetect4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_photo4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_stitching4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_video4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_calib3d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_dnn4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_features2d4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_flann4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_videoio4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgcodecs4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_imgproc4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\opencv_core4.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\spdlog.lib;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\lib\fmt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ImportLibrary>D:/c++/yspth/core/ffmpeg-service/build/RelWithDebInfo/ffmpeg_service_example.lib</ImportLibrary>
+      <ProgramDataBaseFile>D:/c++/yspth/core/ffmpeg-service/build/bin/RelWithDebInfo/ffmpeg_service_example.pdb</ProgramDataBaseFile>
+      <SubSystem>Console</SubSystem>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\c++\yspth\core\ffmpeg-service\CMakeLists.txt">
+      <UseUtf8Encoding>Always</UseUtf8Encoding>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule D:/c++/yspth/core/ffmpeg-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/c++/yspth/core/ffmpeg-service -BD:/c++/yspth/core/ffmpeg-service/build --check-stamp-file D:/c++/yspth/core/ffmpeg-service/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeDependentOption.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckLibraryExists.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageMessage.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindTIFF.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindThreads.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\WindowsPaths.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\SelectLibraryConfigurations.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfig.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfigVersion.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets-release.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeCXXCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeRCCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeSystem.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\FindFFMPEG.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-generate.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-module.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-options.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\tiff\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\scripts\buildsystems\vcpkg.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule D:/c++/yspth/core/ffmpeg-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/c++/yspth/core/ffmpeg-service -BD:/c++/yspth/core/ffmpeg-service/build --check-stamp-file D:/c++/yspth/core/ffmpeg-service/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeDependentOption.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckLibraryExists.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageMessage.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindTIFF.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindThreads.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\WindowsPaths.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\SelectLibraryConfigurations.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfig.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfigVersion.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets-release.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeCXXCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeRCCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeSystem.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\FindFFMPEG.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-generate.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-module.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-options.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\tiff\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\scripts\buildsystems\vcpkg.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule D:/c++/yspth/core/ffmpeg-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/c++/yspth/core/ffmpeg-service -BD:/c++/yspth/core/ffmpeg-service/build --check-stamp-file D:/c++/yspth/core/ffmpeg-service/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeDependentOption.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckLibraryExists.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageMessage.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindTIFF.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindThreads.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\WindowsPaths.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\SelectLibraryConfigurations.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfig.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfigVersion.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets-release.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeCXXCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeRCCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeSystem.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\FindFFMPEG.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-generate.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-module.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-options.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\tiff\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\scripts\buildsystems\vcpkg.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule D:/c++/yspth/core/ffmpeg-service/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/c++/yspth/core/ffmpeg-service -BD:/c++/yspth/core/ffmpeg-service/build --check-stamp-file D:/c++/yspth/core/ffmpeg-service/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCXXInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeCommonLanguageInclude.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeDependentOption.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeFindDependencyMacro.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeGenericSystem.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeInitializeConfigs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeLanguageInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeRCInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInformation.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CMakeSystemSpecificInitialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckCXXSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckIncludeFileCXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\CheckLibraryExists.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\CMakeCommonCompilerMacros.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Compiler\MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindPackageMessage.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindTIFF.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\FindThreads.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Internal\CheckSourceCompiles.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-Initialize.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC-CXX.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows-MSVC.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\Windows.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\Platform\WindowsPaths.cmake;C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\share\cmake-3.29\Modules\SelectLibraryConfigurations.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfig.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffConfigVersion.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets-release.cmake;C:\ProgramData\anaconda3\Library\lib\cmake\tiff\TiffTargets.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeCXXCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeRCCompiler.cmake;D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\3.29.5-msvc4\CMakeSystem.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\absl\abslTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\FindFFMPEG.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\ffmpeg\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\fmt\fmt-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_jsonTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\opencv4\OpenCVModules.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config-version.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-generate.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-module.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-options.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\protobuf-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\protobuf\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\quirc\quirc-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfig.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigTargets.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\spdlog\spdlogConfigVersion.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\tiff\vcpkg-cmake-wrapper.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-config.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-debug.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets-release.cmake;D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\utf8_range\utf8_range-targets.cmake;D:\c++\yspth\core\frontend\vcpkg\scripts\buildsystems\vcpkg.cmake;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">D:\c++\yspth\core\ffmpeg-service\build\CMakeFiles\generate.stamp</Outputs>
+      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="D:\c++\yspth\core\ffmpeg-service\examples\main.cpp" />
+    <Natvis Include="D:\c++\yspth\core\frontend\vcpkg\installed\x64-windows\share\nlohmann_json\nlohmann_json.natvis">
+    </Natvis>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="D:\c++\yspth\core\ffmpeg-service\build\ZERO_CHECK.vcxproj">
+      <Project>{C82B5DF4-2A70-30F1-BC38-CDC5B9414052}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="D:\c++\yspth\core\ffmpeg-service\build\ffmpeg_service.vcxproj">
+      <Project>{6E027818-87F6-3F08-BBC4-742809BE3394}</Project>
+      <Name>ffmpeg_service</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

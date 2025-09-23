@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript调试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>JavaScript调试页面</h1>
+        
+        <div id="status-container">
+            <div class="status" id="config-status">配置加载状态: 检查中...</div>
+            <div class="status" id="api-status">API对象状态: 检查中...</div>
+            <div class="status" id="ui-status">UI对象状态: 检查中...</div>
+            <div class="status" id="auth-status">Auth对象状态: 检查中...</div>
+            <div class="status" id="app-status">App对象状态: 检查中...</div>
+        </div>
+
+        <div>
+            <button onclick="testObjects()">测试对象加载</button>
+            <button onclick="testAPIConnection()">测试API连接</button>
+            <button onclick="clearLog()">清除日志</button>
+            <button onclick="reloadPage()">重新加载页面</button>
+        </div>
+
+        <h3>调试日志:</h3>
+        <div class="log" id="log"></div>
+    </div>
+
+    <!-- 加载JavaScript文件 -->
+    <script src="js/config.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/call.js"></script>
+    <script src="js/main.js"></script>
+
+    <script>
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logDiv.innerHTML += logEntry + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateStatus(elementId, status, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${status}`;
+        }
+
+        function reloadPage() {
+            location.reload();
+        }
+
+        // 测试对象加载
+        function testObjects() {
+            log('开始测试对象加载...');
+            
+            // 测试CONFIG
+            if (typeof CONFIG !== 'undefined') {
+                log('✓ CONFIG对象已加载', 'success');
+                updateStatus('config-status', 'success', '配置加载状态: 正常');
+                log(`CONFIG内容: ${JSON.stringify(CONFIG, null, 2)}`, 'info');
+            } else {
+                log('✗ CONFIG对象未加载', 'error');
+                updateStatus('config-status', 'error', '配置加载状态: 失败');
+            }
+
+            // 测试API
+            if (typeof api !== 'undefined') {
+                log('✓ API对象已加载', 'success');
+                updateStatus('api-status', 'success', 'API对象状态: 正常');
+            } else {
+                log('✗ API对象未加载', 'error');
+                updateStatus('api-status', 'error', 'API对象状态: 失败');
+            }
+
+            // 测试UI
+            if (typeof UI !== 'undefined') {
+                log('✓ UI对象已加载', 'success');
+                updateStatus('ui-status', 'success', 'UI对象状态: 正常');
+            } else {
+                log('✗ UI对象未加载', 'error');
+                updateStatus('ui-status', 'error', 'UI对象状态: 失败');
+            }
+
+            // 测试Auth
+            if (typeof auth !== 'undefined') {
+                log('✓ Auth对象已加载', 'success');
+                updateStatus('auth-status', 'success', 'Auth对象状态: 正常');
+            } else {
+                log('✗ Auth对象未加载', 'error');
+                updateStatus('auth-status', 'error', 'Auth对象状态: 失败');
+            }
+
+            // 测试App
+            if (typeof app !== 'undefined') {
+                log('✓ App对象已加载', 'success');
+                updateStatus('app-status', 'success', 'App对象状态: 正常');
+            } else {
+                log('✗ App对象未加载', 'error');
+                updateStatus('app-status', 'error', 'App对象状态: 失败');
+            }
+        }
+
+        // 测试API连接
+        async function testAPIConnection() {
+            log('开始测试API连接...');
+            
+            if (typeof api === 'undefined') {
+                log('✗ API对象未定义，无法测试连接', 'error');
+                return;
+            }
+
+            try {
+                const response = await api.healthCheck();
+                log(`✓ API连接成功: ${JSON.stringify(response)}`, 'success');
+            } catch (error) {
+                log(`✗ API连接失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载完成后的自动测试
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始自动测试...');
+            setTimeout(() => {
+                testObjects();
+                testAPIConnection();
+            }, 1000);
+        });
+
+        // 捕获全局错误
+        window.addEventListener('error', function(event) {
+            log(`JavaScript错误: ${event.message} at ${event.filename}:${event.lineno}`, 'error');
+        });
+
+        // 捕获未处理的Promise拒绝
+        window.addEventListener('unhandledrejection', function(event) {
+            log(`未处理的Promise拒绝: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html> 

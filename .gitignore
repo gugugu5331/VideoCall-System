@@ -7,6 +7,27 @@
 ehthumbs.db
 Thumbs.db
 
+# vcpkg
+core/frontend/vcpkg/
+
+# 编译输出
+core/frontend/bin/
+core/frontend/release/
+core/backend/bin/
+core/backend/release/
+
+# 日志文件
+data/logs/
+*.log
+
+# 临时文件
+data/temp/
+*.tmp
+
+# 环境变量文件
+.env
+*.env
+
 # IDE和编辑器
 .vscode/
 .idea/
@@ -81,6 +102,8 @@ _deps
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
+*.pyo
 *.so
 .Python
 build/
@@ -165,7 +188,7 @@ temp/
 *.rar
 *.7z
 
-# Node.js相关（如果有前端构建）
+# Node.js相关
 node_modules/
 npm-debug.log*
 yarn-debug.log*

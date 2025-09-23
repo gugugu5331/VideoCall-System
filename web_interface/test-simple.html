@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>前端功能测试</h1>
+        
+        <div id="status-container">
+            <div class="status" id="backend-status">后端服务状态: 检查中...</div>
+            <div class="status" id="ai-status">AI服务状态: 检查中...</div>
+            <div class="status" id="config-status">配置状态: 检查中...</div>
+        </div>
+
+        <div>
+            <button onclick="testBackend()">测试后端连接</button>
+            <button onclick="testAI()">测试AI服务</button>
+            <button onclick="testConfig()">测试配置</button>
+            <button onclick="clearLog()">清除日志</button>
+        </div>
+
+        <h3>测试日志:</h3>
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // 配置
+        const CONFIG = {
+            API_BASE_URL: 'http://localhost:8000',
+            AI_SERVICE_URL: 'http://localhost:5001'
+        };
+
+        // 日志函数
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+            logDiv.innerHTML += logEntry + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(logEntry);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 更新状态显示
+        function updateStatus(elementId, status, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${status}`;
+        }
+
+        // 测试后端连接
+        async function testBackend() {
+            log('开始测试后端连接...');
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`后端连接成功: ${JSON.stringify(data)}`, 'success');
+                    updateStatus('backend-status', 'success', `后端服务状态: 正常 (${response.status})`);
+                } else {
+                    log(`后端连接失败: HTTP ${response.status}`, 'error');
+                    updateStatus('backend-status', 'error', `后端服务状态: 错误 (${response.status})`);
+                }
+            } catch (error) {
+                log(`后端连接错误: ${error.message}`, 'error');
+                updateStatus('backend-status', 'error', `后端服务状态: 连接失败`);
+            }
+        }
+
+        // 测试AI服务
+        async function testAI() {
+            log('开始测试AI服务连接...');
+            try {
+                const response = await fetch(`${CONFIG.AI_SERVICE_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`AI服务连接成功: ${JSON.stringify(data)}`, 'success');
+                    updateStatus('ai-status', 'success', `AI服务状态: 正常 (${response.status})`);
+                } else {
+                    log(`AI服务连接失败: HTTP ${response.status}`, 'error');
+                    updateStatus('ai-status', 'error', `AI服务状态: 错误 (${response.status})`);
+                }
+            } catch (error) {
+                log(`AI服务连接错误: ${error.message}`, 'error');
+                updateStatus('ai-status', 'error', `AI服务状态: 连接失败`);
+            }
+        }
+
+        // 测试配置
+        function testConfig() {
+            log('检查配置...');
+            log(`API_BASE_URL: ${CONFIG.API_BASE_URL}`, 'info');
+            log(`AI_SERVICE_URL: ${CONFIG.AI_SERVICE_URL}`, 'info');
+            
+            if (CONFIG.API_BASE_URL && CONFIG.AI_SERVICE_URL) {
+                log('配置检查完成', 'success');
+                updateStatus('config-status', 'success', '配置状态: 正常');
+            } else {
+                log('配置检查失败: 缺少必要的配置项', 'error');
+                updateStatus('config-status', 'error', '配置状态: 错误');
+            }
+        }
+
+        // 页面加载时自动测试
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始自动测试...');
+            setTimeout(() => {
+                testConfig();
+                testBackend();
+                testAI();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 

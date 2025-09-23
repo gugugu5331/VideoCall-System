@@ -1,0 +1,10 @@
+^D:\C++\YSPTH\CORE\FFMPEG-SERVICE\BUILD_SIMPLE\CMAKEFILES\EE65F00DC47CA4C643C4461AA78C0E36\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/c++/yspth/core/ffmpeg-service/build_simple -BD:/c++/yspth/core/ffmpeg-service/build_simple --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/c++/yspth/core/ffmpeg-service/build_simple/ffmpeg_simple_example.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
