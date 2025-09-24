@@ -2,7 +2,7 @@
 
 # 🎥 VideoCall System
 
-**企业级音视频会议系统 | AI智能检测 | 高性能视频处理**
+**音视频会议系统 | AI智能检测 | 高性能视频处理**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org/)
@@ -21,7 +21,7 @@
 
 ## 🌟 项目概述
 
-**VideoCall System** 是一个功能完整的企业级音视频会议系统，集成了先进的AI检测技术和高性能视频处理能力。系统采用现代化微服务架构，支持大规模并发，提供卓越的用户体验。
+**VideoCall System** 是一个功能完整的音视频会议系统，集成了先进的AI检测技术和高性能视频处理能力。系统采用现代化微服务架构，支持大规模并发，提供卓越的用户体验。
 
 ### ✨ 核心亮点
 
