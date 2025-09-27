@@ -28,9 +28,8 @@ include_directories(
     ${GLM_INCLUDE_DIR}
 )
 
-# 源文件
-set(SOURCES
-    src/main.cpp
+# 核心库源文件
+set(CORE_SOURCES
     src/video_processor.cpp
     src/opengl_renderer.cpp
     src/filter_manager.cpp
@@ -54,11 +53,39 @@ set(HEADERS
     include/common.h
 )
 
-# 创建可执行文件
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+# 创建核心库
+add_library(VideoProcessingCore STATIC ${CORE_SOURCES} ${HEADERS})
 
-# 链接库
+# 创建主可执行文件
+add_executable(${PROJECT_NAME} src/main.cpp)
+
+# 创建测试可执行文件
+add_executable(VideoProcessingTest src/test_main.cpp)
+
+# 链接核心库
+target_link_libraries(VideoProcessingCore
+    ${OpenCV_LIBS}
+    ${OPENGL_LIBRARIES}
+    glfw
+    GLEW::GLEW
+    GL
+    pthread
+)
+
+# 链接主程序
 target_link_libraries(${PROJECT_NAME}
+    VideoProcessingCore
+    ${OpenCV_LIBS}
+    ${OPENGL_LIBRARIES}
+    glfw
+    GLEW::GLEW
+    GL
+    pthread
+)
+
+# 链接测试程序
+target_link_libraries(VideoProcessingTest
+    VideoProcessingCore
     ${OpenCV_LIBS}
     ${OPENGL_LIBRARIES}
     glfw
@@ -68,7 +95,21 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # 编译选项
+target_compile_options(VideoProcessingCore PRIVATE
+    -Wall
+    -Wextra
+    -O3
+    -march=native
+)
+
 target_compile_options(${PROJECT_NAME} PRIVATE
+    -Wall
+    -Wextra
+    -O3
+    -march=native
+)
+
+target_compile_options(VideoProcessingTest PRIVATE
     -Wall
     -Wextra
     -O3
@@ -77,6 +118,10 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 
 # 设置输出目录
 set_target_properties(${PROJECT_NAME} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+set_target_properties(VideoProcessingTest PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
