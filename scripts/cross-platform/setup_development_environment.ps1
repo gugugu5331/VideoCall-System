@@ -83,7 +83,7 @@ function Install-BasicTools {
 # 安装Visual Studio Build Tools
 function Install-VSBuildTools {
     Write-Info "安装Visual Studio Build Tools..."
-    
+
     # 检查是否已安装
     $vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vsWhere) {
@@ -93,14 +93,14 @@ function Install-VSBuildTools {
             return $true
         }
     }
-    
+
     # 下载并安装
     $installerUrl = "https://aka.ms/vs/17/release/vs_buildtools.exe"
     $installerPath = "$env:TEMP\vs_buildtools.exe"
-    
+
     Write-Info "下载Visual Studio Build Tools..."
     Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
-    
+
     Write-Info "安装Visual Studio Build Tools（这可能需要几分钟）..."
     Start-Process -FilePath $installerPath -ArgumentList @(
         "--quiet",
@@ -109,7 +109,7 @@ function Install-VSBuildTools {
         "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
         "--add", "Microsoft.VisualStudio.Component.Windows10SDK.19041"
     ) -Wait
-    
+
     Remove-Item $installerPath -Force
     Write-Success "Visual Studio Build Tools安装完成"
 }

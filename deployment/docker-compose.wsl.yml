@@ -1,0 +1,312 @@
+version: '3.8'
+
+services:
+  # 数据库服务
+  postgres:
+    image: postgres:15-alpine
+    container_name: videocall-postgres
+    environment:
+      POSTGRES_DB: videocall_system
+      POSTGRES_USER: videocall_user
+      POSTGRES_PASSWORD: videocall_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: videocall-redis
+    command: redis-server --requirepass videocall_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:6
+    container_name: videocall-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: videocall_mongo_password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  # Edge-Model-Infra Unit Manager
+  edge-unit-manager:
+    build:
+      context: ./Edge-Model-Infra/unit-manager
+      dockerfile: Dockerfile
+    container_name: videocall-edge-unit-manager
+    ports:
+      - "10001:10001"
+    volumes:
+      - ./Edge-Model-Infra/unit-manager/master_config.json:/app/master_config.json
+      - /tmp/llm:/tmp/llm
+      - edge_logs:/app/logs
+    networks:
+      - videocall-network
+    depends_on:
+      - edge-ai-detection
+    restart: unless-stopped
+    environment:
+      - LOG_LEVEL=INFO
+      - MAX_WORKERS=10
+
+  # Edge-Model-Infra AI Detection Node
+  edge-ai-detection:
+    build:
+      context: ./Edge-Model-Infra/node/ai-detection
+      dockerfile: Dockerfile
+    container_name: videocall-edge-ai-detection
+    volumes:
+      - ./Edge-Model-Infra/node/ai-detection/models:/app/models
+      - ./Edge-Model-Infra/node/ai-detection/config:/app/config
+      - /tmp/llm:/tmp/llm
+      - /tmp/detection_uploads:/tmp/detection_uploads
+      - ./storage/detection:/app/storage
+      - edge_logs:/app/logs
+    networks:
+      - videocall-network
+    restart: unless-stopped
+    environment:
+      - MODEL_PATH=/app/models
+      - UPLOAD_PATH=/tmp/detection_uploads
+      - STORAGE_PATH=/app/storage
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 后端微服务
+  user-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.user-service
+    container_name: videocall-user-service
+    environment:
+      - GO_ENV=production
+      - PORT=8081
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=videocall_system
+      - DB_USER=videocall_user
+      - DB_PASSWORD=videocall_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=videocall_redis_password
+    ports:
+      - "8081:8081"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  meeting-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.meeting-service
+    container_name: videocall-meeting-service
+    environment:
+      - GO_ENV=production
+      - PORT=8082
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=videocall_system
+      - DB_USER=videocall_user
+      - DB_PASSWORD=videocall_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=videocall_redis_password
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  signaling-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.signaling-service
+    container_name: videocall-signaling-service
+    environment:
+      - GO_ENV=production
+      - PORT=8083
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=videocall_redis_password
+    ports:
+      - "8083:8083"
+    depends_on:
+      - redis
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  media-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.media-service
+    container_name: videocall-media-service
+    environment:
+      - GO_ENV=production
+      - PORT=8084
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_USER=admin
+      - MONGO_PASSWORD=videocall_mongo_password
+    ports:
+      - "8084:8084"
+    depends_on:
+      - mongodb
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.notification-service
+    container_name: videocall-notification-service
+    environment:
+      - GO_ENV=production
+      - PORT=8086
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=videocall_system
+      - DB_USER=videocall_user
+      - DB_PASSWORD=videocall_password
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=videocall_redis_password
+    ports:
+      - "8086:8086"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  record-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.record-service
+    container_name: videocall-record-service
+    environment:
+      - GO_ENV=production
+      - PORT=8087
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_USER=admin
+      - MONGO_PASSWORD=videocall_mongo_password
+    ports:
+      - "8087:8087"
+    depends_on:
+      - mongodb
+    volumes:
+      - ./storage/media:/app/storage
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  smart-editing-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.smart-editing-service
+    container_name: videocall-smart-editing-service
+    environment:
+      - GO_ENV=production
+      - PORT=8088
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=videocall_system
+      - DB_USER=videocall_user
+      - DB_PASSWORD=videocall_password
+    ports:
+      - "8088:8088"
+    depends_on:
+      - postgres
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: deployment/docker/Dockerfile.gateway-service
+    container_name: videocall-gateway
+    environment:
+      - GO_ENV=production
+      - PORT=8080
+      - USER_SERVICE_URL=http://user-service:8081
+      - MEETING_SERVICE_URL=http://meeting-service:8082
+      - SIGNALING_SERVICE_URL=http://signaling-service:8083
+      - MEDIA_SERVICE_URL=http://media-service:8084
+      - AI_DETECTION_SERVICE_URL=http://edge-unit-manager:10001
+      - EDGE_AI_DETECTION_URL=http://edge-ai-detection:5000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+      - RECORD_SERVICE_URL=http://record-service:8087
+      - SMART_EDITING_SERVICE_URL=http://smart-editing-service:8088
+    ports:
+      - "8080:8080"
+    depends_on:
+      - user-service
+      - meeting-service
+      - signaling-service
+      - media-service
+      - edge-unit-manager
+      - notification-service
+      - record-service
+      - smart-editing-service
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: videocall-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx/nginx.wsl.conf:/etc/nginx/nginx.conf
+      - ./deployment/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - gateway-service
+    networks:
+      - videocall-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+  edge_logs:
+
+networks:
+  videocall-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
