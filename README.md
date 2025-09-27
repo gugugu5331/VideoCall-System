@@ -2,7 +2,7 @@
 
 # 🎥 VideoCall System
 
-**企业级音视频会议系统 | AI智能检测 | 高性能视频处理**
+**音视频会议系统 | AI智能检测 | 高性能视频处理**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go)](https://golang.org/)
@@ -21,7 +21,7 @@
 
 ## 🌟 项目概述
 
-**VideoCall System** 是一个功能完整的企业级音视频会议系统，集成了先进的AI检测技术和高性能视频处理能力。系统采用现代化微服务架构，支持大规模并发，提供卓越的用户体验。
+**VideoCall System** 是一个功能完整的音视频会议系统，集成了先进的AI检测技术和高性能视频处理能力。系统采用现代化微服务架构，支持大规模并发，提供卓越的用户体验。
 
 ### ✨ 核心亮点
 
@@ -55,7 +55,7 @@
 - **PostgreSQL** - 主数据库
 - **Redis** - 缓存和会话存储
 - **Docker** - 容器化部署
-
+- **ZeroMQ** - 高性能消息传递
 </td>
 <td width="33%">
 
@@ -64,7 +64,6 @@
 - **Python FastAPI** - AI服务接口
 - **PyTorch** - 深度学习模型
 - **OpenCV C++** - 图像处理
-- **ZeroMQ** - 高性能消息传递
 
 </td>
 </tr>
@@ -174,7 +173,7 @@ curl -X POST http://localhost:5000/detect \
 
 #### 📞 **实时通信**
 - **WebRTC P2P通信** - 低延迟音视频传输
-- **多人会议支持** - 最多100人同时在线
+- **多人会议支持** - 最多50人同时在线
 - **高清音视频** - 1080p@30fps视频，48kHz音频
 - **自适应码率** - 根据网络状况动态调整
 - **回声消除** - 先进的音频处理算法
@@ -212,7 +211,6 @@ curl -X POST http://localhost:5000/detect \
 #### 🔍 **检测能力**
 - **🎭 换脸检测** - 实时检测Deepfake、FaceSwap等换脸技术
 - **🗣️ 语音合成检测** - 识别TTS、Voice Cloning等AI生成语音
-- **📄 内容分析** - 智能分析会议内容和情绪状态
 - **⚠️ 实时警报** - 检测到可疑内容时立即提醒
 - **📊 统计分析** - 完整的检测历史和统计报告
 
