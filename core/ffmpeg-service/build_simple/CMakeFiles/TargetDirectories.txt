@@ -1,3 +1,0 @@
-D:/c++/yspth/core/ffmpeg-service/build_simple/CMakeFiles/ffmpeg_simple_example.dir
-D:/c++/yspth/core/ffmpeg-service/build_simple/CMakeFiles/ALL_BUILD.dir
-D:/c++/yspth/core/ffmpeg-service/build_simple/CMakeFiles/ZERO_CHECK.dir
