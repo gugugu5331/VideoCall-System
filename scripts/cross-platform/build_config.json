@@ -1,0 +1,262 @@
+{
+  "project": {
+    "name": "VideoCall System",
+    "version": "1.0.0",
+    "description": "智能在线会议系统 - 跨平台构建配置"
+  },
+  "windows": {
+    "frontend": {
+      "qt_dir": "C:/Qt/6.5.0/msvc2019_64",
+      "opencv_dir": "C:/vcpkg/installed/x64-windows",
+      "cmake_generator": "Visual Studio 17 2022",
+      "build_dir": "build-windows",
+      "targets": [
+        "VideoEffectsDemo",
+        "VideoCallSystemClient"
+      ],
+      "dependencies": {
+        "qt6": {
+          "version": "6.5.0",
+          "components": ["Core", "Widgets", "Multimedia", "OpenGL", "Network"]
+        },
+        "opencv": {
+          "version": "4.8.0",
+          "features": ["contrib", "nonfree"]
+        },
+        "opengl": {
+          "version": "latest"
+        }
+      },
+      "compiler": {
+        "name": "MSVC",
+        "version": "2019",
+        "architecture": "x64"
+      }
+    }
+  },
+  "linux": {
+    "backend": {
+      "go_version": "1.21.5",
+      "build_dir": "build-linux",
+      "services": [
+        "user-service",
+        "meeting-service",
+        "signaling-service", 
+        "media-service",
+        "ai-detection-service",
+        "notification-service",
+        "file-service",
+        "gateway-service"
+      ],
+      "dependencies": {
+        "postgresql": {
+          "version": "15",
+          "port": 5432
+        },
+        "redis": {
+          "version": "7.0",
+          "port": 6379
+        },
+        "mongodb": {
+          "version": "6.0",
+          "port": 27017
+        }
+      },
+      "ports": {
+        "user-service": 8081,
+        "meeting-service": 8082,
+        "signaling-service": 8083,
+        "media-service": 8084,
+        "ai-detection-service": 8085,
+        "notification-service": 8086,
+        "file-service": 8087,
+        "gateway-service": 8080
+      }
+    },
+    "ai_detection": {
+      "python_version": "3.9",
+      "requirements_file": "src/ai-detection/requirements.txt",
+      "build_dir": "build-linux/ai-detection",
+      "dependencies": {
+        "pytorch": "2.0.0",
+        "opencv-python": "4.8.0",
+        "fastapi": "0.100.0",
+        "uvicorn": "0.23.0"
+      },
+      "models": {
+        "face_detection": "models/face_detection.onnx",
+        "deepfake_detection": "models/deepfake_detection.pt",
+        "voice_synthesis_detection": "models/voice_synthesis.pt"
+      }
+    }
+  },
+  "docker": {
+    "registry": "localhost:5000",
+    "namespace": "videocall-system",
+    "services": {
+      "backend": "backend",
+      "ai-detection": "ai-detection",
+      "frontend": "frontend",
+      "nginx": "nginx",
+      "postgres": "postgres",
+      "redis": "redis",
+      "mongodb": "mongodb"
+    },
+    "compose_files": [
+      "deployment/docker/docker-compose.yml",
+      "deployment/docker/docker-compose.prod.yml"
+    ]
+  },
+  "deployment": {
+    "environments": {
+      "development": {
+        "backend_host": "localhost",
+        "frontend_host": "localhost",
+        "database_host": "localhost",
+        "ssl_enabled": false
+      },
+      "staging": {
+        "backend_host": "staging.videocall.com",
+        "frontend_host": "staging-app.videocall.com", 
+        "database_host": "staging-db.videocall.com",
+        "ssl_enabled": true
+      },
+      "production": {
+        "backend_host": "api.videocall.com",
+        "frontend_host": "app.videocall.com",
+        "database_host": "db.videocall.com",
+        "ssl_enabled": true
+      }
+    },
+    "targets": {
+      "local": {
+        "type": "local",
+        "path": "./deployment/local"
+      },
+      "staging": {
+        "type": "ssh",
+        "host": "staging.videocall.com",
+        "user": "deploy",
+        "path": "/opt/videocall-system"
+      },
+      "production": {
+        "type": "ssh",
+        "host": "prod.videocall.com",
+        "user": "deploy", 
+        "path": "/opt/videocall-system"
+      }
+    }
+  },
+  "testing": {
+    "backend": {
+      "framework": "go test",
+      "coverage_threshold": 80,
+      "test_dirs": [
+        "src/backend/services/*/tests",
+        "src/backend/pkg/*/tests"
+      ]
+    },
+    "ai_detection": {
+      "framework": "pytest",
+      "coverage_threshold": 75,
+      "test_dirs": [
+        "src/ai-detection/tests"
+      ]
+    },
+    "frontend": {
+      "framework": "qt test",
+      "test_dirs": [
+        "src/frontend/qt-client-new/tests"
+      ]
+    },
+    "integration": {
+      "framework": "custom",
+      "test_dirs": [
+        "tests/integration"
+      ]
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "prometheus": {
+        "enabled": true,
+        "port": 9090
+      },
+      "grafana": {
+        "enabled": true,
+        "port": 3000
+      }
+    },
+    "logging": {
+      "level": "info",
+      "format": "json",
+      "output": "file",
+      "rotation": "daily"
+    },
+    "health_checks": {
+      "enabled": true,
+      "interval": "30s",
+      "timeout": "10s"
+    }
+  },
+  "security": {
+    "ssl": {
+      "enabled": true,
+      "cert_path": "/etc/ssl/certs/videocall.crt",
+      "key_path": "/etc/ssl/private/videocall.key"
+    },
+    "jwt": {
+      "secret_key": "your-secret-key-here",
+      "expiration": "24h"
+    },
+    "cors": {
+      "allowed_origins": [
+        "http://localhost:3000",
+        "https://app.videocall.com"
+      ],
+      "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+      "allowed_headers": ["Content-Type", "Authorization"]
+    }
+  },
+  "performance": {
+    "backend": {
+      "max_connections": 1000,
+      "connection_timeout": "30s",
+      "read_timeout": "30s",
+      "write_timeout": "30s"
+    },
+    "database": {
+      "max_connections": 100,
+      "connection_timeout": "10s",
+      "query_timeout": "30s"
+    },
+    "cache": {
+      "redis_max_connections": 50,
+      "cache_ttl": "1h"
+    }
+  },
+  "features": {
+    "video_effects": {
+      "enabled": true,
+      "filters": ["beauty", "cartoon", "vintage", "sketch"],
+      "stickers": true,
+      "background_replacement": true
+    },
+    "ai_detection": {
+      "enabled": true,
+      "deepfake_detection": true,
+      "voice_synthesis_detection": true,
+      "real_time_processing": true
+    },
+    "recording": {
+      "enabled": true,
+      "max_duration": "2h",
+      "formats": ["mp4", "webm"]
+    },
+    "streaming": {
+      "enabled": true,
+      "rtmp_support": true,
+      "hls_support": true
+    }
+  }
+}
