@@ -1,0 +1,283 @@
+cmake_minimum_required(VERSION 3.16)
+project(VideoEffectsDemo VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Qt6 组件
+find_package(Qt6 REQUIRED COMPONENTS 
+    Core 
+    Widgets 
+    Multimedia 
+    MultimediaWidgets
+    Network
+    OpenGL
+    Concurrent
+)
+
+# OpenCV
+find_package(OpenCV REQUIRED)
+if(OpenCV_FOUND)
+    message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+    message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
+else()
+    message(FATAL_ERROR "OpenCV not found!")
+endif()
+
+# OpenGL
+find_package(OpenGL REQUIRED)
+
+# 包含目录
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../video-processing/include
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+# 源文件
+set(DEMO_SOURCES
+    src/video_effects_demo.cpp
+    src/media/video_effects_processor.cpp
+    src/ui/video_effects_panel.cpp
+    
+    # 核心组件
+    src/core/application.cpp
+    src/core/config_manager.cpp
+    
+    # 媒体组件
+    src/media/video_processor.cpp
+    
+    # UI组件
+    src/ui/main_window.cpp
+    
+    # 网络组件
+    src/network/webrtc_manager.cpp
+    src/network/ai_detection_client.cpp
+    src/network/edge_infra_client.cpp
+)
+
+# 头文件
+set(DEMO_HEADERS
+    include/media/video_effects_processor.h
+    include/ui/video_effects_panel.h
+    include/core/common.h
+    include/core/application.h
+    include/core/config_manager.h
+    include/media/video_processor.h
+    include/ui/main_window.h
+    include/network/webrtc_manager.h
+    include/network/ai_detection_client.h
+    include/network/edge_infra_client.h
+)
+
+# 视频处理模块源文件
+set(VIDEO_PROCESSING_SOURCES
+    ../../../video-processing/src/video_processor.cpp
+    ../../../video-processing/src/filter_manager.cpp
+    ../../../video-processing/src/face_detector.cpp
+    ../../../video-processing/src/texture_manager.cpp
+    ../../../video-processing/src/opengl_renderer.cpp
+    ../../../video-processing/src/shader_manager.cpp
+    ../../../video-processing/src/camera_capture.cpp
+    ../../../video-processing/src/effect_processor.cpp
+)
+
+# 创建可执行文件
+add_executable(VideoEffectsDemo
+    ${DEMO_SOURCES}
+    ${DEMO_HEADERS}
+    ${VIDEO_PROCESSING_SOURCES}
+)
+
+# 设置目标属性
+set_target_properties(VideoEffectsDemo PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
+)
+
+# 链接库
+target_link_libraries(VideoEffectsDemo
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Multimedia
+    Qt6::MultimediaWidgets
+    Qt6::Network
+    Qt6::OpenGL
+    Qt6::Concurrent
+    ${OpenCV_LIBS}
+    ${OPENGL_LIBRARIES}
+)
+
+# Windows特定设置
+if(WIN32)
+    target_link_libraries(VideoEffectsDemo
+        opengl32
+        glu32
+    )
+    
+    # 复制OpenCV DLL
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(OPENCV_DLL_SUFFIX "d")
+    else()
+        set(OPENCV_DLL_SUFFIX "")
+    endif()
+    
+    # 查找并复制OpenCV DLL
+    foreach(opencv_lib ${OpenCV_LIBS})
+        get_target_property(opencv_dll_location ${opencv_lib} LOCATION)
+        if(opencv_dll_location)
+            add_custom_command(TARGET VideoEffectsDemo POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${opencv_dll_location}
+                $<TARGET_FILE_DIR:VideoEffectsDemo>
+            )
+        endif()
+    endforeach()
+endif()
+
+# macOS特定设置
+if(APPLE)
+    target_link_libraries(VideoEffectsDemo
+        "-framework OpenGL"
+        "-framework CoreVideo"
+        "-framework CoreMedia"
+        "-framework AVFoundation"
+    )
+endif()
+
+# Linux特定设置
+if(UNIX AND NOT APPLE)
+    target_link_libraries(VideoEffectsDemo
+        GL
+        GLU
+        pthread
+    )
+endif()
+
+# 编译定义
+target_compile_definitions(VideoEffectsDemo PRIVATE
+    QT_NO_KEYWORDS
+    OPENCV_VERSION_MAJOR=${OpenCV_VERSION_MAJOR}
+)
+
+# 编译选项
+if(MSVC)
+    target_compile_options(VideoEffectsDemo PRIVATE
+        /W3
+        /MP
+        /bigobj
+    )
+else()
+    target_compile_options(VideoEffectsDemo PRIVATE
+        -Wall
+        -Wextra
+        -O2
+    )
+endif()
+
+# 资源文件
+set(RESOURCE_FILES
+    resources/icons/app_icon.ico
+    resources/images/default_background.jpg
+    resources/stickers/heart.png
+    resources/stickers/star.png
+    resources/stickers/crown.png
+    resources/stickers/glasses.png
+    resources/filters/beauty_lut.png
+    resources/filters/vintage_lut.png
+    resources/shaders/beauty.frag
+    resources/shaders/cartoon.frag
+    resources/shaders/vintage.frag
+)
+
+# 创建资源目录
+add_custom_target(CopyResources ALL
+    COMMENT "Copying resource files"
+)
+
+foreach(resource_file ${RESOURCE_FILES})
+    add_custom_command(TARGET CopyResources POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/${resource_file}
+        $<TARGET_FILE_DIR:VideoEffectsDemo>/resources/${resource_file}
+    )
+endforeach()
+
+# 安装规则
+install(TARGETS VideoEffectsDemo
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)
+
+install(DIRECTORY resources/
+    DESTINATION bin/resources
+    FILES_MATCHING 
+    PATTERN "*.png"
+    PATTERN "*.jpg"
+    PATTERN "*.ico"
+    PATTERN "*.frag"
+    PATTERN "*.vert"
+)
+
+# CPack配置
+set(CPACK_PACKAGE_NAME "VideoEffectsDemo")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Video Effects Demo for VideoCall System")
+set(CPACK_PACKAGE_VENDOR "VideoCall System")
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_NSIS_DISPLAY_NAME "Video Effects Demo")
+    set(CPACK_NSIS_PACKAGE_NAME "VideoEffectsDemo")
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+else()
+    set(CPACK_GENERATOR "TGZ")
+endif()
+
+include(CPack)
+
+# 自定义目标：运行演示
+add_custom_target(run_demo
+    COMMAND VideoEffectsDemo
+    DEPENDS VideoEffectsDemo
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Running Video Effects Demo"
+)
+
+# 自定义目标：清理构建
+add_custom_target(clean_all
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target clean
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/CMakeFiles
+    COMMAND ${CMAKE_COMMAND} -E remove ${CMAKE_BINARY_DIR}/CMakeCache.txt
+    COMMENT "Cleaning all build files"
+)
+
+# 打印配置信息
+message(STATUS "=== VideoEffectsDemo Configuration ===")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "Qt6 version: ${Qt6_VERSION}")
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "=====================================")
+
+# 构建脚本生成
+if(WIN32)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_demo.bat.in
+        ${CMAKE_CURRENT_BINARY_DIR}/build_demo.bat
+        @ONLY
+    )
+else()
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/scripts/build_demo.sh.in
+        ${CMAKE_CURRENT_BINARY_DIR}/build_demo.sh
+        @ONLY
+    )
+    file(COPY ${CMAKE_CURRENT_BINARY_DIR}/build_demo.sh
+         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+         FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                         GROUP_READ GROUP_EXECUTE
+                         WORLD_READ WORLD_EXECUTE)
+endif()
