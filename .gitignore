@@ -35,6 +35,8 @@ logs/
 
 # Build Artifacts
 build/
+!qt6-client/build.sh
+!meeting-system/Edge-LLM-Infra-master/build.sh
 dist/
 target/
 bin/
@@ -131,13 +133,18 @@ Release/
 *.sqlite
 *.sqlite3
 
-# Data Directories
+# Data Directories (runtime data, not source code)
 data/
+!data/.gitkeep
 postgres_data/
 redis_data/
 mongodb_data/
 minio_data/
 etcd_data/
+
+# Meeting System specific data
+meeting-system/data/
+!meeting-system/data/.gitkeep
 
 # Temporary Files
 tmp/
@@ -169,13 +176,59 @@ config/local.json
 .dockerignore
 
 # AI Models (large files)
+# ONNX models
 *.onnx
+
+# PyTorch models
 *.pt
 *.pth
+pytorch_model.bin
+model.safetensors
+
+# TensorFlow models
 *.h5
-*.pb
-models/
+*.tflite
+saved_model/
+
+# Other ML models
+*.pkl
+*.pickle
+*.joblib
+*.model
+*.weights
+
+# Hugging Face cache
+.cache/huggingface/
+huggingface/
+transformers_cache/
+
+# Model directories (exclude large model files)
+models/**/*.onnx
+models/**/*.pt
+models/**/*.pth
+models/**/*.bin
+models/**/*.safetensors
+models/**/*.h5
+models/**/*.pb
 !models/README.md
+!models/.gitkeep
+checkpoints/
+weights/
+pretrained/
+
+# Whisper specific
+*.ctranslate2/
+whisper-*/
+
+# Model metadata (keep these small files)
+!models/**/*.json
+!models/**/*.yaml
+!models/**/*.yml
+!models/**/*.txt
+!models/**/*.md
+!models/**/config.json
+!models/**/tokenizer.json
+!models/**/vocab.json
 
 # Test Coverage
 coverage/
