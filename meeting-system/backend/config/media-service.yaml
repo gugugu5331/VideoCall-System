@@ -1,0 +1,98 @@
+# 媒体服务配置文件
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8083
+  mode: "debug"
+  read_timeout: 60
+  write_timeout: 60
+
+# PostgreSQL数据库配置
+database:
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+# Redis配置
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+# MinIO配置
+minio:
+  endpoint: "minio:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-media"
+
+# WebRTC配置
+webrtc:
+  ice_servers:
+    - urls: ["stun:stun.l.google.com:19302"]
+  
+# 媒体处理配置
+media:
+  # 录制配置
+  recording:
+    enabled: true
+    output_dir: "/data/recordings"
+    format: "webm"
+    video_codec: "vp8"
+    audio_codec: "opus"
+    
+  # 转码配置
+  transcoding:
+    enabled: true
+    output_formats: ["mp4", "webm"]
+    video_bitrate: "2M"
+    audio_bitrate: "128k"
+    
+  # HLS配置
+  hls:
+    enabled: true
+    segment_duration: 6
+    playlist_size: 5
+    output_dir: "/data/hls"
+
+# JWT配置
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24
+
+# 日志配置
+log:
+  level: "info"
+  filename: "logs/media-service.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true
+
+# 监控配置
+monitoring:
+  jaeger_endpoint: "http://jaeger:14268/api/traces"
+
+# etcd配置
+etcd:
+  endpoints:
+    - "etcd:2379"
+  dial_timeout: 5
+  request_timeout: 10
+
+services:
+  ai_service:
+    host: "ai-service"
+    port: 8084
+    grpc_port: 9084
+    timeout: 10s

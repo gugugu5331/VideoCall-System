@@ -1,0 +1,55 @@
+server:
+  host: "0.0.0.0"
+  port: 8081
+  mode: "release"
+  read_timeout: 60
+  write_timeout: 60
+
+database:
+  driver: "postgres"
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 30
+  conn_max_lifetime: 3600
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "meeting_system"
+  timeout: 30
+
+minio:
+  endpoint: "localhost:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-system"
+
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24
+
+zmq:
+  unit_manager_host: "localhost"
+  unit_manager_port: 5001
+  unit_name: "meeting_ai_service"
+  timeout: 30
+
+log:
+  level: "info"
+  filename: "logs/user-service-stress.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true

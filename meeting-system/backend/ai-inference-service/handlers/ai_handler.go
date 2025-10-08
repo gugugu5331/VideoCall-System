@@ -1,0 +1,312 @@
+package handlers
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"meeting-system/ai-inference-service/services"
+	"meeting-system/shared/logger"
+	"meeting-system/shared/response"
+)
+
+// AIHandler AI 推理处理器
+type AIHandler struct {
+	aiService *services.AIInferenceService
+}
+
+// NewAIHandler 创建 AI 推理处理器
+func NewAIHandler(aiService *services.AIInferenceService) *AIHandler {
+	return &AIHandler{
+		aiService: aiService,
+	}
+}
+
+// SpeechRecognition 语音识别接口
+// @Summary 语音识别
+// @Description 将音频转换为文本
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param request body services.ASRRequest true "ASR 请求"
+// @Success 200 {object} response.Response{data=services.ASRResponse}
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /api/v1/ai/asr [post]
+func (h *AIHandler) SpeechRecognition(c *gin.Context) {
+	var req services.ASRRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Invalid ASR request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 设置默认值
+	if req.Format == "" {
+		req.Format = "wav"
+	}
+	if req.SampleRate == 0 {
+		req.SampleRate = 16000
+	}
+
+	// 执行语音识别
+	ctx := c.Request.Context()
+	result, err := h.aiService.SpeechRecognition(ctx, &req)
+	if err != nil {
+		logger.Error("Speech recognition failed: " + err.Error())
+		response.Error(c, http.StatusInternalServerError, "Speech recognition failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// EmotionDetection 情感检测接口
+// @Summary 情感检测
+// @Description 分析文本的情感倾向
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param request body services.EmotionRequest true "情感检测请求"
+// @Success 200 {object} response.Response{data=services.EmotionResponse}
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /api/v1/ai/emotion [post]
+func (h *AIHandler) EmotionDetection(c *gin.Context) {
+	var req services.EmotionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Invalid emotion detection request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 执行情感检测
+	ctx := c.Request.Context()
+	result, err := h.aiService.EmotionDetection(ctx, &req)
+	if err != nil {
+		logger.Error("Emotion detection failed: " + err.Error())
+		response.Error(c, http.StatusInternalServerError, "Emotion detection failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// SynthesisDetection 深度伪造检测接口
+// @Summary 深度伪造检测
+// @Description 检测音频是否为 AI 合成
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param request body services.SynthesisDetectionRequest true "深度伪造检测请求"
+// @Success 200 {object} response.Response{data=services.SynthesisDetectionResponse}
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /api/v1/ai/synthesis [post]
+func (h *AIHandler) SynthesisDetection(c *gin.Context) {
+	var req services.SynthesisDetectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Invalid synthesis detection request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 设置默认值
+	if req.Format == "" {
+		req.Format = "wav"
+	}
+	if req.SampleRate == 0 {
+		req.SampleRate = 16000
+	}
+
+	// 执行深度伪造检测
+	ctx := c.Request.Context()
+	result, err := h.aiService.SynthesisDetection(ctx, &req)
+	if err != nil {
+		logger.Error("Synthesis detection failed: " + err.Error())
+		response.Error(c, http.StatusInternalServerError, "Synthesis detection failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// HealthCheck 健康检查接口
+// @Summary 健康检查
+// @Description 检查 AI 推理服务是否正常
+// @Tags System
+// @Produce json
+// @Success 200 {object} response.Response
+// @Failure 503 {object} response.Response
+// @Router /api/v1/ai/health [get]
+func (h *AIHandler) HealthCheck(c *gin.Context) {
+	ctx := c.Request.Context()
+	if err := h.aiService.HealthCheck(ctx); err != nil {
+		logger.Error("Health check failed: " + err.Error())
+		response.Error(c, http.StatusServiceUnavailable, "Service unhealthy: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"status":    "healthy",
+		"service":   "ai-inference-service",
+		"timestamp": time.Now().Unix(),
+	})
+}
+
+// GetServiceInfo 获取服务信息
+// @Summary 获取服务信息
+// @Description 获取 AI 推理服务的详细信息
+// @Tags System
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/v1/ai/info [get]
+func (h *AIHandler) GetServiceInfo(c *gin.Context) {
+	info := gin.H{
+		"service":     "ai-inference-service",
+		"version":     "1.0.0",
+		"description": "AI Inference Service integrated with Edge-LLM-Infra",
+		"capabilities": []string{
+			"speech_recognition",
+			"emotion_detection",
+			"synthesis_detection",
+		},
+		"models": gin.H{
+			"asr":       "asr-model",
+			"emotion":   "emotion-model",
+			"synthesis": "synthesis-model",
+		},
+		"timestamp": time.Now().Unix(),
+	}
+
+	response.Success(c, info)
+}
+
+// BatchInference 批量推理接口
+// @Summary 批量推理
+// @Description 批量执行多个 AI 推理任务
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param request body BatchInferenceRequest true "批量推理请求"
+// @Success 200 {object} response.Response{data=BatchInferenceResponse}
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /api/v1/ai/batch [post]
+func (h *AIHandler) BatchInference(c *gin.Context) {
+	var req BatchInferenceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Invalid batch inference request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+	results := make([]BatchInferenceResult, 0, len(req.Tasks))
+
+	// 执行每个任务
+	for _, task := range req.Tasks {
+		result := BatchInferenceResult{
+			TaskID: task.TaskID,
+			Type:   task.Type,
+		}
+
+		switch task.Type {
+		case "asr":
+			if asrReq, ok := task.Data.(map[string]interface{}); ok {
+				req := &services.ASRRequest{
+					AudioData:  getString(asrReq, "audio_data"),
+					Format:     getString(asrReq, "format"),
+					SampleRate: getInt(asrReq, "sample_rate"),
+					Language:   getString(asrReq, "language"),
+				}
+				resp, err := h.aiService.SpeechRecognition(ctx, req)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Result = resp
+				}
+			}
+
+		case "emotion":
+			if emotionReq, ok := task.Data.(map[string]interface{}); ok {
+				req := &services.EmotionRequest{
+					Text: getString(emotionReq, "text"),
+				}
+				resp, err := h.aiService.EmotionDetection(ctx, req)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Result = resp
+				}
+			}
+
+		case "synthesis":
+			if synthesisReq, ok := task.Data.(map[string]interface{}); ok {
+				req := &services.SynthesisDetectionRequest{
+					AudioData:  getString(synthesisReq, "audio_data"),
+					Format:     getString(synthesisReq, "format"),
+					SampleRate: getInt(synthesisReq, "sample_rate"),
+				}
+				resp, err := h.aiService.SynthesisDetection(ctx, req)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Result = resp
+				}
+			}
+
+		default:
+			result.Error = "unknown task type: " + task.Type
+		}
+
+		results = append(results, result)
+	}
+
+	response.Success(c, BatchInferenceResponse{
+		Results: results,
+		Total:   len(results),
+	})
+}
+
+// BatchInferenceRequest 批量推理请求
+type BatchInferenceRequest struct {
+	Tasks []BatchTask `json:"tasks"`
+}
+
+// BatchTask 批量任务
+type BatchTask struct {
+	TaskID string      `json:"task_id"`
+	Type   string      `json:"type"` // asr, emotion, synthesis
+	Data   interface{} `json:"data"`
+}
+
+// BatchInferenceResponse 批量推理响应
+type BatchInferenceResponse struct {
+	Results []BatchInferenceResult `json:"results"`
+	Total   int                    `json:"total"`
+}
+
+// BatchInferenceResult 批量推理结果
+type BatchInferenceResult struct {
+	TaskID string      `json:"task_id"`
+	Type   string      `json:"type"`
+	Result interface{} `json:"result,omitempty"`
+	Error  string      `json:"error,omitempty"`
+}
+
+// Helper functions
+func getString(m map[string]interface{}, key string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func getInt(m map[string]interface{}, key string) int {
+	if val, ok := m[key].(float64); ok {
+		return int(val)
+	}
+	return 0
+}
+

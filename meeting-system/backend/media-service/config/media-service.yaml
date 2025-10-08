@@ -1,0 +1,303 @@
+# 媒体服务配置文件
+server:
+  host: "0.0.0.0"
+  port: 8083
+  mode: "debug" # debug, release
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 60
+
+# 数据库配置
+database:
+  host: "localhost"
+  port: 15432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  timezone: "UTC"
+  max_open_conns: 100
+  max_idle_conns: 10
+  conn_max_lifetime: 3600
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 16379
+  password: ""
+  db: 2
+  pool_size: 10
+  min_idle_conns: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+  pool_timeout: 4s
+  idle_timeout: 300s
+
+# MinIO对象存储配置
+minio:
+  endpoint: "localhost:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-media"
+  region: "us-east-1"
+
+# JWT配置
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24 # 小时
+
+# 日志配置
+log:
+  level: "info" # debug, info, warn, error
+  filename: "logs/media-service.log"
+  max_size: 100 # MB
+  max_age: 30   # days
+  max_backups: 10
+  compress: true
+
+# 服务发现配置
+services:
+  signaling_service:
+    host: "localhost"
+    port: 8081
+    timeout: 5s
+  user_service:
+    host: "localhost"
+    port: 8080
+    timeout: 5s
+  meeting_service:
+    host: "localhost"
+    port: 8082
+    timeout: 5s
+  ai_service:
+    host: "localhost"
+    port: 8085
+    timeout: 60s
+
+# FFmpeg配置
+ffmpeg:
+  binary_path: "/usr/bin/ffmpeg"
+  temp_dir: "/tmp/ffmpeg"
+  max_concurrent_jobs: 5
+  job_timeout: 3600s # 1小时
+  quality_presets:
+    high:
+      crf: 18
+      preset: "slow"
+    medium:
+      crf: 23
+      preset: "medium"
+    low:
+      crf: 28
+      preset: "fast"
+  resolution_presets:
+    "4k": "3840x2160"
+    "1080p": "1920x1080"
+    "720p": "1280x720"
+    "480p": "854x480"
+    "360p": "640x360"
+
+# WebRTC配置
+webrtc:
+  ice_servers:
+    - urls: ["stun:stun.l.google.com:19302"]
+    - urls: ["turn:turn.example.com:3478"]
+      username: "turnuser"
+      credential: "turnpass"
+  max_peers_per_room: 50
+  connection_timeout: 30s
+  keep_alive_interval: 25s
+
+# 录制配置
+recording:
+  storage_path: "/data/recordings"
+  temp_path: "/tmp/recordings"
+  max_duration: 14400s # 4小时
+  auto_cleanup_days: 30
+  formats:
+    - "mp4"
+    - "webm"
+    - "mkv"
+  quality_settings:
+    "1080p":
+      width: 1920
+      height: 1080
+      bitrate: "5000k"
+      framerate: 30
+    "720p":
+      width: 1280
+      height: 720
+      bitrate: "2500k"
+      framerate: 30
+    "480p":
+      width: 854
+      height: 480
+      bitrate: "1000k"
+      framerate: 30
+
+# 流媒体配置
+streaming:
+  rtmp:
+    enabled: true
+    port: 1935
+    chunk_size: 4096
+  hls:
+    enabled: true
+    segment_duration: 6s
+    playlist_length: 30s
+    storage_path: "/data/hls"
+  dash:
+    enabled: false
+    segment_duration: 4s
+    storage_path: "/data/dash"
+
+# 媒体处理配置
+media:
+  upload:
+    max_file_size: 104857600 # 100MB
+    allowed_types:
+      - "video/mp4"
+      - "video/avi"
+      - "video/mov"
+      - "video/wmv"
+      - "video/webm"
+      - "audio/mp3"
+      - "audio/wav"
+      - "audio/aac"
+      - "audio/flac"
+      - "image/jpeg"
+      - "image/png"
+      - "image/gif"
+    temp_path: "/tmp/uploads"
+  processing:
+    max_concurrent_jobs: 3
+    job_timeout: 1800s # 30分钟
+    cleanup_interval: 3600s # 1小时
+  thumbnails:
+    width: 320
+    height: 240
+    quality: 80
+    format: "jpeg"
+
+# SFU 架构：滤镜配置已删除
+# 原因：SFU 架构要求所有滤镜、美颜等视觉效果在客户端处理
+# 如需滤镜配置，应在用户服务中实现，通过信令传递给客户端
+
+# 监控配置
+monitoring:
+  enabled: true
+  metrics_port: 9093
+  health_check_interval: 30s
+  performance_monitoring: true
+
+# 安全配置
+security:
+  cors:
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    allow_credentials: true
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 100
+    burst_size: 20
+  file_validation:
+    scan_uploads: true
+    max_scan_size: 52428800 # 50MB
+
+# 缓存配置
+cache:
+  media_info_ttl: 3600s # 1小时
+  thumbnail_ttl: 86400s # 24小时
+  filter_ttl: 1800s # 30分钟
+  job_status_ttl: 300s # 5分钟
+
+# 清理配置
+cleanup:
+  enabled: true
+  interval: 3600s # 1小时
+  temp_files_max_age: 86400s # 24小时
+  completed_jobs_max_age: 604800s # 7天
+  failed_jobs_max_age: 259200s # 3天
+
+# AI处理配置
+ai_processing:
+  enabled: true
+  # 音频处理配置
+  audio:
+    buffer_duration: 5s # 音频缓冲时长
+    sample_rate: 16000
+    channels: 1
+    format: "wav"
+    # 默认启用的AI任务
+    default_tasks:
+      - "speech_recognition"
+      - "emotion_detection"
+      - "synthesis_detection"
+  # 视频处理配置
+  video:
+    buffer_duration: 2s # 视频缓冲时长
+    width: 640
+    height: 480
+    fps: 15
+    format: "mp4"
+    # 默认启用的AI任务
+    default_tasks:
+      - "synthesis_detection"
+      - "video_enhancement"
+  # 处理队列配置
+  queue:
+    size: 1000
+    workers: 4
+    timeout: 30s
+  # 批处理配置
+  batch:
+    enabled: true
+    max_batch_size: 10
+    batch_timeout: 5s
+  # 结果处理配置
+  results:
+    storage_enabled: true
+    storage_path: "/data/ai_results"
+    retention_days: 7
+    callback_enabled: true
+    callback_url: "http://localhost:8082/api/v1/ai/callback"
+
+# 消息队列配置
+message_queue:
+  enabled: true
+  type: "redis"
+  queue_name: "meeting_system"
+  workers: 4
+  visibility_timeout: 30
+  poll_interval: 100
+  max_retries: 3
+  enable_dead_letter_queue: true
+
+# 任务调度器配置
+task_scheduler:
+  enabled: true
+  workers: 2
+  buffer_size: 100
+
+# 事件总线配置
+event_bus:
+  enabled: true
+  type: "redis_pubsub"
+  buffer_size: 100
+  workers: 2
+
+# 任务分发器配置
+task_dispatcher:
+  enabled: true
+  workers: 2
+
+# etcd配置
+etcd:
+  endpoints:
+    - "localhost:2379"
+  dial_timeout: 5
+  ttl: 30
+  namespace: "/services"

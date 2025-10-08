@@ -1,0 +1,300 @@
+# ============================================================================
+# Filebeat配置 - Nginx日志收集
+# ============================================================================
+
+filebeat.inputs:
+# ============================================================================
+# Nginx访问日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/access.log
+    - /var/log/nginx/access.json.log
+  fields:
+    service: nginx-gateway
+    log_type: access
+  fields_under_root: true
+  multiline.pattern: '^\d{4}-\d{2}-\d{2}'
+  multiline.negate: true
+  multiline.match: after
+  processors:
+    - add_host_metadata:
+        when.not.contains.tags: forwarded
+
+# ============================================================================
+# Nginx错误日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/error.log
+  fields:
+    service: nginx-gateway
+    log_type: error
+  fields_under_root: true
+  multiline.pattern: '^\d{4}/\d{2}/\d{2}'
+  multiline.negate: true
+  multiline.match: after
+
+# ============================================================================
+# 安全日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/security.log
+  fields:
+    service: nginx-gateway
+    log_type: security
+  fields_under_root: true
+
+# ============================================================================
+# 限流日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/rate_limit.log
+  fields:
+    service: nginx-gateway
+    log_type: rate_limit
+  fields_under_root: true
+
+# ============================================================================
+# 认证日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/auth.log
+  fields:
+    service: nginx-gateway
+    log_type: auth
+  fields_under_root: true
+
+# ============================================================================
+# 健康检查日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/health-check.log
+  fields:
+    service: nginx-gateway
+    log_type: health_check
+  fields_under_root: true
+
+# ============================================================================
+# 告警日志
+# ============================================================================
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/alerts.log
+  fields:
+    service: nginx-gateway
+    log_type: alerts
+  fields_under_root: true
+
+# ============================================================================
+# Docker容器日志
+# ============================================================================
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+  processors:
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+    - decode_json_fields:
+        fields: ["message"]
+        target: ""
+        overwrite_keys: true
+
+# ============================================================================
+# 输出配置
+# ============================================================================
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "nginx-gateway-%{+yyyy.MM.dd}"
+  template.name: "nginx-gateway"
+  template.pattern: "nginx-gateway-*"
+  template.settings:
+    index.number_of_shards: 1
+    index.number_of_replicas: 0
+
+# 如果使用Logstash
+# output.logstash:
+#   hosts: ["logstash:5044"]
+
+# 如果使用Kafka
+# output.kafka:
+#   hosts: ["kafka:9092"]
+#   topic: "nginx-logs"
+
+# ============================================================================
+# 处理器配置
+# ============================================================================
+processors:
+  # 添加主机信息
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+  # 添加Docker元数据
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+  # 解析JSON日志
+  - decode_json_fields:
+      fields: ["message"]
+      process_array: false
+      max_depth: 1
+      target: ""
+      overwrite_keys: false
+      add_error_key: true
+
+  # 时间戳处理
+  - timestamp:
+      field: time_local
+      layouts:
+        - '02/Jan/2006:15:04:05 -0700'
+        - '2006-01-02T15:04:05.000Z'
+      test:
+        - '25/May/2023:10:05:32 +0000'
+
+  # 字段重命名
+  - rename:
+      fields:
+        - from: "remote_addr"
+          to: "client.ip"
+        - from: "http_user_agent"
+          to: "user_agent.original"
+        - from: "http_referer"
+          to: "http.request.referrer"
+
+  # 添加地理位置信息（需要GeoIP数据库）
+  # - add_locale:
+  #     format: offset
+
+  # 删除不需要的字段
+  - drop_fields:
+      fields: ["agent", "ecs", "input", "log.file.path"]
+
+# ============================================================================
+# 日志配置
+# ============================================================================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# ============================================================================
+# 监控配置
+# ============================================================================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+
+# ============================================================================
+# 性能调优
+# ============================================================================
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 1s
+
+# 批量发送配置
+output.elasticsearch:
+  bulk_max_size: 1600
+  worker: 2
+  compression_level: 3
+  escape_html: false
+
+# ============================================================================
+# 模板配置
+# ============================================================================
+setup.template.enabled: true
+setup.template.name: "nginx-gateway"
+setup.template.pattern: "nginx-gateway-*"
+setup.template.settings:
+  index:
+    number_of_shards: 1
+    number_of_replicas: 0
+    refresh_interval: "5s"
+
+# 字段映射
+setup.template.mappings:
+  properties:
+    "@timestamp":
+      type: date
+    client.ip:
+      type: ip
+    http.response.status_code:
+      type: long
+    http.response.body.bytes:
+      type: long
+    http.request.method:
+      type: keyword
+    url.original:
+      type: text
+      fields:
+        keyword:
+          type: keyword
+          ignore_above: 256
+    user_agent.original:
+      type: text
+      fields:
+        keyword:
+          type: keyword
+          ignore_above: 256
+    nginx.access.response_time:
+      type: float
+    nginx.access.upstream_response_time:
+      type: float
+
+# ============================================================================
+# 索引生命周期管理
+# ============================================================================
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "nginx-gateway"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy: "nginx-gateway-policy"
+
+# ILM策略
+setup.ilm.policy_file: |
+  {
+    "policy": {
+      "phases": {
+        "hot": {
+          "actions": {
+            "rollover": {
+              "max_size": "1GB",
+              "max_age": "1d"
+            }
+          }
+        },
+        "warm": {
+          "min_age": "7d",
+          "actions": {
+            "allocate": {
+              "number_of_replicas": 0
+            }
+          }
+        },
+        "cold": {
+          "min_age": "30d",
+          "actions": {
+            "allocate": {
+              "number_of_replicas": 0
+            }
+          }
+        },
+        "delete": {
+          "min_age": "90d"
+        }
+      }
+    }
+  }

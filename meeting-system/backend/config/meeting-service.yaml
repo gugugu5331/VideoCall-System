@@ -1,0 +1,104 @@
+# 会议服务配置文件
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8082
+  mode: "release"  # debug, release, test
+  read_timeout: 60
+  write_timeout: 60
+
+# gRPC配置
+grpc:
+  port: 50052
+
+# PostgreSQL数据库配置
+database:
+  host: "localhost"
+  port: 15432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 60
+  conn_max_lifetime: 3600  # 秒
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 16379
+  password: ""
+  db: 0
+  pool_size: 10
+
+# MongoDB配置
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "meeting_system"
+  timeout: 30  # 秒
+
+# MinIO对象存储配置
+minio:
+  endpoint: "localhost:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-system"
+
+# JWT配置
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24  # 小时
+
+# ZeroMQ配置 (与Edge-LLM-Infra集成)
+zmq:
+  unit_manager_host: "localhost"
+  unit_manager_port: 5001
+  unit_name: "meeting_ai_service"
+  timeout: 30  # 秒
+
+# 日志配置
+log:
+  level: "info"  # debug, info, warn, error, fatal
+  filename: "logs/app.log"
+  max_size: 100    # MB
+  max_age: 30      # 天
+  max_backups: 10
+  compress: true
+
+etcd:
+  endpoints:
+    - "localhost:2379"
+  dial_timeout: 5
+  ttl: 30
+  namespace: "/services"
+
+# 消息队列配置
+message_queue:
+  enabled: true
+  type: "redis"
+  queue_name: "meeting_system"
+  workers: 4
+  visibility_timeout: 30
+  poll_interval: 100
+  max_retries: 3
+  enable_dead_letter_queue: true
+
+# 任务调度器配置
+task_scheduler:
+  enabled: true
+  workers: 2
+  buffer_size: 100
+
+# 事件总线配置
+event_bus:
+  enabled: true
+  type: "redis_pubsub"
+  buffer_size: 100
+  workers: 2
+
+# 任务分发器配置
+task_dispatcher:
+  enabled: true
+  workers: 2

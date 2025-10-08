@@ -1,0 +1,522 @@
+version: '3.3'
+
+services:
+  # 数据库服务
+  postgres:
+    image: postgres:15-alpine
+    container_name: meeting-postgres
+    environment:
+      POSTGRES_DB: meeting_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/shared/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: meeting-redis
+    command: redis-server --appendonly yes --requirepass ""
+    volumes:
+      - redis_data:/data
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # etcd 服务注册中心
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: meeting-etcd
+    environment:
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=default=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_DATA_DIR=/etcd-data
+    volumes:
+      - etcd_data:/etcd-data
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "etcdctl", "--endpoints=http://localhost:2379", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB (AI数据)
+  mongodb:
+    image: mongo:6.0.14
+    container_name: meeting-mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: meeting_system
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - meeting-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # MinIO对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: meeting-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Jaeger 分布式追踪 - 映射到外网端口 22177
+  jaeger:
+    image: jaegertracing/all-in-one:1.51
+    container_name: meeting-jaeger
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "8801:16686"      # Jaeger UI (外网端口 22177)
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Prometheus 监控 - 映射到外网端口 22178
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: meeting-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    ports:
+      - "8802:9090"  # Prometheus (外网端口 22178)
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Alertmanager 告警 - 映射到外网端口 22179
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: meeting-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    ports:
+      - "8803:9093"  # Alertmanager (外网端口 22179)
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Grafana 可视化 - 映射到外网端口 22180
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: meeting-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "8804:3000"  # Grafana (外网端口 22180)
+    networks:
+      - meeting-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Loki 日志聚合 - 映射到外网端口 22181
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: meeting-loki
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/loki-config.yml
+      - loki_data:/loki
+    ports:
+      - "8805:3100"  # Loki (外网端口 22181)
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Promtail 日志收集
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: meeting-promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - meeting-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # Node Exporter
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: meeting-node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    ports:
+      - "9100:9100"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.55.0
+    container_name: meeting-redis-exporter
+    environment:
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "9121:9121"
+    networks:
+      - meeting-network
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # PostgreSQL Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: meeting-postgres-exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://postgres:password@postgres:5432/meeting_system?sslmode=disable
+    ports:
+      - "9187:9187"
+    networks:
+      - meeting-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # 用户服务
+  user-service:
+    build:
+      context: ./backend
+      dockerfile: user-service/Dockerfile
+    container_name: meeting-user-service
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ETCD_ENDPOINTS=etcd:2379
+      - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    volumes:
+      - ./backend/config:/app/config
+      - ./backend/logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - etcd
+      - jaeger
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # 信令服务
+  signaling-service:
+    build:
+      context: ./backend
+      dockerfile: signaling-service/Dockerfile
+    container_name: meeting-signaling-service
+    environment:
+      - CONFIG_PATH=/app/config/signaling-service.yaml
+      - REDIS_HOST=redis
+      - ETCD_ENDPOINTS=etcd:2379
+      - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    volumes:
+      - ./backend/config:/app/config
+      - ./backend/logs:/app/logs
+    depends_on:
+      - redis
+      - user-service
+      - jaeger
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # 会议服务
+  meeting-service:
+    build:
+      context: ./backend
+      dockerfile: meeting-service/Dockerfile
+    container_name: meeting-meeting-service
+    environment:
+      - CONFIG_PATH=/app/config/meeting-service.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ETCD_ENDPOINTS=etcd:2379
+      - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    volumes:
+      - ./backend/config:/app/config
+      - ./backend/logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - user-service
+      - etcd
+      - jaeger
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # 媒体服务
+  media-service:
+    build:
+      context: ./backend
+      dockerfile: media-service/Dockerfile
+    container_name: meeting-media-service
+    environment:
+      - CONFIG_PATH=/app/config/media-service.yaml
+      - DB_HOST=postgres
+      - MINIO_HOST=minio
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    volumes:
+      - ./backend/config:/app/config
+      - ./backend/logs:/app/logs
+      - media_temp:/tmp/media
+      - recordings_data:/data/recordings
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres
+      - minio
+      - signaling-service
+      - jaeger
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # AI服务
+  ai-service:
+    build:
+      context: ./backend
+      dockerfile: ai-service/Dockerfile
+    container_name: meeting-ai-service
+    environment:
+      - CONFIG_PATH=/app/config/ai-service.yaml
+      - MONGODB_HOST=mongodb
+      - ZMQ_UNIT_MANAGER_HOST=host.docker.internal
+      - ZMQ_UNIT_MANAGER_PORT=10001
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    volumes:
+      - ./backend/config:/app/config
+      - ./backend/logs:/app/logs
+      - ai_models:/app/models
+      - /tmp/llm:/tmp/llm
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - mongodb
+      - signaling-service
+      - media-service
+      - jaeger
+      - edge-model-infra
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Edge-LLM-Infra (AI推理基础设施)
+  edge-model-infra:
+    build:
+      context: .
+      dockerfile: edge-llm-infra/Dockerfile
+    container_name: meeting-edge-model-infra
+    environment:
+      - TZ=Asia/Shanghai
+      - LD_LIBRARY_PATH=/usr/local/lib
+    volumes:
+      - /models:/models:ro
+      - /tmp/llm:/tmp/llm
+    ports:
+      - "10001:10001"
+      - "10002:10002"
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # AI Inference Worker (Python推理节点)
+  ai-inference-worker:
+    build:
+      context: .
+      dockerfile: ai-inference-service/Dockerfile
+    container_name: meeting-ai-inference-worker
+    environment:
+      - TZ=Asia/Shanghai
+      - MODEL_CACHE_DIR=/models
+      - TRANSFORMERS_CACHE=/models
+      - HF_HOME=/models
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /models:/models:ro
+      - ./ai-inference-service/logs:/app/logs
+      - ./ai-inference-service/temp:/app/temp
+      - ./ai-inference-service/results:/app/results
+    ports:
+      - "5010:5010"  # ZMQ endpoint for Edge-LLM-Infra
+    depends_on:
+      - edge-model-infra
+    networks:
+      - meeting-network
+    restart: unless-stopped
+
+  # Nginx API网关 - 映射到外网端口 22176
+  nginx:
+    image: nginx:alpine
+    container_name: meeting-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./frontend/dist:/var/www/static
+      - recordings_data:/var/www/hls
+    ports:
+      - "8800:80"   # HTTP (外网端口 22176)
+      - "8443:443"  # HTTPS
+    depends_on:
+      - user-service
+      - signaling-service
+      - meeting-service
+      - media-service
+      - ai-service
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+# 网络配置
+networks:
+  meeting-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# 数据卷
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  minio_data:
+    driver: local
+  media_temp:
+    driver: local
+  recordings_data:
+    driver: local
+  ai_models:
+    driver: local
+  prometheus_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  etcd_data:
+    driver: local
+

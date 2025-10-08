@@ -1,0 +1,125 @@
+# AI Inference Service 配置文件
+server:
+  host: "0.0.0.0"
+  port: 8085  # AI 推理服务端口
+  mode: "debug"  # debug, release, test
+  read_timeout: 60
+  write_timeout: 60
+
+# 数据库配置（可选）
+database:
+  driver: "postgres"
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+# Redis 配置
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  session_prefix: "ai_inference:"
+  room_prefix: "ai_room:"
+  message_prefix: "ai_msg:"
+  session_ttl: 3600
+
+# Etcd 配置（服务注册）
+etcd:
+  endpoints:
+    - "etcd:2379"
+  dial_timeout: 5
+  request_timeout: 10
+
+# ZMQ 配置（Edge-LLM-Infra 集成）
+zmq:
+  unit_manager_host: "172.17.0.1"  # unit-manager 地址（Docker 宿主机）
+  unit_manager_port: 19001         # unit-manager 端口
+  unit_name: "llm"                 # 单元名称（必须是 "llm"）
+  timeout: 30                      # 超时时间（秒）
+
+# JWT 配置
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24
+
+# 日志配置
+log:
+  level: "debug"  # 改为 debug 以查看详细日志
+  filename: "logs/ai-inference-service.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true
+
+# AI 推理配置
+ai:
+  # 模型配置
+  models:
+    asr:
+      model_name: "asr-model"
+      timeout: 30
+      max_concurrent: 10
+    emotion:
+      model_name: "emotion-model"
+      timeout: 15
+      max_concurrent: 20
+    synthesis:
+      model_name: "synthesis-model"
+      timeout: 20
+      max_concurrent: 15
+
+  # 请求配置
+  request:
+    max_retries: 3
+    retry_delay: 1000  # 毫秒
+    timeout: 30        # 秒
+
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 300  # 缓存 TTL（秒）
+    max_size: 1000  # 最大缓存条目数
+
+  # 限流配置
+  rate_limit:
+    enabled: true
+    requests_per_minute: 1000
+    burst_size: 100
+
+# 监控配置
+monitoring:
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+  tracing:
+    enabled: true
+    jaeger_endpoint: "http://jaeger:14268/api/traces"
+
+  health_check:
+    enabled: true
+    path: "/health"
+
+# 安全配置
+security:
+  api_key_required: false
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+
+  rate_limiting:
+    enabled: true
+    requests_per_second: 100
+    burst_size: 200
+

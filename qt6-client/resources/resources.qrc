@@ -1,0 +1,20 @@
+<RCC>
+    <qresource prefix="/">
+        <file>../qml/main.qml</file>
+        <file>../qml/LoginPage.qml</file>
+        <file>../qml/RegisterDialog.qml</file>
+        <file>../qml/ForgotPasswordDialog.qml</file>
+        <file>../qml/MainWindow.qml</file>
+        <file>../qml/MeetingRoom.qml</file>
+        <file>../qml/AIPanel.qml</file>
+        <file>../qml/VideoEffectsPanel.qml</file>
+        <file>../qml/components/VideoTile.qml</file>
+        <file>../qml/components/MeetingToolBar.qml</file>
+        <file>../qml/components/ParticipantList.qml</file>
+        <file>../qml/components/ChatPanel.qml</file>
+    </qresource>
+    <qresource prefix="/models">
+        <file>models/haarcascade_frontalface_default.xml</file>
+    </qresource>
+</RCC>
+

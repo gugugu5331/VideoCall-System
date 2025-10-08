@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Nginx API网关
+  # ============================================================================
+  nginx-gateway:
+    image: nginx:1.25-alpine
+    container_name: meeting-nginx-gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      # - "1935:1935"  # RTMP端口（如果启用）
+    volumes:
+      # 配置文件
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      
+      # 静态文件
+      - ./www/static:/var/www/static:ro
+      - ./www/admin:/var/www/admin:ro
+      - ./www/hls:/var/www/hls
+      - ./www/cdn:/var/www/cdn
+      
+      # 缓存目录
+      - nginx_cache:/var/cache/nginx
+      
+      # 日志目录
+      - ./logs:/var/log/nginx
+      
+      # Let's Encrypt证书验证
+      - ./certbot:/var/www/certbot:ro
+    networks:
+      - meeting-network
+    depends_on:
+      - user-service
+      - meeting-service
+      - signaling-service
+      - media-service
+      - ai-service
+      - notification-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=false"  # 如果使用Traefik，禁用自动发现
+    environment:
+      - TZ=Asia/Shanghai
+
+  # ============================================================================
+  # Let's Encrypt证书自动续期
+  # ============================================================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: meeting-certbot
+    volumes:
+      - ./ssl:/etc/letsencrypt
+      - ./certbot:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@meeting.com --agree-tos --no-eff-email -d meeting.example.com -d api.meeting.com -d admin.meeting.com
+    profiles:
+      - certbot  # 使用profile控制，手动运行
+
+  # ============================================================================
+  # 日志收集和分析
+  # ============================================================================
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.10.0
+    container_name: meeting-filebeat
+    user: root
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/var/log/nginx:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - meeting-network
+    depends_on:
+      - nginx-gateway
+    profiles:
+      - monitoring
+
+  # ============================================================================
+  # Nginx Prometheus导出器
+  # ============================================================================
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:0.11.0
+    container_name: meeting-nginx-exporter
+    command:
+      - -nginx.scrape-uri=http://nginx-gateway/nginx_status
+    ports:
+      - "9113:9113"
+    networks:
+      - meeting-network
+    depends_on:
+      - nginx-gateway
+    profiles:
+      - monitoring
+
+# ============================================================================
+# 网络配置
+# ============================================================================
+networks:
+  meeting-network:
+    external: true
+
+# ============================================================================
+# 数据卷
+# ============================================================================
+volumes:
+  nginx_cache:
+    driver: local

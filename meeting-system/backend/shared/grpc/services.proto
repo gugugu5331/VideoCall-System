@@ -1,0 +1,376 @@
+syntax = "proto3";
+
+package grpc;
+
+option go_package = "meeting-system/shared/grpc";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// 用户服务接口
+service UserService {
+    rpc GetUser(GetUserRequest) returns (GetUserResponse);
+    rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+    rpc GetUsersByIds(GetUsersByIdsRequest) returns (GetUsersByIdsResponse);
+    rpc UpdateUserStatus(UpdateUserStatusRequest) returns (google.protobuf.Empty);
+}
+
+// 会议服务接口
+service MeetingService {
+    rpc GetMeeting(GetMeetingRequest) returns (GetMeetingResponse);
+    rpc ValidateUserAccess(ValidateUserAccessRequest) returns (ValidateUserAccessResponse);
+    rpc UpdateMeetingStatus(UpdateMeetingStatusRequest) returns (google.protobuf.Empty);
+    rpc GetActiveMeetings(google.protobuf.Empty) returns (GetActiveMeetingsResponse);
+}
+
+// 媒体服务接口
+service MediaService {
+    rpc NotifyRecordingStarted(NotifyRecordingStartedRequest) returns (google.protobuf.Empty);
+    rpc NotifyRecordingStopped(NotifyRecordingStoppedRequest) returns (google.protobuf.Empty);
+    rpc NotifyMediaProcessing(NotifyMediaProcessingRequest) returns (google.protobuf.Empty);
+    rpc GetMediaStats(GetMediaStatsRequest) returns (GetMediaStatsResponse);
+}
+
+// 信令服务接口
+service SignalingService {
+    rpc NotifyUserJoined(NotifyUserJoinedRequest) returns (google.protobuf.Empty);
+    rpc NotifyUserLeft(NotifyUserLeftRequest) returns (google.protobuf.Empty);
+    rpc BroadcastMessage(BroadcastMessageRequest) returns (google.protobuf.Empty);
+    rpc GetRoomUsers(GetRoomUsersRequest) returns (GetRoomUsersResponse);
+}
+
+// AI服务接口
+service AIService {
+    // 一元 RPC：批量处理音频数据（兼容现有实现）
+    rpc ProcessAudioData(ProcessAudioDataRequest) returns (ProcessAudioDataResponse);
+
+    // 一元 RPC：批量处理视频帧（兼容现有实现）
+    rpc ProcessVideoFrame(ProcessVideoFrameRequest) returns (ProcessVideoFrameResponse);
+
+    // 双向流式 RPC：实时音频处理（方案二）
+    rpc StreamAudioProcessing(stream AudioChunk) returns (stream AIStreamResult);
+
+    // 双向流式 RPC：实时视频处理（方案二）
+    rpc StreamVideoProcessing(stream VideoChunk) returns (stream AIStreamResult);
+
+    // 获取 AI 分析结果
+    rpc GetAIAnalysis(GetAIAnalysisRequest) returns (GetAIAnalysisResponse);
+
+    // 通知 AI 结果
+    rpc NotifyAIResult(NotifyAIResultRequest) returns (google.protobuf.Empty);
+}
+
+// 通知服务接口
+service NotificationService {
+    rpc SendNotification(SendNotificationRequest) returns (google.protobuf.Empty);
+    rpc SendBulkNotifications(SendBulkNotificationsRequest) returns (google.protobuf.Empty);
+    rpc GetNotificationHistory(GetNotificationHistoryRequest) returns (GetNotificationHistoryResponse);
+}
+
+// 请求和响应消息定义
+
+// 用户服务消息
+message GetUserRequest {
+    uint32 user_id = 1;
+}
+
+message GetUserResponse {
+    uint32 id = 1;
+    string username = 2;
+    string email = 3;
+    string full_name = 4;
+    string status = 5;
+    google.protobuf.Timestamp created_at = 6;
+}
+
+message ValidateTokenRequest {
+    string token = 1;
+}
+
+message ValidateTokenResponse {
+    bool valid = 1;
+    uint32 user_id = 2;
+    string username = 3;
+    string error = 4;
+}
+
+message GetUsersByIdsRequest {
+    repeated uint32 user_ids = 1;
+}
+
+message GetUsersByIdsResponse {
+    repeated GetUserResponse users = 1;
+}
+
+message UpdateUserStatusRequest {
+    uint32 user_id = 1;
+    string status = 2;
+}
+
+// 会议服务消息
+message GetMeetingRequest {
+    uint32 meeting_id = 1;
+}
+
+message GetMeetingResponse {
+    uint32 id = 1;
+    string title = 2;
+    string description = 3;
+    uint32 creator_id = 4;
+    string status = 5;
+    google.protobuf.Timestamp start_time = 6;
+    google.protobuf.Timestamp end_time = 7;
+    int32 max_participants = 8;
+}
+
+message ValidateUserAccessRequest {
+    uint32 user_id = 1;
+    uint32 meeting_id = 2;
+}
+
+message ValidateUserAccessResponse {
+    bool has_access = 1;
+    string role = 2;
+    string error = 3;
+}
+
+message UpdateMeetingStatusRequest {
+    uint32 meeting_id = 1;
+    string status = 2;
+    int32 participant_count = 3;
+}
+
+message GetActiveMeetingsResponse {
+    repeated GetMeetingResponse meetings = 1;
+}
+
+// 媒体服务消息
+message NotifyRecordingStartedRequest {
+    string room_id = 1;
+    uint32 user_id = 2;
+    string recording_id = 3;
+    string title = 4;
+}
+
+message NotifyRecordingStoppedRequest {
+    string room_id = 1;
+    uint32 user_id = 2;
+    string recording_id = 3;
+    string file_path = 4;
+    int64 file_size = 5;
+    double duration = 6;
+}
+
+message NotifyMediaProcessingRequest {
+    uint32 user_id = 1;
+    string job_id = 2;
+    string job_type = 3;
+    double progress = 4;
+    string status = 5;
+}
+
+message GetMediaStatsRequest {
+    string room_id = 1;
+}
+
+message GetMediaStatsResponse {
+    int32 active_streams = 1;
+    int32 recording_count = 2;
+    double total_bandwidth = 3;
+    repeated StreamInfo streams = 4;
+}
+
+message StreamInfo {
+    string stream_id = 1;
+    uint32 user_id = 2;
+    string media_type = 3;
+    double bitrate = 4;
+    string quality = 5;
+}
+
+// 信令服务消息
+message NotifyUserJoinedRequest {
+    string room_id = 1;
+    uint32 user_id = 2;
+    string username = 3;
+    string peer_id = 4;
+}
+
+message NotifyUserLeftRequest {
+    string room_id = 1;
+    uint32 user_id = 2;
+    string peer_id = 3;
+}
+
+message BroadcastMessageRequest {
+    string room_id = 1;
+    uint32 from_user_id = 2;
+    string message_type = 3;
+    string content = 4;
+    repeated uint32 target_user_ids = 5; // 空表示广播给所有人
+}
+
+message GetRoomUsersRequest {
+    string room_id = 1;
+}
+
+message GetRoomUsersResponse {
+    repeated RoomUser users = 1;
+}
+
+message RoomUser {
+    uint32 user_id = 1;
+    string username = 2;
+    string peer_id = 3;
+    string status = 4;
+    google.protobuf.Timestamp joined_at = 5;
+}
+
+// AI服务消息
+message ProcessAudioDataRequest {
+    bytes audio_data = 1;
+    string format = 2;
+    int32 sample_rate = 3;
+    int32 channels = 4;
+    string room_id = 5;
+    uint32 user_id = 6;
+    repeated string tasks = 7;  // AI 任务列表：["speech_recognition", "emotion_detection"]
+    int32 duration = 8;          // 音频时长（毫秒）
+}
+
+// 音频片段（用于流式传输）
+message AudioChunk {
+    bytes data = 1;              // 音频数据片段（如 100ms）
+    int32 sequence = 2;          // 序列号
+    string stream_id = 3;        // 流 ID
+    uint32 user_id = 4;          // 用户 ID
+    string room_id = 5;          // 房间 ID
+    string format = 6;           // 音频格式
+    int32 sample_rate = 7;       // 采样率
+    int32 channels = 8;          // 声道数
+    repeated string tasks = 9;   // AI 任务列表
+    bool is_final = 10;          // 是否是最后一个片段
+}
+
+message ProcessAudioDataResponse {
+    string task_id = 1;
+    string status = 2;
+    string error = 3;
+    map<string, AIResult> results = 4;  // 多任务结果
+}
+
+// AI 结果
+message AIResult {
+    string result_type = 1;      // "speech_recognition", "emotion_detection", etc.
+    string result_data = 2;      // JSON 格式的结果数据
+    double confidence = 3;       // 置信度 0.0-1.0
+    google.protobuf.Timestamp created_at = 4;
+}
+
+// AI 流式结果
+message AIStreamResult {
+    string stream_id = 1;        // 流 ID
+    int32 sequence = 2;          // 对应的序列号
+    string result_type = 3;      // 结果类型
+    string result_data = 4;      // JSON 格式的结果数据
+    double confidence = 5;       // 置信度
+    bool is_final = 6;           // 是否是最终结果
+    google.protobuf.Timestamp timestamp = 7;
+}
+
+message ProcessVideoFrameRequest {
+    bytes frame_data = 1;
+    string format = 2;
+    int32 width = 3;
+    int32 height = 4;
+    string room_id = 5;
+    uint32 user_id = 6;
+    repeated string tasks = 7;   // AI 任务列表
+    int32 fps = 8;               // 帧率
+}
+
+// 视频片段（用于流式传输）
+message VideoChunk {
+    bytes data = 1;              // 视频帧数据
+    int32 sequence = 2;          // 序列号
+    string stream_id = 3;        // 流 ID
+    uint32 user_id = 4;          // 用户 ID
+    string room_id = 5;          // 房间 ID
+    string format = 6;           // 视频格式
+    int32 width = 7;             // 宽度
+    int32 height = 8;            // 高度
+    int32 fps = 9;               // 帧率
+    repeated string tasks = 10;  // AI 任务列表
+    bool is_final = 11;          // 是否是最后一帧
+}
+
+message ProcessVideoFrameResponse {
+    string task_id = 1;
+    string status = 2;
+    string error = 3;
+    map<string, AIResult> results = 4;  // 多任务结果
+}
+
+message GetAIAnalysisRequest {
+    string task_id = 1;
+}
+
+message GetAIAnalysisResponse {
+    string task_id = 1;
+    string status = 2;
+    string result_type = 3;
+    string result_data = 4; // JSON格式的结果数据
+    double confidence = 5;
+    google.protobuf.Timestamp created_at = 6;
+}
+
+message NotifyAIResultRequest {
+    string room_id = 1;
+    uint32 user_id = 2;
+    string result_type = 3;
+    string result_data = 4;
+    double confidence = 5;
+}
+
+// 通知服务消息
+message SendNotificationRequest {
+    uint32 user_id = 1;
+    string type = 2;
+    string title = 3;
+    string content = 4;
+    string data = 5; // JSON格式的额外数据
+    bool push_notification = 6;
+    bool email_notification = 7;
+}
+
+message SendBulkNotificationsRequest {
+    repeated uint32 user_ids = 1;
+    string type = 2;
+    string title = 3;
+    string content = 4;
+    string data = 5;
+    bool push_notification = 6;
+    bool email_notification = 7;
+}
+
+message GetNotificationHistoryRequest {
+    uint32 user_id = 1;
+    int32 limit = 2;
+    int32 offset = 3;
+    string type_filter = 4;
+}
+
+message GetNotificationHistoryResponse {
+    repeated NotificationInfo notifications = 1;
+    int32 total_count = 2;
+}
+
+message NotificationInfo {
+    uint32 id = 1;
+    string type = 2;
+    string title = 3;
+    string content = 4;
+    string data = 5;
+    bool read = 6;
+    google.protobuf.Timestamp created_at = 7;
+}

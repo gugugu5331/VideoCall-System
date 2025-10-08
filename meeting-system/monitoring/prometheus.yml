@@ -1,0 +1,123 @@
+# Prometheus配置文件
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 规则文件
+rule_files:
+  - "alert_rules.yml"
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# 抓取配置
+scrape_configs:
+  # Prometheus自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 用户服务监控
+  - job_name: 'user-service'
+    static_configs:
+      - targets: ['user-service:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    params:
+      format: ['prometheus']
+
+  # 信令服务监控
+  - job_name: 'signaling-service'
+    static_configs:
+      - targets: ['signaling-service:8081']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # 会议服务监控
+  - job_name: 'meeting-service'
+    static_configs:
+      - targets: ['meeting-service:8082']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # 媒体服务监控
+  - job_name: 'media-service'
+    static_configs:
+      - targets: ['media-service:8083']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # AI服务监控
+  - job_name: 'ai-service'
+    static_configs:
+      - targets: ['ai-service:8084']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # 通知服务监控
+  - job_name: 'notification-service'
+    static_configs:
+      - targets: ['notification-service:8085']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Nginx监控
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+    metrics_path: '/metrics'
+
+  # PostgreSQL监控
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Redis监控
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # MongoDB监控
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
+
+  # MinIO监控
+  - job_name: 'minio'
+    static_configs:
+      - targets: ['minio:9000']
+    metrics_path: '/minio/v2/metrics/cluster'
+
+  # Node Exporter (系统监控)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # cAdvisor (容器监控)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  # 服务发现配置 (使用静态配置代替 Redis SD)
+  # 注意: redis_sd_configs 不是 Prometheus 的标准配置
+  # 如需动态服务发现，可以使用 file_sd_configs 或 consul_sd_configs
+  # - job_name: 'service-discovery'
+  #   static_configs:
+  #     - targets: []
+
+# 远程写入配置 (可选)
+# remote_write:
+#   - url: "http://remote-storage:9201/write"
+#     queue_config:
+#       max_samples_per_send: 1000
+#       max_shards: 200
+#       capacity: 2500
+
+# 远程读取配置 (可选)
+# remote_read:
+#   - url: "http://remote-storage:9201/read"

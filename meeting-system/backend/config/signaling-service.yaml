@@ -1,0 +1,145 @@
+# 信令服务配置文件
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8081
+  mode: "debug"
+  read_timeout: 60
+  write_timeout: 60
+
+# PostgreSQL数据库配置
+database:
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+# Redis配置
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  session_prefix: "session:"
+  room_prefix: "room:"
+  message_prefix: "message:"
+  session_ttl: 3600
+
+# WebSocket配置
+websocket:
+  path: "/ws/signaling"
+  read_buffer_size: 1024
+  write_buffer_size: 1024
+  check_origin: true
+  ping_period: 30
+  pong_wait: 60
+  write_wait: 10
+  max_message_size: 8192
+
+# 信令配置
+signaling:
+  room:
+    max_participants: 100
+    cleanup_interval: 300
+    inactive_timeout: 600
+  session:
+    heartbeat_interval: 30
+    connection_timeout: 60
+    max_reconnect_attempts: 3
+  message:
+    max_queue_size: 1000
+    batch_size: 100
+    retry_attempts: 3
+    retry_delay: 1
+
+# ZMQ配置（可选，用于AI功能）
+zmq:
+  endpoint: "tcp://localhost:5555"
+  timeout: 30
+  retry_attempts: 3
+  retry_delay: 1
+
+# 日志配置
+log:
+  level: "info"
+  filename: "logs/signaling-service.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true
+
+services:
+  user_service:
+    host: "user-service"
+    port: 50051
+    timeout: 5s
+  meeting_service:
+    host: "meeting-service"
+    port: 50052
+    timeout: 5s
+  signaling_service:
+    host: "signaling-service"
+    port: 8081
+    timeout: 5s
+  media_service:
+    host: "media-service"
+    port: 8083
+    timeout: 5s
+  ai_service:
+    host: "ai-service"
+    port: 8084
+    timeout: 10s
+  notification_service:
+    host: "notification-service"
+    port: 8085
+    timeout: 5s
+
+
+# JWT 配置（必须显式指定，避免使用默认密钥）
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24
+
+# 消息队列配置
+message_queue:
+  enabled: true
+  type: "redis"
+  queue_name: "meeting_system"
+  workers: 4
+  visibility_timeout: 30
+  poll_interval: 100
+  max_retries: 3
+  enable_dead_letter_queue: true
+
+# 任务调度器配置
+task_scheduler:
+  enabled: true
+  workers: 2
+  buffer_size: 100
+
+# 事件总线配置
+event_bus:
+  enabled: true
+  type: "redis_pubsub"
+  buffer_size: 100
+  workers: 2
+
+# 任务分发器配置
+task_dispatcher:
+  enabled: true
+  workers: 2
+
+# etcd配置
+etcd:
+  endpoints:
+    - "localhost:2379"
+  dial_timeout: 5
+  ttl: 30
+  namespace: "/services"

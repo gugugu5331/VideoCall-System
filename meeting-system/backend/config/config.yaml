@@ -1,0 +1,131 @@
+# 会议系统配置文件
+
+# 服务器配置
+server:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug"  # debug, release, test
+  read_timeout: 60
+  write_timeout: 60
+
+# PostgreSQL数据库配置
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600  # 秒
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+# 消息队列配置
+message_queue:
+  enabled: true
+  type: "redis"  # redis, memory
+  queue_name: "meeting_system"
+  workers: 4
+  visibility_timeout: 30  # 秒
+  poll_interval: 100      # 毫秒
+  max_retries: 3
+  enable_dead_letter_queue: true
+
+# 任务调度器配置
+task_scheduler:
+  enabled: true
+  buffer_size: 1000
+  workers: 8
+  enable_delayed_tasks: true
+
+# 事件总线配置
+event_bus:
+  enabled: true
+  type: "redis_pubsub"  # redis_pubsub, local
+  buffer_size: 1000
+  workers: 4
+
+# 任务分发器配置
+task_dispatcher:
+  enabled: true
+  enable_routing: true
+  enable_callbacks: true
+
+# MongoDB配置
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "meeting_system"
+  timeout: 30  # 秒
+
+# MinIO对象存储配置
+minio:
+  endpoint: "localhost:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-system"
+
+# JWT配置
+# ⚠️ 安全警告：请通过环境变量 JWT_SECRET 设置密钥，不要在配置文件中使用默认值
+# 生产环境必须设置至少32字符的强密钥
+# 示例: export JWT_SECRET="your-very-long-and-secure-secret-key-at-least-32-characters"
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"  # 仅用于开发环境，生产环境必须通过环境变量设置
+  expire_time: 24  # 小时
+
+# ZeroMQ配置 (与Edge-LLM-Infra集成)
+zmq:
+  unit_manager_host: "localhost"
+  unit_manager_port: 5001
+  unit_name: "meeting_ai_service"
+  timeout: 30  # 秒
+
+# 日志配置
+log:
+  level: "info"  # debug, info, warn, error, fatal
+  filename: "logs/app.log"
+  max_size: 100    # MB
+  max_age: 30      # 天
+  max_backups: 10
+  compress: true
+
+etcd:
+  endpoints:
+    - "localhost:2379"
+  dial_timeout: 5    # 秒
+  ttl: 30            # 秒
+  namespace: "/services"
+
+services:
+  user_service:
+    host: "localhost"
+    port: 8080
+    timeout: 5s
+  meeting_service:
+    host: "localhost"
+    port: 8082
+    timeout: 5s
+  signaling_service:
+    host: "localhost"
+    port: 8081
+    timeout: 5s
+  media_service:
+    host: "localhost"
+    port: 8083
+    timeout: 5s
+  ai_service:
+    host: "localhost"
+    port: 8084
+    timeout: 10s
+  notification_service:
+    host: "localhost"
+    port: 8085
+    timeout: 5s

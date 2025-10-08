@@ -1,0 +1,204 @@
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Process and Log Files
+*.pid
+*.log
+*.log.*
+logs/
+*.out
+
+# Compressed Files
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Build Artifacts
+build/
+dist/
+target/
+bin/
+obj/
+out/
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.o
+
+# Go
+*.test
+*.prof
+vendor/
+go.work
+go.work.sum
+.gocache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Qt
+*.pro.user
+*.pro.user.*
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
+.qmake.stash
+Makefile*
+!Makefile.am
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.vcxproj.filters
+x64/
+Debug/
+Release/
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Data Directories
+data/
+postgres_data/
+redis_data/
+mongodb_data/
+minio_data/
+etcd_data/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.swp
+*~.nib
+local.properties
+
+# Configuration Files (keep templates)
+config/local.yaml
+config/local.json
+*.local.yaml
+*.local.json
+.env.local
+.env.*.local
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# Docker
+.dockerignore
+
+# AI Models (large files)
+*.onnx
+*.pt
+*.pth
+*.h5
+*.pb
+models/
+!models/README.md
+
+# Test Coverage
+coverage/
+*.cover
+.hypothesis/
+
+# Backup Directories
+*.backup/
+backup/
+
+# Service Specific
+meeting-system/ai-inference-service.backup/
+meeting-system/Edge-LLM-Infra-master/unit-manager.log
+meeting-system/Edge-LLM-Infra-master/build/
+
+# Qt Build Artifacts
+qt6-client/build/
+!qt6-client/build/.gitkeep
+qt6-client/bin/
+qt6-client/lib/
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+

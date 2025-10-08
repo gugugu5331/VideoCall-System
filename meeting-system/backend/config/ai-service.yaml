@@ -1,0 +1,148 @@
+# AI服务配置文件
+server:
+  host: "0.0.0.0"
+  port: 8084  # 修改为 8084 以匹配 docker-compose.yml
+  mode: "debug"  # debug, release, test
+  read_timeout: 60
+  write_timeout: 60
+
+grpc:
+  port: 9084
+
+# 数据库配置
+database:
+  driver: "postgres"
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  password: "password"
+  dbname: "meeting_system"
+  sslmode: "disable"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600
+
+# Redis配置
+redis:
+  host: "redis"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  session_prefix: "ai_session:"
+  room_prefix: "ai_room:"
+  message_prefix: "ai_msg:"
+  session_ttl: 3600
+
+# MongoDB配置
+mongodb:
+  uri: "mongodb://mongodb:27017"
+  database: "meeting_ai"
+  timeout: 30
+
+# MinIO配置
+minio:
+  endpoint: "minio:9000"
+  access_key_id: "minioadmin"
+  secret_access_key: "minioadmin"
+  use_ssl: false
+  bucket_name: "meeting-ai-models"
+
+# JWT配置
+jwt:
+  secret: "meeting-system-secret-key-change-in-production"
+  expire_time: 24
+
+# ZMQ配置 (与Edge-LLM-Infra集成)
+zmq:
+  unit_manager_host: "edge-model-infra"
+  unit_manager_port: 10001
+  unit_name: "meeting_ai_service"
+  timeout: 30
+
+# 日志配置
+log:
+  level: "info"
+  filename: "logs/ai-service.log"
+  max_size: 100
+  max_age: 30
+  max_backups: 10
+  compress: true
+
+# AI推理配置
+ai:
+  # 模型配置
+  models:
+    speech_recognition:
+      default_model: "whisper-large-v3"
+      timeout: 30
+      max_concurrent: 10
+    emotion_detection:
+      default_model: "emotion-classifier-v2"
+      timeout: 15
+      max_concurrent: 20
+    synthesis_detection:
+      default_model: "deepfake-detector-v1"
+      timeout: 20
+      max_concurrent: 15
+    audio_denoising:
+      default_model: "rnnoise-enhanced"
+      timeout: 10
+      max_concurrent: 30
+    video_enhancement:
+      default_model: "real-esrgan-v2"
+      timeout: 60
+      max_concurrent: 5
+
+  # 节点管理配置
+  nodes:
+    discovery_interval: 30  # 节点发现间隔(秒)
+    health_check_interval: 10  # 健康检查间隔(秒)
+    max_retry_attempts: 3
+    retry_delay: 1000  # 毫秒
+    
+  # 负载均衡配置
+  load_balancer:
+    strategy: "least_loaded"  # round_robin, least_loaded, weighted
+    health_check_timeout: 5
+    
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 300  # 缓存TTL(秒)
+    max_size: 1000  # 最大缓存条目数
+    
+  # 限流配置
+  rate_limit:
+    enabled: true
+    requests_per_minute: 1000
+    burst_size: 100
+
+# 监控配置
+monitoring:
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+  
+  tracing:
+    enabled: true
+    jaeger_endpoint: "http://jaeger:14268/api/traces"
+    
+  health_check:
+    enabled: true
+    path: "/health"
+    
+# 安全配置
+security:
+  api_key_required: false
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]
+    
+  rate_limiting:
+    enabled: true
+    requests_per_second: 100
+    burst_size: 200

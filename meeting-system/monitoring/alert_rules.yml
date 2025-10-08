@@ -1,0 +1,151 @@
+# Prometheus告警规则
+groups:
+  - name: service_health
+    rules:
+      # 服务健康检查
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} on {{ $labels.instance }} has been down for more than 30 seconds."
+
+      # HTTP错误率过高
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate is {{ $value | humanizePercentage }} on {{ $labels.job }}"
+
+      # 响应时间过长
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.job }}"
+          description: "95th percentile response time is {{ $value }}s on {{ $labels.job }}"
+
+  - name: resource_usage
+    rules:
+      # CPU使用率过高
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # 内存使用率过高
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # 磁盘空间不足
+      - alert: DiskSpaceLow
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} {{ $labels.mountpoint }}"
+
+  - name: database_alerts
+    rules:
+      # PostgreSQL连接数过多
+      - alert: PostgreSQLTooManyConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL too many connections"
+          description: "PostgreSQL has {{ $value }}% connections used"
+
+      # Redis内存使用过高
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is {{ $value }}%"
+
+  - name: meeting_specific
+    rules:
+      # WebSocket连接数过多
+      - alert: TooManyWebSocketConnections
+        expr: websocket_connections_total > 1000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many WebSocket connections"
+          description: "WebSocket connections: {{ $value }}"
+
+      # 活跃会议数过多
+      - alert: TooManyActiveMeetings
+        expr: active_meetings_total > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many active meetings"
+          description: "Active meetings: {{ $value }}"
+
+      # 媒体处理队列积压
+      - alert: MediaProcessingQueueBacklog
+        expr: media_processing_queue_size > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Media processing queue backlog"
+          description: "Media processing queue size: {{ $value }}"
+
+      # AI推理延迟过高
+      - alert: HighAIInferenceLatency
+        expr: histogram_quantile(0.95, rate(ai_inference_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High AI inference latency"
+          description: "95th percentile AI inference latency is {{ $value }}s"
+
+  - name: network_alerts
+    rules:
+      # 网络带宽使用过高
+      - alert: HighNetworkUsage
+        expr: rate(node_network_receive_bytes_total[5m]) + rate(node_network_transmit_bytes_total[5m]) > 100000000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network usage on {{ $labels.instance }}"
+          description: "Network usage is {{ $value | humanizeBytes }}/s on {{ $labels.instance }}"
+
+      # WebRTC连接失败率过高
+      - alert: HighWebRTCFailureRate
+        expr: rate(webrtc_connection_failures_total[5m]) / rate(webrtc_connection_attempts_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebRTC connection failure rate"
+          description: "WebRTC failure rate is {{ $value | humanizePercentage }}"

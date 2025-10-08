@@ -1,0 +1,93 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'meeting-system'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # User Service
+  - job_name: 'user-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['user-service:8080']
+        labels:
+          service: 'user-service'
+          component: 'backend'
+
+  # Meeting Service
+  - job_name: 'meeting-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['meeting-service:8082']
+        labels:
+          service: 'meeting-service'
+          component: 'backend'
+
+  # Signaling Service
+  - job_name: 'signaling-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['signaling-service:8081']
+        labels:
+          service: 'signaling-service'
+          component: 'backend'
+
+  # Media Service
+  - job_name: 'media-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['media-service:8083']
+        labels:
+          service: 'media-service'
+          component: 'backend'
+
+  # AI Service
+  - job_name: 'ai-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['ai-service:8084']
+        labels:
+          service: 'ai-service'
+          component: 'ai'
+
+  # PostgreSQL Exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
+          component: 'database'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          component: 'cache'
+
+  # Node Exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'infrastructure'
+
