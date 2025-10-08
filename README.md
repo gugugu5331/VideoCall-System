@@ -6,7 +6,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
 [![WebRTC](https://img.shields.io/badge/WebRTC-SFU-green.svg)](https://webrtc.org/)
 
-基于SFU架构的企业级智能音视频会议系统，集成Edge-LLM-Infra分布式AI推理框架，提供实时AI检测、音视频增强、智能分析等功能。
+基于SFU架构的企业级智能音视频会议系统，集成分布式AI推理框架，提供实时AI检测、音视频增强、智能分析等功能。
 
 ## 🏗️ 系统架构
 
@@ -56,14 +56,13 @@
 - **情绪检测**: 基于面部表情的情绪分析
 - **音频降噪**: AI驱动的实时音频质量优化
 - **视频增强**: 智能视频质量提升和美颜
-- **手势识别**: 实时手势检测和交互
 - **智能摘要**: 会议内容自动总结
-
+- **合成检测**: 检测参会者是否为数字人
 ### 🎨 视频特效
 - **实时滤镜**: OpenCV + OpenGL实现的视频滤镜
 - **虚拟背景**: AI背景分割和替换
 - **美颜功能**: 实时面部美化和调整
-- **贴图特效**: 动态贴图和AR效果
+- **贴图特效**: 动态贴图
 
 ### 🔒 安全与认证
 - **JWT认证**: 基于Token的用户认证
@@ -83,13 +82,12 @@
 
 ### 前端技术
 - **桌面客户端**: Qt6 + QML
-- **Web客户端**: HTML5 + JavaScript + WebRTC
 - **移动端**: React Native (规划中)
-- **管理界面**: Vue.js + Element Plus
+
 
 ### 部署技术
 - **容器化**: Docker + Docker Compose
-- **编排**: Kubernetes (可选)
+- **消息队列**：采用redis实现了一个基于内存的消息队列，实现任务的调度
 - **负载均衡**: Nginx
 - **监控**: Prometheus + Grafana
 - **CI/CD**: GitHub Actions
@@ -153,7 +151,7 @@ VideoCall-System/
 │   │   ├── signaling-service/ # 信令服务 (8081)
 │   │   ├── media-service/  # 媒体服务/SFU (8083)
 │   │   └── ai-inference-service/ # AI推理服务 (8085)
-│   ├── Edge-LLM-Infra-master/ # AI推理框架
+│   ├── Edge-LLM-Infra/ # AI推理框架
 │   │   ├── unit-manager/   # 单元管理器 (10001)
 │   │   ├── node/           # AI推理节点
 │   │   └── network/        # 网络通信层
