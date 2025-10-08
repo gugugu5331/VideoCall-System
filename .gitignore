@@ -33,6 +33,19 @@ logs/
 *.rar
 *.7z
 
+# Video and Audio Files (test files)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.flv
+*.wmv
+*.mp3
+*.wav
+*.flac
+*.aac
+!test_video/README.md
+
 # Build Artifacts
 build/
 !qt6-client/build.sh
@@ -42,6 +55,8 @@ target/
 bin/
 obj/
 out/
+
+# Compiled binaries
 *.exe
 *.dll
 *.so
@@ -49,6 +64,15 @@ out/
 *.a
 *.lib
 *.o
+
+# Service binaries (compiled Go programs)
+*-service
+!*-service/
+*-test
+!*-test/
+ai-inference-service
+meeting-service-test
+stress-test-complete.exe
 
 # Go
 *.test
