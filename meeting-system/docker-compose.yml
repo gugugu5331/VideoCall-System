@@ -451,30 +451,30 @@ services:
       - meeting-network
     restart: unless-stopped
 
-  # AI Inference Worker (Python推理节点)
-  ai-inference-worker:
-    build:
-      context: .
-      dockerfile: ai-inference-service/Dockerfile
-    container_name: meeting-ai-inference-worker
-    environment:
-      - TZ=Asia/Shanghai
-      - MODEL_CACHE_DIR=/models
-      - TRANSFORMERS_CACHE=/models
-      - HF_HOME=/models
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - /models:/models:ro
-      - ./ai-inference-service/logs:/app/logs
-      - ./ai-inference-service/temp:/app/temp
-      - ./ai-inference-service/results:/app/results
-    ports:
-      - "5010:5010"  # ZMQ endpoint for Edge-LLM-Infra
-    depends_on:
-      - edge-model-infra
-    networks:
-      - meeting-network
-    restart: unless-stopped
+  # # AI Inference Worker (Python推理节点)
+  # ai-inference-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: ai-inference-service/Dockerfile
+  #   container_name: meeting-ai-inference-worker
+  #   environment:
+  #     - TZ=Asia/Shanghai
+  #     - MODEL_CACHE_DIR=/models
+  #     - TRANSFORMERS_CACHE=/models
+  #     - HF_HOME=/models
+  #     - PYTHONUNBUFFERED=1
+  #   volumes:
+  #     - /models:/models:ro
+  #     - ./ai-inference-service/logs:/app/logs
+  #     - ./ai-inference-service/temp:/app/temp
+  #     - ./ai-inference-service/results:/app/results
+  #   ports:
+  #     - "5010:5010"  # ZMQ endpoint for Edge-LLM-Infra
+  #   depends_on:
+  #     - edge-model-infra
+  #   networks:
+  #     - meeting-network
+  #   restart: unless-stopped
 
   # AI Inference Service (Go微服务，集成Edge-LLM-Infra)
   ai-inference-service:

@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 
 	"meeting-system/ai-inference-service/handlers"
 	"meeting-system/ai-inference-service/services"
+	pb "meeting-system/shared/grpc"
 	"meeting-system/shared/config"
 	"meeting-system/shared/database"
 	"meeting-system/shared/discovery"
@@ -22,6 +24,9 @@ import (
 	"meeting-system/shared/middleware"
 	"meeting-system/shared/queue"
 	"meeting-system/shared/tracing"
+	"meeting-system/shared/zmq"
+
+	"net"
 )
 
 var (
@@ -79,8 +84,23 @@ func main() {
 		fmt.Println("✅ Service registry connected")
 	}
 
+	// 初始化 ZeroMQ（用于与 Edge-LLM-Infra 通信）
+	fmt.Println("Initializing ZeroMQ client...")
+	if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
+		logger.Warn("Failed to initialize ZeroMQ: " + err.Error())
+		fmt.Println("⚠️  ZeroMQ initialization failed: ", err)
+	} else {
+		defer zmq.CloseZMQ()
+		fmt.Println("✅ ZeroMQ initialized")
+	}
+
 	advertiseHost := resolveAdvertiseHost(cfg.Server.Host)
 	var httpInstanceID string
+	var grpcInstanceID string
+	grpcPort := cfg.GRPC.Port
+	if grpcPort == 0 {
+		grpcPort = 9085
+	}
 
 	// 初始化数据库（可选）
 	fmt.Println("Initializing database...")
@@ -153,6 +173,12 @@ func main() {
 	r.Use(middleware.Recovery())
 	r.Use(middleware.CORS())
 
+	// 启动 gRPC 服务器（AIService）
+	if _, err := startAIGrpcServer(grpcPort, aiService); err != nil {
+		logger.Fatal("Failed to start AI gRPC server: " + err.Error())
+	}
+
+
 	// 注册路由
 	setupRoutes(r, aiHandler)
 
@@ -173,33 +199,50 @@ func main() {
 		}
 	}()
 
-	// 注册 HTTP 服务实例（如果 registry 可用）
+	// 注册 HTTP/GRPC 服务实例（如果 registry 可用）
 	if registry != nil {
-		metadata := map[string]string{
-			"protocol": "http",
-		}
+		// HTTP
+		httpMeta := map[string]string{"protocol": "http"}
 		httpInstanceID, err = registry.RegisterService(&discovery.ServiceInfo{
 			Name:     "ai-inference-service",
 			Host:     advertiseHost,
 			Port:     cfg.Server.Port,
 			Protocol: "http",
-			Metadata: metadata,
+			Metadata: httpMeta,
 		})
 		if err != nil {
 			logger.Warn("Failed to register ai-inference-service http instance: " + err.Error())
 			fmt.Println("⚠️  Service registration failed (continuing without service discovery)")
-		} else {
-			defer func() {
-				if httpInstanceID != "" {
-					if err := registry.DeregisterService("ai-inference-service", httpInstanceID); err != nil {
-						logger.Warn("Failed to deregister ai-inference-service http instance: " + err.Error())
-					}
-				}
-			}()
-
-			logger.Info("AI Inference Service registered to etcd", logger.String("instance_id", httpInstanceID))
-			fmt.Printf("✅ Service registered to etcd (instance: %s)\n", httpInstanceID)
 		}
+
+		// gRPC
+		grpcMeta := map[string]string{"protocol": "grpc"}
+		grpcInstanceID, err = registry.RegisterService(&discovery.ServiceInfo{
+			Name:     "ai-inference-service",
+			Host:     advertiseHost,
+			Port:     grpcPort,
+			Protocol: "grpc",
+			Metadata: grpcMeta,
+		})
+		if err != nil {
+			logger.Warn("Failed to register ai-inference-service grpc instance: " + err.Error())
+		}
+
+		defer func() {
+			if httpInstanceID != "" {
+				if err := registry.DeregisterService("ai-inference-service", httpInstanceID); err != nil {
+					logger.Warn("Failed to deregister ai-inference-service http instance: " + err.Error())
+				}
+			}
+			if grpcInstanceID != "" {
+				if err := registry.DeregisterService("ai-inference-service", grpcInstanceID); err != nil {
+					logger.Warn("Failed to deregister ai-inference-service grpc instance: " + err.Error())
+				}
+			}
+		}()
+
+		logger.Info("AI Inference Service registered to etcd", logger.String("http_instance_id", httpInstanceID), logger.String("grpc_instance_id", grpcInstanceID))
+		fmt.Printf("✅ Service registered to etcd (http: %s, grpc: %s)\n", httpInstanceID, grpcInstanceID)
 	} else {
 		fmt.Println("⚠️  Skipping service registration (no registry available)")
 	}
@@ -263,6 +306,7 @@ func setupRoutes(r *gin.Engine, aiHandler *handlers.AIHandler) {
 			ai.POST("/asr", aiHandler.SpeechRecognition)
 			ai.POST("/emotion", aiHandler.EmotionDetection)
 			ai.POST("/synthesis", aiHandler.SynthesisDetection)
+			ai.POST("/analyze", aiHandler.Analyze)
 
 			// 批量推理
 			ai.POST("/batch", aiHandler.BatchInference)

@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"meeting-system/ai-inference-service/services"
+	"meeting-system/shared/database"
 	"meeting-system/shared/logger"
+	"meeting-system/shared/queue"
 	"meeting-system/shared/response"
+	"meeting-system/shared/zmq"
 )
 
 // AIHandler AI 推理处理器
@@ -126,6 +130,83 @@ func (h *AIHandler) SynthesisDetection(c *gin.Context) {
 		logger.Error("Synthesis detection failed: " + err.Error())
 		response.Error(c, http.StatusInternalServerError, "Synthesis detection failed: "+err.Error())
 		return
+	}
+	response.Success(c, result)
+}
+
+// Analyze 通用 AI 推理接口（客户端直连 AI 服务）
+// 通过 ZeroMQ 将 Task 对象发送到 Edge-LLM-Infra (C++) 并返回结果
+func (h *AIHandler) Analyze(c *gin.Context) {
+	var req struct {
+		TaskType  string            `json:"task_type"`
+		ModelPath string            `json:"model_path"`
+		InputData string            `json:"input_data"` // base64
+		Params    map[string]string `json:"params"`
+		MeetingID string            `json:"meeting_id"`
+		UserID    string            `json:"user_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("Invalid analyze request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// decode base64 input
+	var payload []byte
+	if req.InputData != "" {
+		b, err := base64.StdEncoding.DecodeString(req.InputData)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, "invalid input_data (base64): "+err.Error())
+			return
+		}
+		payload = b
+	}
+
+	// Build AITask
+	task := &zmq.AITask{
+		TaskID:    time.Now().Format("20060102150405.000000000"),
+		TaskType:  req.TaskType,
+		ModelPath: req.ModelPath,
+		InputData: payload,
+		Params:    req.Params,
+	}
+
+	ctx := c.Request.Context()
+	client := zmq.GetZMQClient()
+	if client == nil {
+		response.Error(c, http.StatusServiceUnavailable, "ZMQ client not initialized")
+		return
+	}
+
+	// Send task to Edge-LLM-Infra via ZeroMQ
+	aiResp, err := client.SendTask(ctx, task)
+	if err != nil {
+		logger.Error("AI analyze via ZMQ failed: " + err.Error())
+		response.Error(c, http.StatusInternalServerError, "AI analyze failed: "+err.Error())
+		return
+	}
+
+	// Publish ai_events for downstream services (meeting-service to persist)
+	if rdb := database.GetRedis(); rdb != nil {
+		pubsub := queue.NewRedisPubSubQueue(rdb)
+		_ = pubsub.Publish(ctx, "ai_events", &queue.PubSubMessage{
+			Type: "" + req.TaskType + ".completed",
+			Payload: map[string]interface{}{
+				"task_id":    task.TaskID,
+				"meeting_id": req.MeetingID,
+				"user_id":    req.UserID,
+				"result":     aiResp.Data,
+			},
+		})
+	}
+
+	response.Success(c, gin.H{
+		"task_id": task.TaskID,
+		"result":  aiResp.Data,
+	})
+}
+
 	}
 
 	response.Success(c, result)

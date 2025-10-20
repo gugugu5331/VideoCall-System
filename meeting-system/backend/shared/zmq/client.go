@@ -88,6 +88,32 @@ type SynthesisDetectionData struct {
 	Channels    int    `json:"channels,omitempty"`     // 音频通道数
 }
 
+
+// AITask 通用 AI 任务（通过 ZeroMQ 发送到 C++ Unit Manager）
+type AITask struct {
+	TaskID    string            `json:"task_id"`
+	TaskType  string            `json:"task_type"`  // "speech_recognition", "emotion_detection", "deepfake_detection" 等
+	ModelPath string            `json:"model_path"` // ONNX 模型路径，如 "/models/whisper_base.onnx"
+	InputData []byte            `json:"input_data"` // 原始输入数据（如音频/视频二进制数据）
+	Params    map[string]string `json:"params"`     // 额外参数（如采样率、语言等）
+}
+
+// SendTask 发送通用 AI 任务
+func (c *ZMQClient) SendTask(ctx context.Context, task *AITask) (*AIResponse, error) {
+	if task == nil {
+		return nil, fmt.Errorf("task cannot be nil")
+	}
+
+	req := &AIRequest{
+		RequestID: task.TaskID,
+		WorkID:    c.config.UnitName,
+		Action:    "inference",
+		Object:    "ai_task",
+		Data:      task,
+	}
+	return c.SendRequest(ctx, req)
+}
+
 // NewZMQClient 创建ZMQ客户端
 func NewZMQClient(config config.ZMQConfig) (*ZMQClient, error) {
 	fmt.Println("[ZMQ] Creating ZMQ context...")
