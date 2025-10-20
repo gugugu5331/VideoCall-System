@@ -150,7 +150,7 @@ graph TB
     class ModelMgr,InferEngine,InferCluster ai
     class PostgreSQL,Redis,MongoDB,MinIO data
     class Prometheus,Grafana,Jaeger,Loki obs
-```
+```mermaid
 
 ### 服务职责
 
