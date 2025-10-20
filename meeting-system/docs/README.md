@@ -16,6 +16,7 @@
 |------|------|
 | [系统架构图](ARCHITECTURE_DIAGRAM.md) | 系统整体架构设计（含详细分层说明） |
 | [后端架构详解](BACKEND_ARCHITECTURE.md) | 微服务架构、服务间通信、数据流、可观测性 |
+| [数据库架构](DATABASE_SCHEMA.md) | PostgreSQL、Redis、MongoDB、MinIO、etcd 设计 |
 | [技术栈](../../README.md#-技术栈) | 使用的技术和框架 |
 | [项目结构](../../README.md#-项目结构) | 代码组织和目录说明 |
 
