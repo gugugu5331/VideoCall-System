@@ -146,12 +146,9 @@ void ASRTask::inference(const std::string &msg) {
 
         // Get output data
         float* output_data = output_tensors[0].GetTensorMutableData<float>();
-        auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-
-        size_t output_size = 1;
-        for (auto dim : output_shape) {
-            output_size *= dim;
-        }
+        auto output_info = output_tensors[0].GetTensorTypeAndShapeInfo();
+        auto output_shape = output_info.GetShape();
+        size_t output_size = output_info.GetElementCount();
 
         std::vector<float> output_vec(output_data, output_data + output_size);
 
@@ -235,22 +232,38 @@ std::vector<float> ASRTask::preprocess_audio(const std::string &audio_data) {
 std::string ASRTask::postprocess_output(const std::vector<float> &output, const std::vector<int64_t> &output_shape) {
     // CTC decoding with output shape
 
-    if (output.empty() || output_shape.size() < 3) {
-        return "No transcription available";
+    nlohmann::json result;
+    result["transcription"] = "";
+    result["confidence"] = 0.0;
+    result["model"] = model_;
+
+    if (output.empty()) {
+        result["error"] = "empty output";
+        return result.dump();
+    }
+
+    std::vector<int64_t> normalized_shape;
+    if (output_shape.size() == 2) {
+        // Some models output (time_steps, vocab_size) without a batch dimension.
+        normalized_shape = {1, output_shape[0], output_shape[1]};
+    } else if (output_shape.size() >= 3) {
+        normalized_shape = {output_shape[0], output_shape[1], output_shape[2]};
+    } else {
+        result["error"] = "invalid output shape";
+        result["output_shape"] = output_shape;
+        return result.dump();
     }
 
     // Use CTC decode
-    std::string transcription = ctc_decode(output, output_shape);
+    std::string transcription = ctc_decode(output, normalized_shape);
 
     // Find max probability for confidence
     auto max_it = std::max_element(output.begin(), output.end());
     float confidence = *max_it;
 
     // Create JSON response
-    nlohmann::json result;
     result["transcription"] = transcription;
     result["confidence"] = confidence;
-    result["model"] = model_;
 
     return result.dump();
 }
@@ -396,4 +409,3 @@ std::string ASRTask::ctc_decode(const std::vector<float> &logits, const std::vec
 }
 
 } // namespace AIInference
-

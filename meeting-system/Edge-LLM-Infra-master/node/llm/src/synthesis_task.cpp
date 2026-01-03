@@ -134,12 +134,8 @@ void SynthesisTask::inference(const std::string &msg) {
 
         // Get output data
         float* output_data = output_tensors[0].GetTensorMutableData<float>();
-        auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-        
-        size_t output_size = 1;
-        for (auto dim : output_shape) {
-            output_size *= dim;
-        }
+        auto output_info = output_tensors[0].GetTensorTypeAndShapeInfo();
+        size_t output_size = output_info.GetElementCount();
 
         std::vector<float> output_vec(output_data, output_data + output_size);
         
@@ -222,7 +218,15 @@ std::string SynthesisTask::postprocess_output(const std::vector<float> &output) 
     // Apply sigmoid to get probability
     
     if (output.empty()) {
-        return "No detection result available";
+        nlohmann::json result;
+        result["is_synthetic"] = false;
+        result["is_real"] = false;
+        result["confidence"] = 0.0;
+        result["probability_synthetic"] = 0.0;
+        result["probability_real"] = 0.0;
+        result["model"] = model_;
+        result["error"] = "empty output";
+        return result.dump();
     }
     
     // Get the first output value (assuming binary classification)
@@ -248,4 +252,3 @@ std::string SynthesisTask::postprocess_output(const std::vector<float> &output) 
 }
 
 } // namespace AIInference
-

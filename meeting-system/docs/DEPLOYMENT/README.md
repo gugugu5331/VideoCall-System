@@ -6,6 +6,7 @@
 
 ### 部署指南
 - **[REMOTE_DEPLOYMENT_GUIDE.md](REMOTE_DEPLOYMENT_GUIDE.md)** - 远程服务器部署指南
+- **[GPU_AI_NODES.md](GPU_AI_NODES.md)** - 多台 GPU 服务器 AI 推理节点部署
 - **[AI_MODELS_DEPLOYMENT_GUIDE.md](AI_MODELS_DEPLOYMENT_GUIDE.md)** - AI 模型部署和配置
 
 ## 🎯 部署场景
@@ -76,4 +77,3 @@ docker-compose logs -f <service_name>
 
 - [项目主 README](../../README.md)
 - [后端系统 README](../README.md)
-

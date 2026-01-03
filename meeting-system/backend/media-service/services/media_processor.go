@@ -244,6 +244,31 @@ func (p *MediaProcessor) RegisterStream(streamID, userID, roomID string, audioTr
 	return nil
 }
 
+// IngestRTPPayload 将RTP payload 写入对应缓冲区（用于 SFU：只读一次 TrackRemote，并把数据分发给转发+AI）
+func (p *MediaProcessor) IngestRTPPayload(streamID string, kind webrtc.RTPCodecType, payload []byte) {
+	if streamID == "" || len(payload) == 0 {
+		return
+	}
+
+	p.streamsMux.RLock()
+	stream, exists := p.activeStreams[streamID]
+	p.streamsMux.RUnlock()
+	if !exists || stream == nil || !stream.IsActive {
+		return
+	}
+
+	switch kind {
+	case webrtc.RTPCodecTypeAudio:
+		if stream.AudioBuffer != nil {
+			stream.AudioBuffer.Write(payload)
+		}
+	case webrtc.RTPCodecTypeVideo:
+		if stream.VideoBuffer != nil {
+			stream.VideoBuffer.Write(payload)
+		}
+	}
+}
+
 // UnregisterStream 注销音视频流
 func (p *MediaProcessor) UnregisterStream(streamID string) error {
 	p.streamsMux.Lock()

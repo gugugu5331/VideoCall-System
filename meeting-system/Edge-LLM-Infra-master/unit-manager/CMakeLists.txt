@@ -56,5 +56,5 @@ install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin)
 
-install(FILES "sys_config.json"
+install(FILES "master_config.json"
     DESTINATION share/${PROJECT_NAME})

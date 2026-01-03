@@ -7,15 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
 
 	"meeting-system/ai-inference-service/handlers"
 	"meeting-system/ai-inference-service/services"
-	pb "meeting-system/shared/grpc"
 	"meeting-system/shared/config"
 	"meeting-system/shared/database"
 	"meeting-system/shared/discovery"
@@ -25,8 +24,6 @@ import (
 	"meeting-system/shared/queue"
 	"meeting-system/shared/tracing"
 	"meeting-system/shared/zmq"
-
-	"net"
 )
 
 var (
@@ -84,15 +81,36 @@ func main() {
 		fmt.Println("✅ Service registry connected")
 	}
 
-	// 初始化 ZeroMQ（用于与 Edge-LLM-Infra 通信）
-	fmt.Println("Initializing ZeroMQ client...")
-	if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
-		logger.Warn("Failed to initialize ZeroMQ: " + err.Error())
-		fmt.Println("⚠️  ZeroMQ initialization failed: ", err)
+	// 异步初始化 ZeroMQ（用于与 Edge-LLM-Infra 通信）
+	// ZMQ 初始化在部分环境/依赖不可用时可能会 panic；不应阻塞或导致服务退出。
+	var zmqInitialized bool
+	if isTruthyEnv("ENABLE_ZMQ") {
+		fmt.Println("Initializing ZeroMQ client...")
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Warn(fmt.Sprintf("ZeroMQ initialization panicked (ignored): %v", r))
+					fmt.Printf("⚠️  ZeroMQ initialization panicked (ignored): %v\n", r)
+				}
+			}()
+
+			if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
+				logger.Warn("Failed to initialize ZeroMQ: " + err.Error())
+				fmt.Println("⚠️  ZeroMQ initialization failed: ", err)
+				return
+			}
+
+			zmqInitialized = true
+			fmt.Println("✅ ZeroMQ initialized")
+		}()
 	} else {
-		defer zmq.CloseZMQ()
-		fmt.Println("✅ ZeroMQ initialized")
+		fmt.Println("Skipping ZeroMQ init (set ENABLE_ZMQ=1 to enable)")
 	}
+	defer func() {
+		if zmqInitialized {
+			zmq.CloseZMQ()
+		}
+	}()
 
 	advertiseHost := resolveAdvertiseHost(cfg.Server.Host)
 	var httpInstanceID string
@@ -174,10 +192,10 @@ func main() {
 	r.Use(middleware.CORS())
 
 	// 启动 gRPC 服务器（AIService）
-	if _, err := startAIGrpcServer(grpcPort, aiService); err != nil {
+	grpcServer, err := startAIGrpcServer(grpcPort, aiService)
+	if err != nil {
 		logger.Fatal("Failed to start AI gRPC server: " + err.Error())
 	}
-
 
 	// 注册路由
 	setupRoutes(r, aiHandler)
@@ -255,6 +273,12 @@ func main() {
 	logger.Info("Shutting down AI Inference Service...")
 	fmt.Println("\n🛑 Shutting down AI Inference Service...")
 
+	if grpcServer != nil {
+		logger.Info("Stopping AI gRPC server...")
+		grpcServer.GracefulStop()
+		logger.Info("AI gRPC server stopped")
+	}
+
 	// 优雅关闭
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -263,6 +287,9 @@ func main() {
 		logger.Error("Server forced to shutdown: " + err.Error())
 		fmt.Printf("❌ Server forced to shutdown: %v\n", err)
 	}
+
+	logger.Info("Closing AI session manager...")
+	aiService.Close()
 
 	logger.Info("AI Inference Service stopped")
 	fmt.Println("✅ AI Inference Service stopped")
@@ -306,6 +333,7 @@ func setupRoutes(r *gin.Engine, aiHandler *handlers.AIHandler) {
 			ai.POST("/asr", aiHandler.SpeechRecognition)
 			ai.POST("/emotion", aiHandler.EmotionDetection)
 			ai.POST("/synthesis", aiHandler.SynthesisDetection)
+			ai.POST("/setup", aiHandler.SetupMeeting)
 			ai.POST("/analyze", aiHandler.Analyze)
 
 			// 批量推理
@@ -370,3 +398,15 @@ func registerAITaskHandlers(qm *queue.QueueManager) {
 	logger.Info("All AI task handlers registered successfully")
 }
 
+func isTruthyEnv(key string) bool {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return false
+	}
+	switch strings.ToLower(val) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}

@@ -195,3 +195,13 @@ git push origin main
 **报告完成时间**: 2025-10-20  
 **报告状态**: ✅ 完成
 
+---
+
+## 🔒 后续修正（敏感信息清理）
+
+为与“仓库不保存真实远程凭据/主机信息”的安全目标保持一致，已在后续迭代中补充清理：
+
+- 移除 `meeting-system/docs/DEPLOYMENT/REMOTE_DEPLOYMENT_GUIDE.md` 中的真实远程主机/端口/密码内容，改为环境变量驱动的模板
+- 移除 `meeting-system/quick-deploy-remote.sh`、`meeting-system/backend/tests/complete_integration_test_remote.py` 中硬编码的远程信息，改为环境变量配置（支持 SSH key）
+- `meeting-system/deployment/gpu-ai` 相关脚本/文档改为可配置模板，避免写入真实基础设施地址
+- 清理误提交的 Go 模块/工具链缓存 `meeting-system/backend/pkg`（约 200MB），并加入 `.gitignore` 防止再次被跟踪

@@ -41,7 +41,7 @@ graph TB
     end
 
     subgraph Gateway["🌐 网关层"]
-        Nginx["Nginx 负载均衡<br/>8800/8443"]
+        Nginx["Nginx 负载均衡<br/>8800/443"]
         APIGateway["API 网关<br/>路由/限流/认证"]
     end
 

@@ -70,7 +70,7 @@ out/
 !*-service/
 *-test
 !*-test/
-ai-inference-service
+/ai-inference-service
 meeting-service-test
 stress-test-complete.exe
 
@@ -81,6 +81,8 @@ vendor/
 go.work
 go.work.sum
 .gocache/
+# Go module/toolchain cache accidentally placed in repo (GOPATH/GOMODCACHE pointed here)
+meeting-system/backend/pkg/
 
 # Python
 __pycache__/
@@ -188,6 +190,9 @@ config/local.json
 .env.local
 .env.*.local
 
+# Nginx local overrides (do not commit)
+meeting-system/nginx/conf.d/ai_inference_service.servers.local.conf
+
 # SSL Certificates
 *.pem
 *.key
@@ -279,3 +284,6 @@ qt6-client/lib/
 .LSOverride
 Icon
 
+# Include the demo Web UI (this repo ships a static frontend under this path).
+!meeting-system/frontend/dist/
+!meeting-system/frontend/dist/**

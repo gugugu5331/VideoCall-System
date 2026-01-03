@@ -79,6 +79,9 @@ const (
 	MessageTypePong         MessageType = 12 // 心跳响应
 	MessageTypeError        MessageType = 13 // 错误消息
 	MessageTypeRoomInfo     MessageType = 14 // 房间信息/加入确认
+	MessageTypeAILiveClaim  MessageType = 15 // AI Live 领导者申请/释放（会议内共享AI）
+	MessageTypeAILiveStatus MessageType = 16 // AI Live 状态广播
+	MessageTypeAILiveResult MessageType = 17 // AI Live 结果广播
 )
 
 // MessageStatus 消息状态
@@ -161,6 +164,37 @@ type ChatMessage struct {
 	MeetingID uint   `json:"meeting_id"`
 }
 
+// AILiveClaimRequest AI Live 领导者申请/释放
+// enable=true 申请成为会议内 AI Live 生产者；enable=false 释放（仅领导者有效）。
+type AILiveClaimRequest struct {
+	Enable bool `json:"enable"`
+}
+
+// AILiveTag AI Live UI 标签
+type AILiveTag struct {
+	Text string `json:"text"`
+	Kind string `json:"kind"` // ok, warn, error, info
+}
+
+// AILiveStatusMessage AI Live 状态（会议内共享）
+type AILiveStatusMessage struct {
+	Enabled         bool      `json:"enabled"`
+	LeaderUserID    uint      `json:"leader_user_id,omitempty"`
+	LeaderSessionID string    `json:"leader_session_id,omitempty"`
+	LeaderUsername  string    `json:"leader_username,omitempty"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// AILiveResultMessage AI Live 结果广播（由领导者发送，服务端转发给全员）
+type AILiveResultMessage struct {
+	LineID       string     `json:"line_id"`
+	SpeakerKey   string     `json:"speaker_key,omitempty"`
+	SpeakerLabel string     `json:"speaker_label,omitempty"`
+	TimestampMs  int64      `json:"timestamp_ms,omitempty"`
+	Text         string     `json:"text,omitempty"`
+	Tags         []AILiveTag `json:"tags,omitempty"`
+}
+
 // RoomInfoMessage 房间信息
 type RoomInfoMessage struct {
 	MeetingID        uint              `json:"meeting_id"`
@@ -169,6 +203,7 @@ type RoomInfoMessage struct {
 	PeerID           string            `json:"peer_id"`
 	IceServers       []RoomICEServer   `json:"ice_servers"`
 	Participants     []RoomParticipant `json:"participants"`
+	AILive           *AILiveStatusMessage `json:"ai_live,omitempty"`
 }
 
 // RoomParticipant 房间参与者快照

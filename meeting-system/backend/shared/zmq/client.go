@@ -28,7 +28,7 @@ type ZMQClient struct {
 type AIRequest struct {
 	RequestID string      `json:"request_id"`
 	WorkID    string      `json:"work_id"`
-	Action    string      `json:"action"`    // 添加 action 字段
+	Action    string      `json:"action"` // 添加 action 字段
 	Object    string      `json:"object"`
 	Data      interface{} `json:"data"`
 }
@@ -87,7 +87,6 @@ type SynthesisDetectionData struct {
 	FPS         int    `json:"fps,omitempty"`          // 视频帧率
 	Channels    int    `json:"channels,omitempty"`     // 音频通道数
 }
-
 
 // AITask 通用 AI 任务（通过 ZeroMQ 发送到 C++ Unit Manager）
 type AITask struct {
@@ -262,7 +261,11 @@ func (c *ZMQClient) SendRequest(ctx context.Context, request *AIRequest) (*AIRes
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	logger.Debug(fmt.Sprintf("Sending request: %s", string(requestData)[:200]))
+	previewLen := 200
+	if len(requestData) < previewLen {
+		previewLen = len(requestData)
+	}
+	logger.Debug(fmt.Sprintf("Sending request: %s", string(requestData)[:previewLen]))
 
 	// 发送请求 (使用Edge-LLM-Infra的TCP/JSON协议格式)
 	if _, err := c.socket.SendBytes(requestData, 0); err != nil {
@@ -282,7 +285,11 @@ func (c *ZMQClient) SendRequest(ctx context.Context, request *AIRequest) (*AIRes
 		return nil, fmt.Errorf("failed to receive response: %w", err)
 	}
 
-	logger.Debug(fmt.Sprintf("Received response: %s", string(responseData)[:200]))
+	previewLen = 200
+	if len(responseData) < previewLen {
+		previewLen = len(responseData)
+	}
+	logger.Debug(fmt.Sprintf("Received response: %s", string(responseData)[:previewLen]))
 
 	// 反序列化响应
 	var response AIResponse
@@ -384,7 +391,7 @@ func (c *ZMQClient) HealthCheck(ctx context.Context) error {
 		RequestID: fmt.Sprintf("health_%d", time.Now().Unix()),
 		WorkID:    "sys",
 		Object:    "health_check",
-		Data:      map[string]interface{}{
+		Data: map[string]interface{}{
 			"unit_name": c.config.UnitName,
 			"timestamp": time.Now().Unix(),
 		},

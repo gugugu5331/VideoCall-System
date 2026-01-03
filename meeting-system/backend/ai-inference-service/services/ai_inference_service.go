@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"meeting-system/shared/config"
@@ -14,6 +16,14 @@ import (
 type AIInferenceService struct {
 	edgeLLMClient *EdgeLLMClient
 	config        *config.Config
+	sessions      *SessionManager
+}
+
+type ModelWarmupStatus struct {
+	ModelName string `json:"model_name"`
+	WorkID    string `json:"work_id,omitempty"`
+	Ready     bool   `json:"ready"`
+	Error     string `json:"error,omitempty"`
 }
 
 // ASRRequest ASR 请求
@@ -22,6 +32,7 @@ type ASRRequest struct {
 	Format     string `json:"format"`      // 音频格式（如 wav, mp3）
 	SampleRate int    `json:"sample_rate"` // 采样率
 	Language   string `json:"language"`    // 语言（可选）
+	MeetingID  uint   `json:"meeting_id,omitempty"`
 }
 
 // ASRResponse ASR 响应
@@ -34,7 +45,8 @@ type ASRResponse struct {
 
 // EmotionRequest 情感检测请求
 type EmotionRequest struct {
-	Text string `json:"text"` // 要分析的文本
+	Text      string `json:"text"` // 要分析的文本
+	MeetingID uint   `json:"meeting_id,omitempty"`
 }
 
 // EmotionResponse 情感检测响应
@@ -50,6 +62,7 @@ type SynthesisDetectionRequest struct {
 	AudioData  string `json:"audio_data"`  // Base64 编码的音频数据
 	Format     string `json:"format"`      // 音频格式
 	SampleRate int    `json:"sample_rate"` // 采样率
+	MeetingID  uint   `json:"meeting_id,omitempty"`
 }
 
 // SynthesisDetectionResponse 深度伪造检测响应
@@ -78,11 +91,84 @@ func NewAIInferenceService(cfg *config.Config) *AIInferenceService {
 	}
 
 	edgeLLMClient := NewEdgeLLMClient(host, port, timeout)
+	sessionManager := NewSessionManager(edgeLLMClient, 15*time.Minute, 1*time.Minute)
 
 	return &AIInferenceService{
 		edgeLLMClient: edgeLLMClient,
 		config:        cfg,
+		sessions:      sessionManager,
 	}
+}
+
+func (s *AIInferenceService) Close() {
+	if s == nil {
+		return
+	}
+	if s.sessions != nil {
+		s.sessions.Close()
+	}
+}
+
+// WarmupMeeting pre-creates (setup) inference sessions for a meeting so that subsequent requests reuse them.
+// If models is empty, it will warm up ASR/Emotion/Synthesis based on current config.
+func (s *AIInferenceService) WarmupMeeting(ctx context.Context, meetingID uint, models []string) (map[string]ModelWarmupStatus, error) {
+	meetingKey := "global"
+	if meetingID != 0 {
+		meetingKey = fmt.Sprintf("%d", meetingID)
+	}
+
+	modelNames := map[string]string{
+		"asr":       "asr-model",
+		"emotion":   "emotion-model",
+		"synthesis": "synthesis-model",
+	}
+	if s.config != nil {
+		if s.config.AI.Models.ASR.ModelName != "" {
+			modelNames["asr"] = s.config.AI.Models.ASR.ModelName
+		}
+		if s.config.AI.Models.Emotion.ModelName != "" {
+			modelNames["emotion"] = s.config.AI.Models.Emotion.ModelName
+		}
+		if s.config.AI.Models.Synthesis.ModelName != "" {
+			modelNames["synthesis"] = s.config.AI.Models.Synthesis.ModelName
+		}
+	}
+
+	if len(models) == 0 {
+		models = []string{"asr", "emotion", "synthesis"}
+	}
+
+	statuses := make(map[string]ModelWarmupStatus, len(models))
+	for _, key := range models {
+		modelName, ok := modelNames[key]
+		if !ok {
+			statuses[key] = ModelWarmupStatus{
+				Ready: false,
+				Error: "unknown model key",
+			}
+			continue
+		}
+
+		session, release, err := s.sessions.Acquire(ctx, meetingKey, modelName)
+		if err != nil {
+			statuses[key] = ModelWarmupStatus{
+				ModelName: modelName,
+				Ready:     false,
+				Error:     err.Error(),
+			}
+			continue
+		}
+		workID := session.WorkID
+		release()
+
+		statuses[key] = ModelWarmupStatus{
+			ModelName: modelName,
+			WorkID:    workID,
+			Ready:     true,
+		}
+	}
+
+	return statuses, nil
 }
 
 // SpeechRecognition 语音识别
@@ -108,24 +194,73 @@ func (s *AIInferenceService) SpeechRecognition(ctx context.Context, req *ASRRequ
 	// 格式：audio_format=<format>,sample_rate=<rate>
 	metadata := fmt.Sprintf("audio_format=%s,sample_rate=%d", req.Format, req.SampleRate)
 
-	// 使用流式传输发送音频数据
-	// 对于大文件，使用流式传输避免 JSON 格式错误
-	// 使用 32KB 块大小以减少块数量（115KB 文件 = 4 chunks，而不是 20 chunks）
-	const chunkSize = 32768 // 32KB per chunk
+	modelName := "asr-model"
+	if s.config != nil && s.config.AI.Models.ASR.ModelName != "" {
+		modelName = s.config.AI.Models.ASR.ModelName
+	}
+
+	maxSingleDeltaLen := 2048
+	streamChunkSize := 1024
+	if s.config != nil {
+		if s.config.AI.Request.MaxSingleDeltaLen > 0 {
+			maxSingleDeltaLen = s.config.AI.Request.MaxSingleDeltaLen
+		}
+		if s.config.AI.Request.AudioStreamChunkSize > 0 {
+			streamChunkSize = s.config.AI.Request.AudioStreamChunkSize
+		}
+	}
+	if streamChunkSize > maxSingleDeltaLen {
+		streamChunkSize = maxSingleDeltaLen
+	}
+	// NOTE: 远端 unit-manager 的 TCP 侧对粘包非常敏感，音频类 stream 若连续快速发送，
+	// 容易触发 code=-2 "json format error"。默认加一点点间隔，允许通过配置覆盖为 0。
+	streamChunkDelay := 3 * time.Millisecond
+	if s.config != nil && s.config.AI.Request.AudioStreamChunkDelayMs > 0 {
+		streamChunkDelay = time.Duration(s.config.AI.Request.AudioStreamChunkDelayMs) * time.Millisecond
+	}
+
+	fullData := metadata + ",data=" + req.AudioData
+
+	meetingKey := "global"
+	if req.MeetingID != 0 {
+		meetingKey = fmt.Sprintf("%d", req.MeetingID)
+	}
 
 	var result map[string]interface{}
-	if len(req.AudioData) > chunkSize {
-		// 大文件：使用流式传输
-		logger.Info(fmt.Sprintf("Using streaming mode for large audio file: %d bytes", len(audioBytes)))
 
-		// 将元数据和音频数据组合
-		fullData := metadata + ",data=" + req.AudioData
-		result, err = s.edgeLLMClient.RunInferenceWithAudioStream(ctx, "whisper-encoder", fullData, chunkSize)
+	session, release, err := s.sessions.Acquire(ctx, meetingKey, modelName)
+	if err != nil {
+		return nil, fmt.Errorf("speech recognition acquire session failed: %w", err)
+	}
+	if len(fullData) > maxSingleDeltaLen {
+		logger.Info(fmt.Sprintf("Using streaming mode for audio payload: meeting=%s, model=%s, wav_bytes=%d, payload_len=%d, chunk_len=%d",
+			meetingKey, modelName, len(audioBytes), len(fullData), streamChunkSize))
+		result, err = s.edgeLLMClient.InferenceDeltaWithAudioStream(ctx, session, fullData, streamChunkSize, streamChunkDelay)
 	} else {
-		// 小文件：使用单次传输
-		logger.Info(fmt.Sprintf("Using single-shot mode for small audio file: %d bytes", len(audioBytes)))
-		inputData := metadata + ",data=" + req.AudioData
-		result, err = s.edgeLLMClient.RunInference(ctx, "whisper-encoder", inputData)
+		logger.Info(fmt.Sprintf("Using single-shot mode for small audio file: meeting=%s, model=%s, wav_bytes=%d",
+			meetingKey, modelName, len(audioBytes)))
+		result, err = s.edgeLLMClient.InferenceDelta(ctx, session, fullData)
+	}
+	release()
+
+	// 若复用会话出现连接断开/超时，重建并重试一次
+	if err != nil {
+		logger.Warn("Speech recognition failed on reused session; invalidating and retrying once",
+			logger.String("meeting_id", meetingKey),
+			logger.String("model", modelName),
+			logger.Err(err))
+		s.sessions.Invalidate(ctx, meetingKey, modelName)
+
+		session, release, acquireErr := s.sessions.Acquire(ctx, meetingKey, modelName)
+		if acquireErr != nil {
+			return nil, fmt.Errorf("speech recognition acquire retry failed: %w (original: %v)", acquireErr, err)
+		}
+		if len(fullData) > maxSingleDeltaLen {
+			result, err = s.edgeLLMClient.InferenceDeltaWithAudioStream(ctx, session, fullData, streamChunkSize, streamChunkDelay)
+		} else {
+			result, err = s.edgeLLMClient.InferenceDelta(ctx, session, fullData)
+		}
+		release()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("speech recognition failed: %w", err)
@@ -140,24 +275,50 @@ func (s *AIInferenceService) SpeechRecognition(ctx context.Context, req *ASRRequ
 	// - confidence: float (置信度)
 	// - model: string (模型名称)
 
-	text := extractString(result, "transcription", "")  // 注意：字段名是 transcription，不是 text
+	text := extractString(result, "transcription", "") // 注意：字段名是 transcription，不是 text
 	if text == "" {
-		text = extractString(result, "text", "")  // 尝试备用字段名
+		text = extractString(result, "text", "") // 尝试备用字段名
 	}
 
 	confidence := extractFloat(result, "confidence", 0.0)
 	language := extractString(result, "language", req.Language)
 
-	// 如果没有获取到真实数据，使用默认值并记录警告
+	// 兼容：部分实现会把纯文本直接放在 stream wrapper 的 delta 中（而不是 JSON）
 	if text == "" {
-		logger.Warn("No valid ASR text received from Edge-LLM-Infra, using default value")
-		text = "Transcribed text from ASR model"
+		if deltaText, ok := result["delta"].(string); ok {
+			deltaText = strings.TrimSpace(deltaText)
+			if deltaText != "" && deltaText != "No transcription available" {
+				// Best-effort: sometimes delta is actually a JSON string but wasn't parsed upstream.
+				if strings.HasPrefix(deltaText, "{") && strings.HasSuffix(deltaText, "}") {
+					var deltaData map[string]interface{}
+					if err := json.Unmarshal([]byte(deltaText), &deltaData); err == nil {
+						text = extractString(deltaData, "transcription", "")
+						if text == "" {
+							text = extractString(deltaData, "text", "")
+						}
+						if confidence == 0.0 {
+							confidence = extractFloat(deltaData, "confidence", confidence)
+						}
+						if language == "" || language == req.Language {
+							language = extractString(deltaData, "language", language)
+						}
+					} else {
+						text = deltaText
+					}
+				} else {
+					text = deltaText
+				}
+			}
+		}
+	}
+	if text == "" {
+		logger.Warn("No valid ASR text received from Edge-LLM-Infra")
 	}
 
 	// 检查 confidence 值的合理性（应该在 0-1 之间）
-	if confidence == 0.0 || confidence < 0.0 || confidence > 1.0 {
+	if confidence < 0.0 || confidence > 1.0 {
 		logger.Warn(fmt.Sprintf("Invalid ASR confidence value: %.2f, using default value", confidence))
-		confidence = 0.95
+		confidence = 0.0
 	}
 
 	response := &ASRResponse{
@@ -188,7 +349,34 @@ func (s *AIInferenceService) EmotionDetection(ctx context.Context, req *EmotionR
 	inputData := req.Text
 
 	// 调用 Edge-LLM-Infra
-	result, err := s.edgeLLMClient.RunInference(ctx, "emotion-model", inputData)
+	modelName := "emotion-model"
+	if s.config != nil && s.config.AI.Models.Emotion.ModelName != "" {
+		modelName = s.config.AI.Models.Emotion.ModelName
+	}
+	meetingKey := "global"
+	if req.MeetingID != 0 {
+		meetingKey = fmt.Sprintf("%d", req.MeetingID)
+	}
+	session, release, err := s.sessions.Acquire(ctx, meetingKey, modelName)
+	if err != nil {
+		return nil, fmt.Errorf("emotion detection acquire session failed: %w", err)
+	}
+	result, err := s.edgeLLMClient.InferenceDelta(ctx, session, inputData)
+	release()
+	if err != nil {
+		logger.Warn("Emotion detection failed on reused session; invalidating and retrying once",
+			logger.String("meeting_id", meetingKey),
+			logger.String("model", modelName),
+			logger.Err(err))
+		s.sessions.Invalidate(ctx, meetingKey, modelName)
+
+		session, release, acquireErr := s.sessions.Acquire(ctx, meetingKey, modelName)
+		if acquireErr != nil {
+			return nil, fmt.Errorf("emotion detection acquire retry failed: %w (original: %v)", acquireErr, err)
+		}
+		result, err = s.edgeLLMClient.InferenceDelta(ctx, session, inputData)
+		release()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("emotion detection failed: %w", err)
 	}
@@ -242,9 +430,9 @@ func (s *AIInferenceService) EmotionDetection(ctx context.Context, req *EmotionR
 	}
 
 	// 检查 confidence 值的合理性（应该在 0-1 之间）
-	if confidence == 0.0 || confidence < 0.0 || confidence > 1.0 {
+	if confidence < 0.0 || confidence > 1.0 {
 		logger.Warn(fmt.Sprintf("Invalid emotion confidence value: %.2f, using default value", confidence))
-		confidence = 0.85
+		confidence = 0.0
 	}
 
 	response := &EmotionResponse{
@@ -283,24 +471,69 @@ func (s *AIInferenceService) SynthesisDetection(ctx context.Context, req *Synthe
 	// 格式：audio_format=<format>,sample_rate=<rate>
 	metadata := fmt.Sprintf("audio_format=%s,sample_rate=%d", req.Format, req.SampleRate)
 
-	// 使用流式传输发送音频数据
-	// 对于大文件，使用流式传输避免 JSON 格式错误
-	// 使用 32KB 块大小以减少块数量（115KB 文件 = 4 chunks，而不是 20 chunks）
-	const chunkSize = 32768 // 32KB per chunk
+	modelName := "synthesis-model"
+	if s.config != nil && s.config.AI.Models.Synthesis.ModelName != "" {
+		modelName = s.config.AI.Models.Synthesis.ModelName
+	}
+
+	maxSingleDeltaLen := 2048
+	streamChunkSize := 1024
+	if s.config != nil {
+		if s.config.AI.Request.MaxSingleDeltaLen > 0 {
+			maxSingleDeltaLen = s.config.AI.Request.MaxSingleDeltaLen
+		}
+		if s.config.AI.Request.AudioStreamChunkSize > 0 {
+			streamChunkSize = s.config.AI.Request.AudioStreamChunkSize
+		}
+	}
+	if streamChunkSize > maxSingleDeltaLen {
+		streamChunkSize = maxSingleDeltaLen
+	}
+	// NOTE: 同 SpeechRecognition。
+	streamChunkDelay := 3 * time.Millisecond
+	if s.config != nil && s.config.AI.Request.AudioStreamChunkDelayMs > 0 {
+		streamChunkDelay = time.Duration(s.config.AI.Request.AudioStreamChunkDelayMs) * time.Millisecond
+	}
+
+	fullData := metadata + ",data=" + req.AudioData
+
+	meetingKey := "global"
+	if req.MeetingID != 0 {
+		meetingKey = fmt.Sprintf("%d", req.MeetingID)
+	}
 
 	var result map[string]interface{}
-	if len(req.AudioData) > chunkSize {
-		// 大文件：使用流式传输
-		logger.Info(fmt.Sprintf("Using streaming mode for large audio file: %d bytes", len(audioBytes)))
-
-		// 将元数据和音频数据组合
-		fullData := metadata + ",data=" + req.AudioData
-		result, err = s.edgeLLMClient.RunInferenceWithAudioStream(ctx, "synthesis-model", fullData, chunkSize)
+	session, release, err := s.sessions.Acquire(ctx, meetingKey, modelName)
+	if err != nil {
+		return nil, fmt.Errorf("synthesis detection acquire session failed: %w", err)
+	}
+	if len(fullData) > maxSingleDeltaLen {
+		logger.Info(fmt.Sprintf("Using streaming mode for audio payload: meeting=%s, model=%s, wav_bytes=%d, payload_len=%d, chunk_len=%d",
+			meetingKey, modelName, len(audioBytes), len(fullData), streamChunkSize))
+		result, err = s.edgeLLMClient.InferenceDeltaWithAudioStream(ctx, session, fullData, streamChunkSize, streamChunkDelay)
 	} else {
-		// 小文件：使用单次传输
-		logger.Info(fmt.Sprintf("Using single-shot mode for small audio file: %d bytes", len(audioBytes)))
-		inputData := metadata + ",data=" + req.AudioData
-		result, err = s.edgeLLMClient.RunInference(ctx, "synthesis-model", inputData)
+		logger.Info(fmt.Sprintf("Using single-shot mode for small audio file: meeting=%s, model=%s, wav_bytes=%d",
+			meetingKey, modelName, len(audioBytes)))
+		result, err = s.edgeLLMClient.InferenceDelta(ctx, session, fullData)
+	}
+	release()
+	if err != nil {
+		logger.Warn("Synthesis detection failed on reused session; invalidating and retrying once",
+			logger.String("meeting_id", meetingKey),
+			logger.String("model", modelName),
+			logger.Err(err))
+		s.sessions.Invalidate(ctx, meetingKey, modelName)
+
+		session, release, acquireErr := s.sessions.Acquire(ctx, meetingKey, modelName)
+		if acquireErr != nil {
+			return nil, fmt.Errorf("synthesis detection acquire retry failed: %w (original: %v)", acquireErr, err)
+		}
+		if len(fullData) > maxSingleDeltaLen {
+			result, err = s.edgeLLMClient.InferenceDeltaWithAudioStream(ctx, session, fullData, streamChunkSize, streamChunkDelay)
+		} else {
+			result, err = s.edgeLLMClient.InferenceDelta(ctx, session, fullData)
+		}
+		release()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("synthesis detection failed: %w", err)
@@ -360,7 +593,11 @@ func (s *AIInferenceService) SynthesisDetection(ctx context.Context, req *Synthe
 // HealthCheck 健康检查
 func (s *AIInferenceService) HealthCheck(ctx context.Context) error {
 	// 尝试创建一个简单的连接来验证 unit-manager 是否可达
-	session, err := s.edgeLLMClient.Setup(ctx, "asr-model")
+	modelName := "asr-model"
+	if s.config != nil && s.config.AI.Models.ASR.ModelName != "" {
+		modelName = s.config.AI.Models.ASR.ModelName
+	}
+	session, err := s.edgeLLMClient.Setup(ctx, modelName)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -396,4 +633,3 @@ func getMapKeys(data map[string]interface{}) []string {
 	}
 	return keys
 }
-

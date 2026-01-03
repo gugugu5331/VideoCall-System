@@ -8,17 +8,15 @@ include_directories("../hybrid-comm/include/")
 include_directories("../hybrid-comm/include/libzmq")
 include_directories("./include/")
 include_directories("../utils/")
+include_directories("/usr/local/include")
 
 file(GLOB SRCS "src/*.cpp" "../hybrid-comm/src/*.cpp")
 
 add_library(stackflow STATIC ${SRCS})
 
-
-find_package(eventpp REQUIRED)
 target_link_libraries(stackflow
-    eventpp
-    utilities
     zmq
+    pthread
     # simdjson_component
 )
 
@@ -26,5 +24,3 @@ install(TARGETS stackflow
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
 )
-
-

@@ -168,6 +168,13 @@ func main() {
 	// ZMQ初始化可能需要30秒，不应阻塞HTTP服务器启动
 	var zmqInitialized bool
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Warn(fmt.Sprintf("ZMQ initialization panicked (ignored): %v", r))
+				log.Printf("ZMQ initialization panicked (ignored): %v", r)
+			}
+		}()
+
 		logger.Info("Starting ZMQ initialization in background...")
 		log.Println("Starting ZMQ initialization in background...")
 		if err := zmq.InitZMQ(cfg.ZMQ); err != nil {

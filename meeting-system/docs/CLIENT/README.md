@@ -11,6 +11,7 @@
 ### 功能文档
 - **[AI_FEATURES.md](AI_FEATURES.md)** - AI 功能实现和使用
 - **[STICKER_FEATURE.md](STICKER_FEATURE.md)** - 视频贴图特效功能
+- **[VIDEO_EFFECTS_SEI.md](VIDEO_EFFECTS_SEI.md)** - 使用 SEI 传输美颜/滤镜参数
 
 ## 🎯 客户端架构
 
@@ -112,4 +113,3 @@ cd qt6-client
 - [后端系统 README](../README.md)
 - [Qt6 官方文档](https://doc.qt.io/qt-6/)
 - [WebRTC 文档](https://webrtc.org/)
-

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/base64"
+	"io"
 	"net/http"
 	"time"
 
@@ -134,6 +135,43 @@ func (h *AIHandler) SynthesisDetection(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// SetupMeeting 预热/初始化会议的 AI 会话（一次 setup，后续复用）
+// @Summary 预热会议 AI 会话
+// @Description 为指定 meeting_id 预先 setup ASR/Emotion/Synthesis 会话，避免首次推理卡顿
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param request body object false "可选: {meeting_id, models}"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 500 {object} response.Response
+// @Router /api/v1/ai/setup [post]
+func (h *AIHandler) SetupMeeting(c *gin.Context) {
+	var req struct {
+		MeetingID uint     `json:"meeting_id,omitempty"`
+		Models    []string `json:"models,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil && err != io.EOF {
+		logger.Warn("Invalid setup request: " + err.Error())
+		response.Error(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	ctx := c.Request.Context()
+	statuses, err := h.aiService.WarmupMeeting(ctx, req.MeetingID, req.Models)
+	if err != nil {
+		logger.Error("AI meeting warmup failed: " + err.Error())
+		response.Error(c, http.StatusInternalServerError, "AI meeting warmup failed: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"meeting_id": req.MeetingID,
+		"models":     statuses,
+		"timestamp":  time.Now().Unix(),
+	})
+}
+
 // Analyze 通用 AI 推理接口（客户端直连 AI 服务）
 // 通过 ZeroMQ 将 Task 对象发送到 Edge-LLM-Infra (C++) 并返回结果
 func (h *AIHandler) Analyze(c *gin.Context) {
@@ -205,11 +243,6 @@ func (h *AIHandler) Analyze(c *gin.Context) {
 		"task_id": task.TaskID,
 		"result":  aiResp.Data,
 	})
-}
-
-	}
-
-	response.Success(c, result)
 }
 
 // HealthCheck 健康检查接口
@@ -390,4 +423,3 @@ func getInt(m map[string]interface{}, key string) int {
 	}
 	return 0
 }
-

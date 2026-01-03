@@ -464,12 +464,13 @@ services:
     container_name: meeting-nginx
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/ssl:/etc/nginx/ssl
       - ./frontend/dist:/var/www/static
       - recordings_data:/var/www/hls
     ports:
       - "8800:80"   # HTTP (外网端口 22176)
-      - "8443:443"  # HTTPS
+      - "443:443"   # HTTPS
     depends_on:
       - user-service
       - signaling-service
@@ -519,4 +520,3 @@ volumes:
     driver: local
   etcd_data:
     driver: local
-

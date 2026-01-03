@@ -43,19 +43,21 @@ def download_models(models_dir):
         "asr": {
             "name": "asr-model",
             "description": "Automatic Speech Recognition",
-            "url": "https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
+            # NOTE: ONNX Model Zoo uses Git LFS; use GitHub's raw URL which redirects to
+            # `media.githubusercontent.com` to download the real binary instead of an LFS pointer.
+            "url": "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
             "filename": "asr-model.onnx"
         },
         "emotion": {
             "name": "emotion-model",
             "description": "Emotion Detection",
-            "url": "https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
+            "url": "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
             "filename": "emotion-model.onnx"
         },
         "synthesis": {
             "name": "synthesis-model",
             "description": "Synthesis/Deepfake Detection",
-            "url": "https://github.com/onnx/models/raw/main/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
+            "url": "https://github.com/onnx/models/raw/main/validated/vision/body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx",
             "filename": "synthesis-model.onnx"
         }
     }
@@ -140,4 +142,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

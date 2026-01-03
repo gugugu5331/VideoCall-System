@@ -81,6 +81,11 @@ ai:
     max_retries: 3
     retry_delay: 1000  # 毫秒
     timeout: 30        # 秒
+    # 传输层保护：unit-manager TCP 侧可能出现粘包/拆包，导致 "json format error"。
+    # 若已升级 unit-manager（支持按行切分），可将 delay 调小/设为 0，并适当增大 chunk_size 以降低延迟。
+    max_single_delta_len: 2048
+    audio_stream_chunk_size: 512
+    audio_stream_chunk_delay_ms: 10
 
   # 缓存配置
   cache:
@@ -122,4 +127,3 @@ security:
     enabled: true
     requests_per_second: 100
     burst_size: 200
-

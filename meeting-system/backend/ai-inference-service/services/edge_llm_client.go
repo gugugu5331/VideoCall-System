@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,6 +71,13 @@ func (c *EdgeLLMClient) createConnection(ctx context.Context) (net.Conn, *bufio.
 	conn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", c.host, c.port))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to unit-manager: %w", err)
+	}
+
+	// unit-manager 的 TCP 服务端对“消息边界”不健壮：可能把多次 Write 合并成一次 onMessage，
+	// 或把一次大 Write 拆成多次 onMessage，从而触发 simdjson 的 "json format error"。
+	// 这里尽量让每次 Write 尽快发出，降低合并概率（不能完全保证）。
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.SetNoDelay(true)
 	}
 
 	// 设置读写超时
@@ -156,6 +164,89 @@ func (c *EdgeLLMClient) receiveResponse(reader *bufio.Reader) (*EdgeLLMResponse,
 	}
 
 	return &resp, nil
+}
+
+type streamWrapper struct {
+	Index  int
+	Delta  string
+	Finish bool
+}
+
+func parseStreamWrapper(data map[string]interface{}) (streamWrapper, bool) {
+	if data == nil {
+		return streamWrapper{}, false
+	}
+
+	finish, ok := data["finish"].(bool)
+	if !ok {
+		return streamWrapper{}, false
+	}
+
+	delta, _ := data["delta"].(string)
+	index := -1
+	if idx, ok := data["index"].(float64); ok {
+		index = int(idx)
+	}
+
+	return streamWrapper{
+		Index:  index,
+		Delta:  delta,
+		Finish: finish,
+	}, true
+}
+
+// receiveData reads responses and, if the response is a stream wrapper, drains until finish=true and
+// concatenates all delta fragments (to avoid leaving trailing finish frames in the connection buffer).
+func (c *EdgeLLMClient) receiveData(ctx context.Context, reader *bufio.Reader) (map[string]interface{}, error) {
+	var deltaBuilder strings.Builder
+	lastIndex := -1
+	seenStream := false
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		resp, err := c.receiveResponse(reader)
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := parseDataField(resp)
+		if err != nil {
+			return nil, err
+		}
+
+		wrapper, ok := parseStreamWrapper(data)
+		if !ok {
+			// Non-stream response; return as-is.
+			return data, nil
+		}
+
+		seenStream = true
+		if wrapper.Index >= 0 {
+			lastIndex = wrapper.Index
+		}
+		if wrapper.Delta != "" {
+			deltaBuilder.WriteString(wrapper.Delta)
+		}
+		if wrapper.Finish {
+			break
+		}
+	}
+
+	if !seenStream {
+		return nil, nil
+	}
+
+	// Return a single synthesized stream wrapper.
+	return map[string]interface{}{
+		"index":  lastIndex,
+		"delta":  deltaBuilder.String(),
+		"finish": true,
+	}, nil
 }
 
 // Setup 设置推理任务
@@ -278,24 +369,78 @@ func (c *EdgeLLMClient) Inference(ctx context.Context, session *InferenceSession
 	// 接收 inference 响应
 	logger.Info(fmt.Sprintf("⏳ Waiting for inference response (timeout: %v)...", c.timeout))
 	receiveStartTime := time.Now()
-	inferenceResp, err := c.receiveResponse(session.Reader)
+	data, err := c.receiveData(ctx, session.Reader)
 	if err != nil {
 		logger.Error(fmt.Sprintf("❌ Failed to receive inference response after %v: %v", time.Since(receiveStartTime), err))
 		return nil, err
 	}
 	logger.Info(fmt.Sprintf("✅ Received inference response in %v", time.Since(receiveStartTime)))
 
-	// 解析 Data 字段
-	logger.Debug("Parsing response data field...")
-	data, err := parseDataField(inferenceResp)
-	if err != nil {
-		logger.Error(fmt.Sprintf("❌ Failed to parse inference response data: %v", err))
-		return nil, fmt.Errorf("failed to parse inference response data: %w", err)
-	}
-
 	logger.Info(fmt.Sprintf("✅ Inference successful for work_id: %s (total time: %v)", session.WorkID, time.Since(startTime)))
 
 	return data, nil
+}
+
+// InferenceDelta 执行一次推理，并解析 stream wrapper 的 delta 字段（不包含 setup/exit；用于会话复用）。
+func (c *EdgeLLMClient) InferenceDelta(ctx context.Context, session *InferenceSession, inputData string) (map[string]interface{}, error) {
+	result, err := c.Inference(ctx, session, inputData)
+	if err != nil {
+		return nil, err
+	}
+
+	if deltaStr, ok := result["delta"].(string); ok && deltaStr != "" {
+		var deltaData map[string]interface{}
+		if err := json.Unmarshal([]byte(deltaStr), &deltaData); err != nil {
+			logger.Warn(fmt.Sprintf("Failed to parse delta field as JSON: %v", err))
+			return result, nil
+		}
+		return deltaData, nil
+	}
+	return result, nil
+}
+
+// InferenceDeltaWithAudioStream 执行流式推理（音频大 payload 分块发送），并解析最终结果（不包含 setup/exit；用于会话复用）。
+func (c *EdgeLLMClient) InferenceDeltaWithAudioStream(ctx context.Context, session *InferenceSession, audioData string, chunkSize int, chunkDelay time.Duration) (map[string]interface{}, error) {
+	logger.Info(fmt.Sprintf("🚀 Starting streaming inference (reuse session): work_id=%s, model=%s, data_size=%d bytes, chunk_size=%d bytes",
+		session.WorkID, session.ModelType, len(audioData), chunkSize))
+
+	if chunkSize <= 0 {
+		return nil, fmt.Errorf("chunkSize must be positive")
+	}
+
+	totalChunks := (len(audioData) + chunkSize - 1) / chunkSize
+	logger.Info(fmt.Sprintf("📦 Will send %d chunks", totalChunks))
+
+	for i := 0; i < len(audioData); i += chunkSize {
+		end := i + chunkSize
+		if end > len(audioData) {
+			end = len(audioData)
+		}
+
+		chunk := audioData[i:end]
+		isLastChunk := end >= len(audioData)
+		chunkIndex := i / chunkSize
+
+		if err := c.sendAudioChunk(ctx, session, chunk, chunkIndex, isLastChunk); err != nil {
+			return nil, fmt.Errorf("failed to send audio chunk %d: %w", chunkIndex, err)
+		}
+
+		if !isLastChunk && chunkDelay > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(chunkDelay):
+			}
+		}
+	}
+
+	// receiveStreamingResponse 会解析 delta 并返回真正的推理结果
+	result, err := c.receiveStreamingResponse(ctx, session)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 // Exit 退出推理任务
@@ -305,11 +450,6 @@ func (c *EdgeLLMClient) Exit(ctx context.Context, session *InferenceSession) err
 
 	logger.Info(fmt.Sprintf("Exiting inference session with work_id: %s", session.WorkID))
 
-	// 设置连接超时
-	if err := session.Conn.SetDeadline(time.Now().Add(c.timeout)); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to set connection deadline: %v", err))
-	}
-
 	// 构建 exit 请求
 	exitReq := &EdgeLLMRequest{
 		RequestID: generateRequestID(),
@@ -317,17 +457,15 @@ func (c *EdgeLLMClient) Exit(ctx context.Context, session *InferenceSession) err
 		Action:    "exit",
 	}
 
-	// 发送 exit 请求
-	if err := c.sendRequest(session.Conn, exitReq); err != nil {
-		logger.Warn(fmt.Sprintf("Failed to send exit request: %v", err))
-		// 即使发送失败也要关闭连接
+	// NOTE: The Edge-LLM-Infra unit-manager may not send a response for `exit`.
+	// Waiting for it will block requests (health checks and inference) for up to
+	// the full timeout. We send the `exit` request best-effort and close the
+	// connection immediately.
+	if err := session.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		logger.Debug(fmt.Sprintf("Failed to set write deadline: %v", err))
 	}
-
-	// 尝试接收 exit 响应
-	_, err := c.receiveResponse(session.Reader)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("Failed to receive exit response: %v", err))
-		// 即使接收失败也要关闭连接
+	if err := c.sendRequest(session.Conn, exitReq); err != nil {
+		logger.Debug(fmt.Sprintf("Failed to send exit request (ignored): %v", err))
 	}
 
 	// 关闭连接
@@ -385,7 +523,7 @@ func (c *EdgeLLMClient) RunInference(ctx context.Context, modelType string, inpu
 // RunInferenceWithAudioStream 运行完整的推理流程，支持流式传输音频数据
 // audioData: base64 编码的音频数据
 // chunkSize: 每个数据块的大小（字节）
-func (c *EdgeLLMClient) RunInferenceWithAudioStream(ctx context.Context, modelType string, audioData string, chunkSize int) (map[string]interface{}, error) {
+func (c *EdgeLLMClient) RunInferenceWithAudioStream(ctx context.Context, modelType string, audioData string, chunkSize int, chunkDelay time.Duration) (map[string]interface{}, error) {
 	// Setup
 	session, err := c.Setup(ctx, modelType)
 	if err != nil {
@@ -423,6 +561,16 @@ func (c *EdgeLLMClient) RunInferenceWithAudioStream(ctx context.Context, modelTy
 		}
 
 		logger.Debug(fmt.Sprintf("✅ Chunk %d/%d sent successfully", chunkIndex+1, totalChunks))
+
+		// unit-manager 侧 TCP 未按行切分时，多个 JSON 很容易粘包导致解析失败。
+		// 在不改动 unit-manager 的情况下，适当的 chunk 间隔能显著降低概率。
+		if !isLastChunk && chunkDelay > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(chunkDelay):
+			}
+		}
 	}
 
 	logger.Info("📡 All audio chunks sent, waiting for final response...")
@@ -486,16 +634,10 @@ func (c *EdgeLLMClient) receiveStreamingResponse(ctx context.Context, session *I
 
 	logger.Info("⏳ Waiting for final streaming response...")
 
-	// 接收最终响应
-	resp, err := c.receiveResponse(session.Reader)
+	// 接收最终响应（并 drain 到 finish=true，避免残留帧影响后续复用会话）
+	data, err := c.receiveData(ctx, session.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to receive final response: %w", err)
-	}
-
-	// 解析 Data 字段
-	data, err := parseDataField(resp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse response data: %w", err)
 	}
 
 	// 解析 delta 字段（如果存在）
@@ -588,4 +730,3 @@ func parseErrorField(resp *EdgeLLMResponse) (map[string]interface{}, error) {
 	logger.Debug("Successfully parsed Error field as JSON string")
 	return errorData, nil
 }
-

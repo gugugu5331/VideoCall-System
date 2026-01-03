@@ -102,10 +102,15 @@ ffmpeg:
 # WebRTC配置
 webrtc:
   ice_servers:
-    - urls: ["stun:stun.l.google.com:19302"]
-    - urls: ["turn:turn.example.com:3478"]
+    # SFU 自身使用 coturn 分配 relay candidate（避免本机仅内网 IP 导致 host candidate 不可达）
+    - urls: ["turn:172.20.110.182:3478?transport=udp"]
       username: "turnuser"
-      credential: "turnpass"
+      credential: "turnpassword"
+    - urls: ["turn:172.20.110.182:3478?transport=tcp"]
+      username: "turnuser"
+      credential: "turnpassword"
+    # 兜底（如果 TURN 不可用，让 SFU 尝试走 STUN 获取 srflx）
+    - urls: ["stun:stun.l.google.com:19302"]
   max_peers_per_room: 50
   connection_timeout: 30s
   keep_alive_interval: 25s

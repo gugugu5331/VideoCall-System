@@ -2,7 +2,7 @@ module meeting-system/signaling-service
 
 go 1.24.0
 
-toolchain go1.24.6
+toolchain go1.24.11
 
 require (
 	github.com/gin-gonic/gin v1.9.1
@@ -18,7 +18,6 @@ require (
 )
 
 require (
-	github.com/HdrHistogram/hdrhistogram-go v1.1.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect

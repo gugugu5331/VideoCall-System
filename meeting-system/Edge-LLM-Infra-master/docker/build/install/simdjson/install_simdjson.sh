@@ -10,8 +10,15 @@ THREAD_NUM=$(nproc)
 VERSION="master"
 PKG_NAME="simdjson-${VERSION}.tar.gz"
 
+URL="https://github.com/simdjson/simdjson/archive/refs/heads/${VERSION}.tar.gz"
+
+if [ ! -f "${PKG_NAME}" ]; then
+    echo "Downloading simdjson (${VERSION})..."
+    wget -O "${PKG_NAME}" "${URL}"
+fi
+
 tar xzf "${PKG_NAME}"
-pushd simdjson-${VERSION}
+pushd "simdjson-${VERSION}"
 mkdir build && cd build
 
 cmake .. \
@@ -23,4 +30,4 @@ make install
 ldconfig
 popd
 
-rm -rf PKG_NAME simdjson-${VERSION}
+rm -rf "${PKG_NAME}" "simdjson-${VERSION}"

@@ -219,7 +219,11 @@ func main() {
 	if grpcPort == 0 {
 		grpcPort = 50051 // 默认端口
 	}
-	grpcAddr := fmt.Sprintf("0.0.0.0:%d", grpcPort)
+	grpcHost := cfg.Server.Host
+	if grpcHost == "" {
+		grpcHost = "0.0.0.0"
+	}
+	grpcAddr := fmt.Sprintf("%s:%d", grpcHost, grpcPort)
 
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
@@ -385,8 +389,8 @@ func setupRoutes(r *gin.Engine, userHandler *handlers.UserHandler) {
 		// 用户管理接口（管理员）
 		admin := v1.Group("/admin/users")
 		admin.Use(middleware.JWTAuth())
-		admin.Use(middleware.RequireAdmin())           // 要求管理员权限
-		admin.Use(middleware.SmartCSRFProtection())    // 智能 CSRF 保护
+		admin.Use(middleware.RequireAdmin())        // 要求管理员权限
+		admin.Use(middleware.SmartCSRFProtection()) // 智能 CSRF 保护
 		// 测试环境：禁用限流
 		// admin.Use(middleware.UserRateLimit(30, 60))
 		{

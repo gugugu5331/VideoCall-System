@@ -105,11 +105,40 @@ void zmq_com_send(int com_id, const std::string &out_str)
 
 void zmq_bus_com::select_json_str(const std::string &json_src, std::function<void(const std::string &)> out_fun)
 {
+    // The TCP side is a byte stream: one recv() may contain a partial JSON line
+    // or multiple newline-delimited JSON requests. unit_action_match expects a
+    // single JSON object each time, so we must do framing here.
+    //
+    // Protocol: client sends one JSON object per line, terminated by '\n'.
+    json_str_.append(json_src);
 
-    std::string test_json = json_src;
-
-    if (!test_json.empty() && test_json.back() == '\n') {
-        test_json.pop_back();
+    // Guard against unbounded growth if the sender is buggy or the connection
+    // gets desynced.
+    constexpr size_t kMaxBufferedBytes = 8 * 1024 * 1024; // 8MB
+    if (json_str_.size() > kMaxBufferedBytes) {
+        json_str_.clear();
+        json_str_flage_ = 0;
+        return;
     }
-    out_fun(test_json);
+
+    size_t pos = 0;
+    while (true) {
+        auto nl = json_str_.find('\n', pos);
+        if (nl == std::string::npos) {
+            break;
+        }
+
+        std::string line = json_str_.substr(pos, nl - pos);
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        if (!line.empty()) {
+            out_fun(line);
+        }
+        pos = nl + 1;
+    }
+
+    if (pos > 0) {
+        json_str_.erase(0, pos);
+    }
 }

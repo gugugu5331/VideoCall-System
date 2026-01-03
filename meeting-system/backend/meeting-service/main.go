@@ -190,7 +190,11 @@ func main() {
 	if grpcPort == 0 {
 		grpcPort = 50052 // 默认端口
 	}
-	grpcAddr := fmt.Sprintf("0.0.0.0:%d", grpcPort)
+	grpcHost := cfg.Server.Host
+	if grpcHost == "" {
+		grpcHost = "0.0.0.0"
+	}
+	grpcAddr := fmt.Sprintf("%s:%d", grpcHost, grpcPort)
 
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {

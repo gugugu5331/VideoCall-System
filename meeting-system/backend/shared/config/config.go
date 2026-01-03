@@ -21,9 +21,11 @@ type Config struct {
 	MinIO          MinIOConfig          `mapstructure:"minio"`
 	JWT            JWTConfig            `mapstructure:"jwt"`
 	ZMQ            ZMQConfig            `mapstructure:"zmq"`
+	AI             AIConfig             `mapstructure:"ai"`
 	Log            LogConfig            `mapstructure:"log"`
 	WebSocket      WebSocketConfig      `mapstructure:"websocket"`
 	Signaling      SignalingConfig      `mapstructure:"signaling"`
+	WebRTC         WebRTCConfig         `mapstructure:"webrtc"`
 	Services       ServicesConfig       `mapstructure:"services"`
 	Etcd           EtcdConfig           `mapstructure:"etcd"`
 	MessageQueue   MessageQueueConfig   `mapstructure:"message_queue"`
@@ -104,6 +106,33 @@ type ZMQConfig struct {
 	Timeout         int    `mapstructure:"timeout"` // 秒
 }
 
+// AIConfig AI 推理配置（ai-inference-service 使用）
+type AIConfig struct {
+	Models  AIModelsConfig  `mapstructure:"models"`
+	Request AIRequestConfig `mapstructure:"request"`
+}
+
+type AIModelsConfig struct {
+	ASR       AIModelConfig `mapstructure:"asr"`
+	Emotion   AIModelConfig `mapstructure:"emotion"`
+	Synthesis AIModelConfig `mapstructure:"synthesis"`
+}
+
+type AIModelConfig struct {
+	ModelName     string `mapstructure:"model_name"`
+	Timeout       int    `mapstructure:"timeout"`        // 秒
+	MaxConcurrent int    `mapstructure:"max_concurrent"` // 并发上限（预留）
+}
+
+type AIRequestConfig struct {
+	MaxRetries              int `mapstructure:"max_retries"`
+	RetryDelay              int `mapstructure:"retry_delay"` // 毫秒
+	Timeout                 int `mapstructure:"timeout"`     // 秒
+	MaxSingleDeltaLen       int `mapstructure:"max_single_delta_len"`
+	AudioStreamChunkSize    int `mapstructure:"audio_stream_chunk_size"`
+	AudioStreamChunkDelayMs int `mapstructure:"audio_stream_chunk_delay_ms"`
+}
+
 // LogConfig 日志配置
 type LogConfig struct {
 	Level      string `mapstructure:"level"`
@@ -162,6 +191,18 @@ type ICEServer struct {
 	URLs       string `mapstructure:"urls"`
 	Username   string `mapstructure:"username,omitempty"`
 	Credential string `mapstructure:"credential,omitempty"`
+}
+
+// WebRTCConfig WebRTC（SFU/ICE）配置
+type WebRTCConfig struct {
+	ICEServers []WebRTCICEServer `mapstructure:"ice_servers"`
+}
+
+// WebRTCICEServer WebRTC ICE server 配置（支持 urls 为数组）
+type WebRTCICEServer struct {
+	URLs       []string `mapstructure:"urls"`
+	Username   string   `mapstructure:"username,omitempty"`
+	Credential string   `mapstructure:"credential,omitempty"`
 }
 
 // MediaConfig 媒体配置
@@ -274,6 +315,21 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
+	// 显式处理 ETCD_ENDPOINTS（逗号分隔），避免在不同 Viper 版本/环境下 slice 解析不一致导致无法覆盖配置文件。
+	if endpointsEnv := strings.TrimSpace(viper.GetString("ETCD_ENDPOINTS")); endpointsEnv != "" {
+		parts := strings.Split(endpointsEnv, ",")
+		endpoints := make([]string, 0, len(parts))
+		for _, part := range parts {
+			value := strings.TrimSpace(part)
+			if value != "" {
+				endpoints = append(endpoints, value)
+			}
+		}
+		if len(endpoints) > 0 {
+			config.Etcd.Endpoints = endpoints
+		}
+	}
+
 	// 优先从环境变量读取JWT密钥
 	if jwtSecret := viper.GetString("JWT_SECRET"); jwtSecret != "" {
 		config.JWT.Secret = jwtSecret
@@ -342,6 +398,25 @@ func setDefaults() {
 	viper.SetDefault("zmq.unit_manager_port", 5001)
 	viper.SetDefault("zmq.unit_name", "meeting_ai_service")
 	viper.SetDefault("zmq.timeout", 30)
+
+	// AI 默认配置（仅 ai-inference-service 使用；其他服务可忽略）
+	viper.SetDefault("ai.models.asr.model_name", "asr-model")
+	viper.SetDefault("ai.models.asr.timeout", 30)
+	viper.SetDefault("ai.models.asr.max_concurrent", 10)
+	viper.SetDefault("ai.models.emotion.model_name", "emotion-model")
+	viper.SetDefault("ai.models.emotion.timeout", 15)
+	viper.SetDefault("ai.models.emotion.max_concurrent", 20)
+	viper.SetDefault("ai.models.synthesis.model_name", "synthesis-model")
+	viper.SetDefault("ai.models.synthesis.timeout", 20)
+	viper.SetDefault("ai.models.synthesis.max_concurrent", 15)
+	viper.SetDefault("ai.request.max_retries", 3)
+	viper.SetDefault("ai.request.retry_delay", 1000)
+	viper.SetDefault("ai.request.timeout", 30)
+	// 传输层保护：大 payload 走 stream，限制 chunk 尺寸避免 unit-manager "json format error"
+	viper.SetDefault("ai.request.max_single_delta_len", 2048)
+	viper.SetDefault("ai.request.audio_stream_chunk_size", 1024)
+	// 进一步降低多条 JSON 粘包概率（unit-manager TCP 侧未做按行切分时会报错）
+	viper.SetDefault("ai.request.audio_stream_chunk_delay_ms", 2)
 
 	// 日志默认配置
 	viper.SetDefault("log.level", "info")

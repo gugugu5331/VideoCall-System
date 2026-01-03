@@ -3,16 +3,36 @@
 ###############################################################################
 # 快速远程部署脚本
 # 简化版本，直接执行关键步骤
+#
+# 注意：为避免泄露敏感信息，本脚本不再内置远程主机/端口/密码。
+# 请通过环境变量传入（推荐使用 SSH Key）。
 ###############################################################################
 
 set -e
 
-# 远程服务器配置
-REMOTE_HOST="js1.blockelite.cn"
-REMOTE_PORT="22124"
-REMOTE_USER="root"
-REMOTE_PASSWORD="beip3ius"
-REMOTE_DIR="/root/meeting-system-server"
+# ---------------------------------------------------------------------------
+# Remote config (required via env)
+# ---------------------------------------------------------------------------
+# Required:
+#   REMOTE_HOST         远程 SSH 主机
+#   REMOTE_DIR          远程部署目录（包含 meeting-system 目录）
+#
+# Optional:
+#   REMOTE_PORT         SSH 端口（默认 22）
+#   REMOTE_USER         SSH 用户（默认 root）
+#   REMOTE_SSH_KEY      SSH 私钥路径（推荐）
+#   REMOTE_PASSWORD     SSH 密码（可选；需要 sshpass；不会写入命令行参数）
+#   REMOTE_GATEWAY_URL  部署完成后的网关地址（用于健康检查），如 http://<host>:<port>
+#   REMOTE_COMPOSE_FILE docker compose 文件（默认 docker-compose.remote.yml）
+REMOTE_HOST="${REMOTE_HOST:?Please set REMOTE_HOST}"
+REMOTE_DIR="${REMOTE_DIR:?Please set REMOTE_DIR (e.g. /root/meeting-system-server)}"
+
+REMOTE_PORT="${REMOTE_PORT:-22}"
+REMOTE_USER="${REMOTE_USER:-root}"
+REMOTE_SSH_KEY="${REMOTE_SSH_KEY:-}"
+REMOTE_PASSWORD="${REMOTE_PASSWORD:-}"
+REMOTE_GATEWAY_URL="${REMOTE_GATEWAY_URL:-}"
+REMOTE_COMPOSE_FILE="${REMOTE_COMPOSE_FILE:-docker-compose.remote.yml}"
 
 # 颜色输出
 GREEN='\033[0;32m'
@@ -28,7 +48,21 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # SSH 命令封装
 ssh_exec() {
-    sshpass -p "${REMOTE_PASSWORD}" ssh -p ${REMOTE_PORT} -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "$@"
+    local ssh_opts=(-p "${REMOTE_PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+    if [[ -n "${REMOTE_SSH_KEY}" ]]; then
+        ssh_opts+=(-i "${REMOTE_SSH_KEY}")
+    fi
+
+    if [[ -n "${REMOTE_PASSWORD}" ]]; then
+        if ! command -v sshpass >/dev/null 2>&1; then
+            log_error "REMOTE_PASSWORD 已设置，但未找到 sshpass；请安装 sshpass 或改用 SSH key"
+            exit 1
+        fi
+        SSHPASS="${REMOTE_PASSWORD}" sshpass -e ssh "${ssh_opts[@]}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
+        return
+    fi
+
+    ssh "${ssh_opts[@]}" "${REMOTE_USER}@${REMOTE_HOST}" "$@"
 }
 
 echo "=========================================="
@@ -54,10 +88,10 @@ echo ""
 # 3. 启动/重启服务
 log_info "3. 启动/重启 Docker 服务..."
 log_info "停止现有服务..."
-ssh_exec "cd ${REMOTE_DIR}/meeting-system && docker-compose -f docker-compose.remote.yml down" || true
+ssh_exec "cd ${REMOTE_DIR}/meeting-system && (docker compose -f ${REMOTE_COMPOSE_FILE} down || docker-compose -f ${REMOTE_COMPOSE_FILE} down)" || true
 
 log_info "启动服务（这可能需要几分钟）..."
-ssh_exec "cd ${REMOTE_DIR}/meeting-system && docker-compose -f docker-compose.remote.yml up -d" 2>&1 | tail -20
+ssh_exec "cd ${REMOTE_DIR}/meeting-system && (docker compose -f ${REMOTE_COMPOSE_FILE} up -d || docker-compose -f ${REMOTE_COMPOSE_FILE} up -d)" 2>&1 | tail -20
 
 log_success "服务启动命令已执行"
 echo ""
@@ -90,32 +124,15 @@ echo ""
 # 7. 测试服务可访问性
 log_info "7. 测试服务可访问性..."
 
-log_info "测试 Nginx (22176)..."
-if curl -f -s -o /dev/null -w "%{http_code}" "http://${REMOTE_HOST}:22176/health" | grep -q "200"; then
-    log_success "Nginx 可访问"
+if [[ -n "${REMOTE_GATEWAY_URL}" ]]; then
+    log_info "测试网关健康检查: ${REMOTE_GATEWAY_URL}/health"
+    if curl -f -s -o /dev/null -w "%{http_code}" "${REMOTE_GATEWAY_URL%/}/health" | grep -q "200"; then
+        log_success "网关可访问"
+    else
+        log_warning "网关不可访问"
+    fi
 else
-    log_warning "Nginx 不可访问"
-fi
-
-log_info "测试 Jaeger (22177)..."
-if curl -f -s -o /dev/null -w "%{http_code}" "http://${REMOTE_HOST}:22177/" | grep -q "200"; then
-    log_success "Jaeger 可访问"
-else
-    log_warning "Jaeger 不可访问"
-fi
-
-log_info "测试 Prometheus (22178)..."
-if curl -f -s -o /dev/null -w "%{http_code}" "http://${REMOTE_HOST}:22178/" | grep -q "200"; then
-    log_success "Prometheus 可访问"
-else
-    log_warning "Prometheus 不可访问"
-fi
-
-log_info "测试 Grafana (22180)..."
-if curl -f -s -o /dev/null -w "%{http_code}" "http://${REMOTE_HOST}:22180/" | grep -q "200\|302"; then
-    log_success "Grafana 可访问"
-else
-    log_warning "Grafana 不可访问"
+    log_warning "未设置 REMOTE_GATEWAY_URL，跳过外网可访问性检查"
 fi
 
 echo ""
@@ -125,14 +142,13 @@ echo "  部署完成"
 echo "=========================================="
 echo ""
 echo "访问地址："
-echo "  - Nginx:      http://${REMOTE_HOST}:22176"
-echo "  - Jaeger:     http://${REMOTE_HOST}:22177"
-echo "  - Prometheus: http://${REMOTE_HOST}:22178"
-echo "  - Grafana:    http://${REMOTE_HOST}:22180"
+if [[ -n "${REMOTE_GATEWAY_URL}" ]]; then
+    echo "  - Gateway: ${REMOTE_GATEWAY_URL%/}"
+else
+    echo "  - Gateway: (unset) 请设置 REMOTE_GATEWAY_URL"
+fi
 echo ""
 echo "下一步："
-echo "  1. 运行集成测试: ./run-remote-integration-test.sh"
-echo "  2. 验证 AI 服务: ./verify-ai-service-remote.sh"
-echo "  3. 查看服务日志: ssh -p ${REMOTE_PORT} ${REMOTE_USER}@${REMOTE_HOST} 'docker logs meeting-[service-name]'"
+echo "  1. 运行集成测试: python3 backend/tests/complete_integration_test_remote.py"
+echo "  2. 查看服务日志: ssh -p ${REMOTE_PORT} ${REMOTE_USER}@${REMOTE_HOST} 'docker logs meeting-[service-name]'"
 echo ""
-

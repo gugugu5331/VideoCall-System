@@ -12,11 +12,13 @@ import base64
 import requests
 import subprocess
 import threading
+import shutil
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import logging
 
 # 配置日志
+os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -28,13 +30,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ========== 远程服务器配置 ==========
-REMOTE_HOST = "js1.blockelite.cn"
-REMOTE_HTTP_PORT = "22176"  # 映射到远程服务器的 8800 端口
-REMOTE_JAEGER_PORT = "22177"  # 映射到远程服务器的 8801 端口
+REMOTE_BASE_URL = (os.getenv("REMOTE_BASE_URL") or "").rstrip("/")
+if not REMOTE_BASE_URL:
+    # Backward-compatible defaults for local/CI runs
+    remote_host = os.getenv("REMOTE_HOST", "localhost")
+    remote_http_port = os.getenv("REMOTE_HTTP_PORT", "8800")
+    REMOTE_BASE_URL = f"http://{remote_host}:{remote_http_port}"
 
-# 远程服务器 URL
-NGINX_URL = f"http://{REMOTE_HOST}:{REMOTE_HTTP_PORT}"
-TEST_VIDEO_DIR = "/root/meeting-system-server/meeting-system/backend/media-service/test_video"
+# 远程服务器 URL（通过 Nginx/Gateway 暴露）
+NGINX_URL = REMOTE_BASE_URL
 
 @dataclass
 class User:
@@ -98,14 +102,32 @@ class RemoteIntegrationTest:
     
     def cleanup_remote_database(self):
         """清空远程数据库（通过 SSH）"""
-        self.log_step("SETUP", "Cleaning up remote database...")
+        self.log_step("SETUP", "Cleaning up remote database (optional)...")
         try:
+            ssh_host = os.getenv("REMOTE_SSH_HOST")
+            if not ssh_host:
+                self.log_step("SETUP", "REMOTE_SSH_HOST 未设置，跳过远程数据库清理")
+                return True
+
+            ssh_port = os.getenv("REMOTE_SSH_PORT", "22")
+            ssh_user = os.getenv("REMOTE_SSH_USER", "root")
+            ssh_key = os.getenv("REMOTE_SSH_KEY", "")
+            ssh_password = os.getenv("REMOTE_SSH_PASSWORD", "")
+
             # 通过 SSH 连接到远程服务器并清空数据库
-            ssh_cmd = [
-                "sshpass", "-p", "beip3ius",
-                "ssh", "-p", "22124", "-o", "StrictHostKeyChecking=no",
-                "root@js1.blockelite.cn"
-            ]
+            ssh_cmd = ["ssh", "-p", ssh_port, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]
+            if ssh_key:
+                ssh_cmd += ["-i", ssh_key]
+            ssh_cmd += [f"{ssh_user}@{ssh_host}"]
+
+            env = None
+            if ssh_password:
+                if shutil.which("sshpass") is None:
+                    self.log_step("SETUP", "REMOTE_SSH_PASSWORD 已设置但未安装 sshpass，跳过数据库清理")
+                    return True
+                env = os.environ.copy()
+                env["SSHPASS"] = ssh_password
+                ssh_cmd = ["sshpass", "-e"] + ssh_cmd
             
             commands = [
                 "docker exec meeting-postgres psql -U postgres -d meeting_system -c 'TRUNCATE TABLE users CASCADE;'",
@@ -116,7 +138,7 @@ class RemoteIntegrationTest:
             
             for cmd in commands:
                 full_cmd = ssh_cmd + [cmd]
-                result = subprocess.run(full_cmd, capture_output=True, text=True)
+                result = subprocess.run(full_cmd, capture_output=True, text=True, env=env)
                 if result.returncode != 0:
                     self.log_error("SETUP", f"Failed to execute: {cmd}\n{result.stderr}")
                     
@@ -512,4 +534,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

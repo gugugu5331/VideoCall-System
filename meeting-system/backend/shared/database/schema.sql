@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS meeting_rooms (
     meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
     room_id VARCHAR(100) UNIQUE NOT NULL,
     sfu_node VARCHAR(100), -- SFU节点地址
-    status INTEGER DEFAULT 1, -- 1:活跃, 2:关闭
+    status VARCHAR(20) DEFAULT 'active', -- active, inactive, closed
     participant_count INTEGER DEFAULT 0,
     max_bitrate INTEGER DEFAULT 1000000, -- 最大码率
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -139,6 +139,51 @@ CREATE TABLE IF NOT EXISTS meeting_recordings (
 -- 创建会议录制表索引
 CREATE INDEX IF NOT EXISTS idx_meeting_recordings_meeting_id ON meeting_recordings(meeting_id);
 CREATE INDEX IF NOT EXISTS idx_meeting_recordings_status ON meeting_recordings(status);
+
+-- 信令会话表（WebSocket 会话/房间状态）
+CREATE TABLE IF NOT EXISTS signaling_sessions (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR(64) UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    peer_id VARCHAR(64) NOT NULL,
+    status INTEGER DEFAULT 1, -- 1:连接中, 2:已连接, 3:Offering, 4:Answering, 5:Stable, 6:断开, 7:失败
+    joined_at TIMESTAMP NOT NULL,
+    last_ping_at TIMESTAMP,
+    disconnected_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_signaling_sessions_session_id ON signaling_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_sessions_user_id ON signaling_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_sessions_meeting_id ON signaling_sessions(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_sessions_status ON signaling_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_signaling_sessions_deleted_at ON signaling_sessions(deleted_at);
+
+-- 信令消息表（用于持久化部分信令/聊天消息）
+CREATE TABLE IF NOT EXISTS signaling_messages (
+    id SERIAL PRIMARY KEY,
+    message_id VARCHAR(64) UNIQUE NOT NULL,
+    session_id VARCHAR(64) NOT NULL,
+    from_user_id INTEGER NOT NULL REFERENCES users(id),
+    to_user_id INTEGER REFERENCES users(id),
+    meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    message_type INTEGER NOT NULL,
+    payload TEXT,
+    status INTEGER DEFAULT 1, -- 1:待发送, 2:已发送, 3:已送达, 4:失败
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_message_id ON signaling_messages(message_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_session_id ON signaling_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_meeting_id ON signaling_messages(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_from_user_id ON signaling_messages(from_user_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_to_user_id ON signaling_messages(to_user_id);
+CREATE INDEX IF NOT EXISTS idx_signaling_messages_deleted_at ON signaling_messages(deleted_at);
 
 -- AI分析任务表
 CREATE TABLE IF NOT EXISTS ai_tasks (

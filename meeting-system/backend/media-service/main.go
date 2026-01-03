@@ -304,6 +304,11 @@ func setupRouter(
 			// 媒体控制
 			webrtc.POST("/peer/:peerId/media", handlers.NewWebRTCHandler(webrtcService).UpdatePeerMedia)
 			webrtc.GET("/peer/:peerId/status", handlers.NewWebRTCHandler(webrtcService).GetPeerStatus)
+
+			// SFU renegotiation / trickle ICE
+			webrtc.GET("/peer/:peerId/ice-candidates", handlers.NewWebRTCHandler(webrtcService).GetICECandidates)
+			webrtc.GET("/peer/:peerId/offer", handlers.NewWebRTCHandler(webrtcService).GetPendingOffer)
+			webrtc.POST("/peer/:peerId/answer", handlers.NewWebRTCHandler(webrtcService).HandlePeerAnswer)
 		}
 
 		// SFU 架构：FFmpeg 转码相关路由已禁用

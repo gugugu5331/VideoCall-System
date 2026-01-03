@@ -54,6 +54,7 @@ type Room struct {
 	Clients      map[string]*Client // sessionID -> Client
 	CreatedAt    time.Time
 	LastActivity time.Time
+	AILive       models.AILiveStatusMessage // 会议内 AI Live 共享状态（由信令服务协调）
 	mutex        sync.RWMutex
 }
 
@@ -90,15 +91,34 @@ func NewWebSocketHandler(signalingService *services.SignalingService) *WebSocket
 
 func (h *WebSocketHandler) authorizeConnection(c *gin.Context, userID, meetingID uint) error {
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		return fmt.Errorf("%w: missing authorization header", errUnauthorized)
-	}
-	parts := strings.SplitN(authHeader, " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return fmt.Errorf("%w: invalid authorization header", errUnauthorized)
+	tokenString := ""
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			return fmt.Errorf("%w: invalid authorization header", errUnauthorized)
+		}
+		tokenString = strings.TrimSpace(parts[1])
+	} else {
+		// 浏览器 WebSocket API 无法自定义 Authorization Header，因此允许通过 Query 或 Cookie 传递 Token。
+		// 生产环境建议使用一次性 WS Ticket 或 HttpOnly Cookie，以避免 Token 出现在 URL 中。
+		tokenString = strings.TrimSpace(c.Query("token"))
+		if tokenString == "" {
+			tokenString = strings.TrimSpace(c.Query("access_token"))
+		}
+		if strings.HasPrefix(strings.ToLower(tokenString), "bearer ") {
+			tokenString = strings.TrimSpace(tokenString[7:])
+		}
+		if tokenString == "" {
+			if cookieToken, err := c.Cookie("access_token"); err == nil {
+				tokenString = strings.TrimSpace(cookieToken)
+			}
+		}
+		if tokenString == "" {
+			return fmt.Errorf("%w: missing access token", errUnauthorized)
+		}
 	}
 
-	token, err := jwt.ParseWithClaims(parts[1], &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(config.GlobalConfig.JWT.Secret), nil
 	})
 	if err != nil || !token.Valid {
@@ -235,10 +255,18 @@ func (h *WebSocketHandler) unregisterClient(client *Client) {
 	}
 
 	var shouldCleanup bool
+	var shouldBroadcastAILive bool
 	if room, exists := h.rooms[client.MeetingID]; exists {
 		room.mutex.Lock()
 		delete(room.Clients, client.ID)
 		room.LastActivity = time.Now()
+		if room.AILive.LeaderSessionID == client.ID {
+			room.AILive = models.AILiveStatusMessage{
+				Enabled:   false,
+				UpdatedAt: time.Now(),
+			}
+			shouldBroadcastAILive = true
+		}
 		shouldCleanup = len(room.Clients) == 0
 		room.mutex.Unlock()
 		if shouldCleanup {
@@ -258,6 +286,9 @@ func (h *WebSocketHandler) unregisterClient(client *Client) {
 
 	// 通知其他用户有用户离开
 	h.broadcastUserLeft(client)
+	if shouldBroadcastAILive && !shouldCleanup {
+		h.broadcastAILiveStatus(client.MeetingID)
+	}
 
 	logger.Info(fmt.Sprintf("WebSocket client disconnected: %s", client.ID))
 }
@@ -782,6 +813,10 @@ func (c *Client) handleMessage(message *models.WebSocketMessage) {
 		c.handleMediaControl(message)
 	case models.MessageTypePing:
 		c.handlePing(message)
+	case models.MessageTypeAILiveClaim:
+		c.handleAILiveClaim(message)
+	case models.MessageTypeAILiveResult:
+		c.handleAILiveResult(message)
 	default:
 		logger.Warn(fmt.Sprintf("Unknown message type: %d", message.Type))
 		c.sendError("Unknown message type", fmt.Sprintf("Type: %d", message.Type))
@@ -892,6 +927,104 @@ func (c *Client) handlePing(message *models.WebSocketMessage) {
 	}
 }
 
+func (c *Client) handleAILiveClaim(message *models.WebSocketMessage) {
+	enable := true
+	if payload, ok := message.Payload.(map[string]interface{}); ok {
+		if v, ok := payload["enable"].(bool); ok {
+			enable = v
+		}
+	}
+
+	h := c.Handler
+	h.mutex.RLock()
+	room := h.rooms[c.MeetingID]
+	h.mutex.RUnlock()
+	if room == nil {
+		c.sendError("Room not found", "meeting room not available")
+		return
+	}
+
+	now := time.Now()
+	room.mutex.Lock()
+	if enable {
+		// 申请成为领导者：只有在无人占用或自己已是领导者时允许
+		if room.AILive.LeaderSessionID == "" || room.AILive.LeaderSessionID == c.ID {
+			room.AILive.Enabled = true
+			room.AILive.LeaderUserID = c.UserID
+			room.AILive.LeaderSessionID = c.ID
+			room.AILive.LeaderUsername = c.Username
+			room.AILive.UpdatedAt = now
+		}
+	} else {
+		// 释放：仅领导者有效
+		if room.AILive.LeaderSessionID == c.ID {
+			room.AILive = models.AILiveStatusMessage{
+				Enabled:   false,
+				UpdatedAt: now,
+			}
+		}
+	}
+	room.mutex.Unlock()
+
+	h.broadcastAILiveStatus(c.MeetingID)
+}
+
+func (c *Client) handleAILiveResult(message *models.WebSocketMessage) {
+	h := c.Handler
+	h.mutex.RLock()
+	room := h.rooms[c.MeetingID]
+	h.mutex.RUnlock()
+	if room == nil {
+		return
+	}
+
+	room.mutex.RLock()
+	leaderSession := room.AILive.LeaderSessionID
+	room.mutex.RUnlock()
+	if leaderSession != c.ID {
+		c.sendError("AI Live denied", "only AI Live leader can broadcast results")
+		return
+	}
+
+	h.broadcastToRoom(c.MeetingID, message, "")
+}
+
+func (h *WebSocketHandler) broadcastAILiveStatus(meetingID uint) {
+	status := h.getAILiveStatus(meetingID)
+	if status == nil {
+		return
+	}
+
+	msg := &models.WebSocketMessage{
+		ID:         fmt.Sprintf("ai_live_status_%d", time.Now().UnixNano()),
+		Type:       models.MessageTypeAILiveStatus,
+		FromUserID: 0,
+		MeetingID:  meetingID,
+		Payload:    status,
+		Timestamp:  time.Now(),
+	}
+
+	h.broadcastToRoom(meetingID, msg, "")
+}
+
+func (h *WebSocketHandler) getAILiveStatus(meetingID uint) *models.AILiveStatusMessage {
+	h.mutex.RLock()
+	room := h.rooms[meetingID]
+	h.mutex.RUnlock()
+	if room == nil {
+		return nil
+	}
+
+	room.mutex.RLock()
+	defer room.mutex.RUnlock()
+
+	status := room.AILive
+	if status.UpdatedAt.IsZero() {
+		status.UpdatedAt = time.Now()
+	}
+	return &status
+}
+
 // sendError 发送错误消息
 func (c *Client) sendError(message, details string) {
 	errorMsg := &models.WebSocketMessage{
@@ -945,6 +1078,7 @@ func (c *Client) sendRoomInfo() {
 		PeerID:           c.PeerID,
 		IceServers:       iceServers,
 		Participants:     participantSnapshot,
+		AILive:           c.Handler.getAILiveStatus(c.MeetingID),
 	}
 
 	logger.Debug("Room info payload", logger.Uint("meeting_id", c.MeetingID), logger.Int("participants", participantCount))

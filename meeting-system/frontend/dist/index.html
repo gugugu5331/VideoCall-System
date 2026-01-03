@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Meeting System Web</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">Meeting System</div>
+        <div class="brand__sub">Web Client</div>
+      </div>
+      <div class="topbar__right">
+        <span id="secureBadge" class="badge">Secure</span>
+        <button id="logoutBtn" class="btn btn--ghost hidden" type="button">退出</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="insecureWarning" class="notice hidden">
+        <div class="notice__title">需要 HTTPS 才能启用摄像头/麦克风</div>
+        <div class="notice__body">
+          当前页面不是安全上下文，浏览器可能会阻止 <code>getUserMedia</code>。请使用 <code>https</code> 访问（自签名证书也可，需手动信任）。
+        </div>
+      </section>
+
+      <section id="authCard" class="card">
+        <div class="card__header">
+          <h2>登录 / 注册</h2>
+          <div id="authMsg" class="msg" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Auth Tabs">
+          <button id="tabLogin" class="tab tab--active" type="button" role="tab" aria-selected="true">登录</button>
+          <button id="tabRegister" class="tab" type="button" role="tab" aria-selected="false">注册</button>
+        </div>
+
+        <form id="loginForm" class="form">
+          <label class="field">
+            <span>用户名</span>
+            <input id="loginUsername" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span>密码</span>
+            <input id="loginPassword" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="btn" type="submit">登录</button>
+          <div class="hint">提示：第一次使用请先注册一个账号。</div>
+        </form>
+
+        <form id="registerForm" class="form hidden">
+          <div class="form__grid">
+            <label class="field">
+              <span>用户名</span>
+              <input id="regUsername" autocomplete="username" required minlength="3" maxlength="20" />
+            </label>
+            <label class="field">
+              <span>昵称（可选）</span>
+              <input id="regNickname" autocomplete="nickname" maxlength="50" />
+            </label>
+          </div>
+          <label class="field">
+            <span>邮箱</span>
+            <input id="regEmail" type="email" autocomplete="email" required />
+          </label>
+          <label class="field">
+            <span>密码（至少 8 位）</span>
+            <input id="regPassword" type="password" autocomplete="new-password" required minlength="8" />
+          </label>
+          <button class="btn" type="submit">注册</button>
+        </form>
+      </section>
+
+      <section id="mainCard" class="layout hidden">
+        <section class="card panel">
+          <div class="card__header">
+            <h2>控制台</h2>
+            <div class="meta">
+              <span class="meta__item">当前用户：<strong id="currentUser">-</strong></span>
+              <span class="meta__item">会议：<strong id="currentMeeting">-</strong></span>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="subcard">
+              <h3>创建会议</h3>
+              <label class="field">
+                <span>标题</span>
+                <input id="createTitle" placeholder="例如：产品例会" />
+              </label>
+              <div class="row row--gap">
+                <label class="field field--compact">
+                  <span>类型</span>
+                  <select id="createType">
+                    <option value="video" selected>视频</option>
+                    <option value="audio">音频</option>
+                  </select>
+                </label>
+                <button id="createBtn" class="btn" type="button">创建</button>
+              </div>
+              <div id="createResult" class="hint"></div>
+            </div>
+
+            <div class="subcard">
+              <h3>加入会议</h3>
+              <div class="row row--gap">
+                <label class="field field--grow">
+                  <span>会议 ID</span>
+                  <input id="meetingIdInput" inputmode="numeric" placeholder="例如：1" />
+                </label>
+                <button id="joinBtn" class="btn" type="button">加入</button>
+              </div>
+              <div id="joinResult" class="hint"></div>
+            </div>
+
+            <div class="subcard">
+              <h3>通话控制</h3>
+              <div class="row row--gap row--wrap">
+                <button id="startMediaBtn" class="btn btn--secondary" type="button">打开摄像头/麦克风</button>
+                <button id="leaveBtn" class="btn btn--danger" type="button" disabled>离开会议</button>
+              </div>
+              <div class="row row--gap row--wrap">
+                <button id="muteBtn" class="btn btn--ghost" type="button" disabled>静音</button>
+                <button id="videoBtn" class="btn btn--ghost" type="button" disabled>关摄像头</button>
+                <button id="screenBtn" class="btn btn--ghost" type="button" disabled>共享屏幕</button>
+              </div>
+              <div class="small">
+                WS：<span id="wsState">-</span> · ICE：<span id="iceState">-</span>
+              </div>
+            </div>
+
+            <div class="subcard">
+              <h3>参与者</h3>
+              <ul id="participants" class="list"></ul>
+            </div>
+
+            <div class="subcard">
+              <h3>聊天</h3>
+              <div id="chatLog" class="chatlog" aria-live="polite"></div>
+              <form id="chatForm" class="row row--gap">
+                <input id="chatInput" class="field__input" placeholder="输入消息，回车发送…" autocomplete="off" />
+                <button class="btn btn--secondary" type="submit">发送</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="card ai">
+          <div class="card__header">
+            <h2>实时 AI</h2>
+            <div class="hint">当前说话人：语音识别 + 情绪 + 合成检测（结果会作为标签附在字幕上）</div>
+          </div>
+
+          <div class="stack">
+            <div class="subcard">
+              <h3>实时检测（当前说话人）</h3>
+              <div class="row row--gap row--wrap">
+                <button id="aiLiveToggleBtn" class="btn btn--secondary" type="button">启用实时检测</button>
+                <button id="aiLiveClearBtn" class="btn btn--ghost" type="button">清空字幕</button>
+                <button id="aiHealthBtn" class="btn btn--ghost" type="button">AI 健康检查</button>
+              </div>
+
+              <div class="ai-status">
+                <span id="aiStatusPill" class="pill">-</span>
+                <span id="aiStatusText" class="hint">未启用</span>
+              </div>
+
+              <div class="form__grid">
+                <label class="check">
+                  <input id="aiLiveAsr" type="checkbox" checked />
+                  <span>语音识别</span>
+                </label>
+                <label class="check">
+                  <input id="aiLiveEmotion" type="checkbox" checked />
+                  <span>情绪（基于识别文本）</span>
+                </label>
+              </div>
+              <div class="form__grid">
+                <label class="check">
+                  <input id="aiLiveSynth" type="checkbox" checked />
+                  <span>合成检测</span>
+                </label>
+                <div class="small" style="margin-top: 0">
+                  说话人：<strong id="aiLiveSpeaker">-</strong> · 能量：<span id="aiLiveLevel">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="subcard">
+              <h3>字幕 / 标签</h3>
+              <div id="aiLiveLog" class="tlog" aria-live="polite"></div>
+            </div>
+
+            <details class="subcard">
+              <summary>手动测试 / 调试</summary>
+              <div class="details__body">
+                <div class="row row--gap row--wrap">
+                  <button id="aiInfoBtn" class="btn btn--ghost" type="button">服务信息</button>
+                  <button id="aiClearBtn" class="btn btn--ghost" type="button">清空调试输出</button>
+                </div>
+
+                <div class="subcard">
+                  <h3>情感分析（文本）</h3>
+                  <label class="field">
+                    <span>文本</span>
+                    <input id="aiEmotionText" placeholder="输入要分析的文字…" />
+                  </label>
+                  <div class="row row--gap row--wrap">
+                    <button id="aiEmotionBtn" class="btn" type="button">分析</button>
+                    <button id="aiEmotionExampleBtn" class="btn btn--ghost" type="button">填入示例</button>
+                  </div>
+                </div>
+
+                <div class="subcard">
+                  <h3>语音识别（ASR）</h3>
+                  <label class="field">
+                    <span>音频文件（建议 WAV / 16kHz）</span>
+                    <input id="aiAsrFile" type="file" accept="audio/*" />
+                  </label>
+                  <div class="form__grid">
+                    <label class="field">
+                      <span>格式</span>
+                      <input id="aiAsrFormat" value="wav" />
+                    </label>
+                    <label class="field">
+                      <span>采样率</span>
+                      <input id="aiAsrSampleRate" type="number" value="16000" min="8000" step="1000" />
+                    </label>
+                  </div>
+                  <label class="field">
+                    <span>语言（可选）</span>
+                    <input id="aiAsrLang" placeholder="例如：zh" />
+                  </label>
+                  <button id="aiAsrBtn" class="btn btn--secondary" type="button">开始识别</button>
+                </div>
+
+                <div class="subcard">
+                  <h3>深度伪造检测</h3>
+                  <label class="field">
+                    <span>音频文件（建议 WAV / 16kHz）</span>
+                    <input id="aiSynthFile" type="file" accept="audio/*" />
+                  </label>
+                  <div class="form__grid">
+                    <label class="field">
+                      <span>格式</span>
+                      <input id="aiSynthFormat" value="wav" />
+                    </label>
+                    <label class="field">
+                      <span>采样率</span>
+                      <input id="aiSynthSampleRate" type="number" value="16000" min="8000" step="1000" />
+                    </label>
+                  </div>
+                  <button id="aiSynthBtn" class="btn btn--secondary" type="button">开始检测</button>
+                </div>
+
+                <div class="subcard">
+                  <h3>调试输出</h3>
+                  <pre id="aiOutput" class="pre pre--scroll"></pre>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section class="card video">
+          <div class="card__header">
+            <h2>视频</h2>
+            <div class="hint">提示：多人会议为 SFU 连接（每台设备只连 media-service 一条 PeerConnection）。</div>
+          </div>
+          <div class="subcard fx">
+            <div class="fx__head">
+              <h3 class="fx__title">美颜 / 滤镜</h3>
+              <label class="check check--mini">
+                <input id="fxEnableBeauty" type="checkbox" checked />
+                <span>美颜</span>
+              </label>
+              <label class="check check--mini">
+                <input id="fxEnableFilter" type="checkbox" />
+                <span>滤镜</span>
+              </label>
+              <div class="small fx__status">SEI：<strong id="seiStatus">-</strong></div>
+            </div>
+
+            <div class="form__grid fx__grid">
+              <label class="field">
+                <span>美颜类型</span>
+                <select id="fxBeautyType">
+                  <option value="natural" selected>自然</option>
+                  <option value="smooth">磨皮</option>
+                  <option value="strong">重磨皮</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>滤镜类型</span>
+                <select id="fxFilter">
+                  <option value="none" selected>无</option>
+                  <option value="warm">暖色</option>
+                  <option value="cool">冷色</option>
+                  <option value="gray">黑白</option>
+                  <option value="vivid">鲜艳</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>美颜强度 <strong id="fxBeautyVal">20</strong></span>
+                <input id="fxBeauty" type="range" min="0" max="100" value="20" />
+              </label>
+              <div class="hint fx__hint">参数通过 H264 SEI(user_data_unregistered) 同步；仅本地渲染（SFU 不改码流）。</div>
+            </div>
+          </div>
+          <div id="videoGrid" class="videogrid"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <span>Meeting System · WebRTC Demo Client</span>
+        <span class="footer__sep">·</span>
+        <a class="footer__link" href="/health" target="_blank" rel="noreferrer">Health</a>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

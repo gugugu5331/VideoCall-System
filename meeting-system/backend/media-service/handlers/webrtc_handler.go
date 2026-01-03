@@ -105,12 +105,8 @@ func (h *WebRTCHandler) HandleAnswer(c *gin.Context) {
 // HandleICECandidate 处理ICE候选
 func (h *WebRTCHandler) HandleICECandidate(c *gin.Context) {
 	var request struct {
-		PeerID    string `json:"peer_id" binding:"required"`
-		Candidate struct {
-			Candidate     string `json:"candidate" binding:"required"`
-			SDPMid        string `json:"sdp_mid"`
-			SDPMLineIndex uint16 `json:"sdp_mline_index"`
-		} `json:"candidate" binding:"required"`
+		PeerID    string                  `json:"peer_id" binding:"required"`
+		Candidate webrtc.ICECandidateInit `json:"candidate" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -120,15 +116,8 @@ func (h *WebRTCHandler) HandleICECandidate(c *gin.Context) {
 		return
 	}
 
-	// 解析ICE候选
-	candidate := webrtc.ICECandidateInit{
-		Candidate:     request.Candidate.Candidate,
-		SDPMid:        &request.Candidate.SDPMid,
-		SDPMLineIndex: &request.Candidate.SDPMLineIndex,
-	}
-
 	// 处理ICE候选
-	if err := h.webrtcService.HandleICECandidate(request.PeerID, &candidate); err != nil {
+	if err := h.webrtcService.HandleICECandidate(request.PeerID, &request.Candidate); err != nil {
 		logger.Error("Failed to handle ICE candidate: " + err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to handle ICE candidate",
@@ -139,6 +128,91 @@ func (h *WebRTCHandler) HandleICECandidate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "ICE candidate processed successfully",
 		"peer_id": request.PeerID,
+	})
+}
+
+// GetICECandidates 拉取服务端 ICE candidates（用于 trickle ICE / NAT 场景）
+func (h *WebRTCHandler) GetICECandidates(c *gin.Context) {
+	peerID := c.Param("peerId")
+	if peerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "peer_id is required"})
+		return
+	}
+
+	candidates, complete, err := h.webrtcService.DrainLocalICECandidates(peerID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"peer_id":    peerID,
+		"candidates": candidates,
+		"complete":   complete,
+	})
+}
+
+// GetPendingOffer 获取服务端触发的 renegotiation Offer
+func (h *WebRTCHandler) GetPendingOffer(c *gin.Context) {
+	peerID := c.Param("peerId")
+	if peerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "peer_id is required"})
+		return
+	}
+
+	offer, err := h.webrtcService.GetPendingOffer(peerID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	if offer == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"peer_id": peerID,
+		"offer": gin.H{
+			"type": offer.Type.String(),
+			"sdp":  offer.SDP,
+		},
+	})
+}
+
+// HandlePeerAnswer 处理客户端对服务端 Offer 的 Answer（renegotiation）
+func (h *WebRTCHandler) HandlePeerAnswer(c *gin.Context) {
+	peerID := c.Param("peerId")
+	if peerID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "peer_id is required"})
+		return
+	}
+
+	var request struct {
+		Answer struct {
+			Type string `json:"type" binding:"required"`
+			SDP  string `json:"sdp" binding:"required"`
+		} `json:"answer" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	answer := webrtc.SessionDescription{
+		Type: webrtc.NewSDPType(request.Answer.Type),
+		SDP:  request.Answer.SDP,
+	}
+
+	if err := h.webrtcService.HandleRenegotiationAnswer(peerID, &answer); err != nil {
+		logger.Error("Failed to handle renegotiation answer: " + err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to handle answer"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Answer processed successfully",
+		"peer_id": peerID,
 	})
 }
 
@@ -335,19 +409,19 @@ func (h *WebRTCHandler) GetRoomStats(c *gin.Context) {
 
 	// 统计信息
 	stats := gin.H{
-		"room_id":        roomID,
-		"total_peers":    len(peers),
+		"room_id":         roomID,
+		"total_peers":     len(peers),
 		"connected_peers": 0,
-		"audio_streams":  0,
-		"video_streams":  0,
-		"screen_shares":  0,
+		"audio_streams":   0,
+		"video_streams":   0,
+		"screen_shares":   0,
 	}
 
 	for _, peer := range peers {
 		if peer.Status == "connected" {
 			stats["connected_peers"] = stats["connected_peers"].(int) + 1
 		}
-		
+
 		switch peer.MediaType {
 		case "audio":
 			stats["audio_streams"] = stats["audio_streams"].(int) + 1

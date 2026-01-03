@@ -2,12 +2,15 @@ module meeting-system/ai-inference-service
 
 go 1.24.0
 
-toolchain go1.24.6
+toolchain go1.24.11
 
 replace meeting-system/shared => ../shared
 
 require (
 	github.com/gin-gonic/gin v1.10.0
+	golang.org/x/sync v0.17.0
+	google.golang.org/grpc v1.75.1
+	google.golang.org/protobuf v1.36.9
 	meeting-system/shared v0.0.0-00010101000000-000000000000
 )
 
@@ -51,6 +54,7 @@ require (
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/pebbe/zmq4 v1.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -85,13 +89,10 @@ require (
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.36.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250707201910-8d1bb00bc6a7 // indirect
-	google.golang.org/grpc v1.75.1 // indirect
-	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect

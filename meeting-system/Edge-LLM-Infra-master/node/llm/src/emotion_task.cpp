@@ -136,12 +136,8 @@ void EmotionTask::inference(const std::string &msg) {
 
         // Get output data
         float* output_data = output_tensors[0].GetTensorMutableData<float>();
-        auto output_shape = output_tensors[0].GetTensorTypeAndShapeInfo().GetShape();
-        
-        size_t output_size = 1;
-        for (auto dim : output_shape) {
-            output_size *= dim;
-        }
+        auto output_info = output_tensors[0].GetTensorTypeAndShapeInfo();
+        size_t output_size = output_info.GetElementCount();
 
         std::vector<float> output_vec(output_data, output_data + output_size);
         
@@ -227,7 +223,13 @@ std::string EmotionTask::postprocess_output(const std::vector<float> &output) {
     // Apply softmax and find the emotion with highest probability
     
     if (output.empty()) {
-        return "No emotion detected";
+        nlohmann::json result;
+        result["emotion"] = "unknown";
+        result["confidence"] = 0.0;
+        result["model"] = model_;
+        result["all_emotions"] = nlohmann::json::object();
+        result["error"] = "empty output";
+        return result.dump();
     }
     
     // Apply softmax
@@ -270,4 +272,3 @@ std::string EmotionTask::postprocess_output(const std::vector<float> &output) {
 }
 
 } // namespace AIInference
-

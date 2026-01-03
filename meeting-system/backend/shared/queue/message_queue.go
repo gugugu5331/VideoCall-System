@@ -82,10 +82,10 @@ type RedisMessageQueue struct {
 	// 统计信息
 	stats struct {
 		sync.RWMutex
-		totalPublished uint64
-		totalProcessed uint64
-		totalFailed    uint64
-		totalRetried   uint64
+		totalPublished  uint64
+		totalProcessed  uint64
+		totalFailed     uint64
+		totalRetried    uint64
 		totalDeadLetter uint64
 	}
 
@@ -396,4 +396,143 @@ func (q *RedisMessageQueue) handleMessage(msg *Message) {
 		atomic.AddUint64(&q.stats.totalProcessed, 1)
 		logger.Debug(fmt.Sprintf("Message %s processed successfully (took %v)", msg.ID, duration))
 	}
+}
+
+// GetStats 获取队列统计信息
+func (q *RedisMessageQueue) GetStats() map[string]interface{} {
+	stats := map[string]interface{}{
+		"queue_name":        q.queueName,
+		"workers":           q.workers,
+		"total_published":   atomic.LoadUint64(&q.stats.totalPublished),
+		"total_processed":   atomic.LoadUint64(&q.stats.totalProcessed),
+		"total_failed":      atomic.LoadUint64(&q.stats.totalFailed),
+		"total_retried":     atomic.LoadUint64(&q.stats.totalRetried),
+		"total_dead_letter": atomic.LoadUint64(&q.stats.totalDeadLetter),
+	}
+
+	// 额外队列长度统计（失败不影响主流程）
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if q.client != nil {
+		if n, err := q.client.LLen(ctx, q.criticalQueue).Result(); err == nil {
+			stats["critical_len"] = n
+		}
+		if n, err := q.client.LLen(ctx, q.highQueue).Result(); err == nil {
+			stats["high_len"] = n
+		}
+		if n, err := q.client.LLen(ctx, q.normalQueue).Result(); err == nil {
+			stats["normal_len"] = n
+		}
+		if n, err := q.client.LLen(ctx, q.lowQueue).Result(); err == nil {
+			stats["low_len"] = n
+		}
+		if n, err := q.client.HLen(ctx, q.processingQueue).Result(); err == nil {
+			stats["processing_len"] = n
+		}
+		if n, err := q.client.LLen(ctx, q.deadLetterQueue).Result(); err == nil {
+			stats["dead_letter_len"] = n
+		}
+	}
+
+	return stats
+}
+
+func (q *RedisMessageQueue) timeoutChecker() {
+	defer q.wg.Done()
+
+	// 以较小的周期轮询处理中的消息，避免过度占用 Redis。
+	tick := q.visibilityTimeout / 2
+	if tick < 1*time.Second {
+		tick = 1 * time.Second
+	}
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-q.stopCh:
+			return
+		case <-q.ctx.Done():
+			return
+		case <-ticker.C:
+			q.reclaimTimedOutMessages()
+		}
+	}
+}
+
+func (q *RedisMessageQueue) reclaimTimedOutMessages() {
+	if q.client == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(q.ctx, 5*time.Second)
+	defer cancel()
+
+	items, err := q.client.HGetAll(ctx, q.processingQueue).Result()
+	if err != nil {
+		if err != redis.Nil {
+			logger.Warn(fmt.Sprintf("Failed to scan processing queue: %v", err))
+		}
+		return
+	}
+
+	now := time.Now().Unix()
+
+	for _, raw := range items {
+		var msg Message
+		if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+			continue
+		}
+
+		if msg.ProcessingStartTime == 0 {
+			continue
+		}
+
+		vt := msg.VisibilityTimeout
+		if vt <= 0 {
+			vt = int64(q.visibilityTimeout.Seconds())
+		}
+
+		if now-msg.ProcessingStartTime <= vt {
+			continue
+		}
+
+		// 超时：从处理中队列移除并尝试重新投递/进入死信队列
+		_ = q.client.HDel(ctx, q.processingQueue, msg.ID).Err()
+		msg.ProcessingStartTime = 0
+
+		if msg.MaxRetries > 0 && msg.RetryCount < msg.MaxRetries {
+			msg.RetryCount++
+			atomic.AddUint64(&q.stats.totalRetried, 1)
+			_ = q.Publish(q.ctx, &msg)
+			continue
+		}
+
+		q.moveToDeadLetterQueue(&msg, fmt.Errorf("visibility timeout exceeded"))
+	}
+}
+
+func (q *RedisMessageQueue) moveToDeadLetterQueue(msg *Message, cause error) {
+	if msg == nil || q.client == nil {
+		return
+	}
+
+	if msg.Payload == nil {
+		msg.Payload = make(map[string]interface{})
+	}
+	if cause != nil {
+		msg.Payload["error"] = cause.Error()
+	}
+	msg.DeadLetterQueue = q.deadLetterQueue
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+
+	if err := q.client.RPush(q.ctx, q.deadLetterQueue, data).Err(); err != nil {
+		logger.Warn(fmt.Sprintf("Failed to push message to DLQ: %v", err))
+		return
+	}
+
+	atomic.AddUint64(&q.stats.totalDeadLetter, 1)
 }

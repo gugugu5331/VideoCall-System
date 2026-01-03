@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  edge-unit-manager:
+    image: meeting-edge-llm:local
+    build:
+      context: ../..
+      dockerfile: deployment/gpu-ai/Dockerfile.edge-llm
+    container_name: meeting-edge-unit-manager
+    command: ["bash", "-lc", "cd /work/Edge-LLM-Infra-master/unit-manager/build && ./unit_manager"]
+    restart: unless-stopped
+    ports:
+      # 可选：如果需要从外部直连 unit-manager（例如主站的 ai-inference-service 远程调用）
+      - "${UNIT_MANAGER_PORT:-8801}:19001"
+    volumes:
+      # unit-manager 与 llm 节点通过 IPC(/tmp/rpc.*、/tmp/llm/*) 通信，必须共享 /tmp
+      - edge_ipc:/tmp
+
+  edge-llm-node:
+    image: meeting-edge-llm:local
+    build:
+      context: ../..
+      dockerfile: deployment/gpu-ai/Dockerfile.edge-llm
+    container_name: meeting-edge-llm-node
+    command: ["bash", "-lc", "cd /work/Edge-LLM-Infra-master/node/llm/build && ./llm"]
+    restart: unless-stopped
+    volumes:
+      - edge_ipc:/tmp
+      # 按需挂载模型目录：确保模型文件在 /work/models 下
+      - ${MODEL_DIR:-/models}:/work/models:ro
+
+  ai-inference-service:
+    build:
+      context: ../../backend
+      dockerfile: ai-inference-service/Dockerfile
+    image: meeting-ai-inference-service:local
+    container_name: meeting-ai-inference-service
+    restart: unless-stopped
+    environment:
+      - CONFIG_PATH=/app/config/ai-inference-service.yaml
+      # 让 Go AI 服务连接到同机 Edge-LLM unit-manager（容器内通过服务名访问）
+      - ZMQ_UNIT_MANAGER_HOST=edge-unit-manager
+      - ZMQ_UNIT_MANAGER_PORT=19001
+      - ZMQ_TIMEOUT=30
+    ports:
+      - "${AI_HTTP_PORT:-8800}:8085"
+    depends_on:
+      - edge-unit-manager
+      - edge-llm-node
+
+volumes:
+  edge_ipc:
+
