@@ -137,6 +137,11 @@ code {
   grid-area: video;
 }
 
+.card.video {
+  position: relative;
+  overflow: hidden;
+}
+
 .panel {
   grid-area: panel;
 }
@@ -608,6 +613,45 @@ code {
   flex-wrap: wrap;
   gap: 6px;
   margin-left: auto;
+}
+
+.danmaku {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  pointer-events: none;
+  height: 0;
+  overflow: visible;
+}
+
+.danmaku__item {
+  position: absolute;
+  right: -30%;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  animation: danmaku-move linear forwards;
+}
+
+@keyframes danmaku-move {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-160%);
+    opacity: 0.5;
+  }
 }
 
 .tag {

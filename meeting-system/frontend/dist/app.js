@@ -70,6 +70,7 @@ const els = {
   fxSlimVal: document.getElementById("fxSlimVal"),
   fxFilter: document.getElementById("fxFilter"),
   seiStatus: document.getElementById("seiStatus"),
+  aiDanmaku: document.getElementById("aiDanmaku"),
 
   chatLog: document.getElementById("chatLog"),
   chatForm: document.getElementById("chatForm"),
@@ -175,6 +176,7 @@ const state = {
   fxPipelineStop: null,
   fxPipelineSourceId: null,
   fxMirrorX: false,
+  danmakuLane: 0,
 };
 
 function uuid() {
@@ -543,8 +545,8 @@ function createCanvasRenderer(width, height) {
           ctx.scale(-1, 1);
         }
         if (params.slim && params.slim > 0) {
-          const sx = 1 - params.slim * 0.18;
-          const sy = 1 + params.slim * 0.02;
+          const sx = Math.max(0.65, 1 - params.slim * 0.28);
+          const sy = 1;
           ctx.translate(w / 2, h / 2);
           ctx.scale(sx, sy);
           ctx.drawImage(frame, -w / 2, -h / 2, w, h);
@@ -1099,6 +1101,7 @@ function setAiLiveSpeakerUI(speakerKey, level) {
 function clearAiLiveLog() {
   if (els.aiLiveLog) els.aiLiveLog.innerHTML = "";
   state.aiLiveLineEls.clear();
+  if (els.aiDanmaku) els.aiDanmaku.innerHTML = "";
 }
 
 function addAiLiveTag(tagsEl, text, kind = "info") {
@@ -1154,6 +1157,8 @@ function upsertAiLiveLine(lineId, { who, timeText, text, tags = [] }) {
   els.aiLiveLog.scrollTop = els.aiLiveLog.scrollHeight;
 
   state.aiLiveLineEls.set(lineId, { root, textEl, tagsEl });
+
+  addDanmaku({ who, text, tags });
 }
 
 function bytesToBase64(bytes) {
