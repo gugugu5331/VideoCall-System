@@ -311,34 +311,12 @@ docker run -d \
 
 ### Docker Compose 部署
 
-在 `docker-compose.yml` 中添加：
+`meeting-system/docker-compose.yml` 已内置 `ai-inference-service`（HTTP 8085 暴露，gRPC 端口默认 9085 仅容器内使用）。如需在宿主访问 gRPC，请自行添加 `9085:9085` 映射。
 
-```yaml
-ai-inference-service:
-  build:
-    context: ./backend/ai-inference-service
-    dockerfile: Dockerfile
-  container_name: meeting-ai-inference-service
-  ports:
-    - "8085:8085"
-    - "9085:9085"
-  environment:
-    - SERVICE_ADVERTISE_HOST=ai-inference-service
-  volumes:
-    - ./backend/ai-inference-service/config:/app/config
-    - ./backend/ai-inference-service/logs:/app/logs
-  networks:
-    - meeting-system-network
-  depends_on:
-    - postgres
-    - redis
-    - etcd
-  restart: unless-stopped
-```
-
-启动服务：
+启动或重建：
 ```bash
-docker-compose up -d ai-inference-service
+cd meeting-system
+docker compose up -d ai-inference-service
 ```
 
 ## 测试
@@ -356,7 +334,7 @@ go test ./...
 # 例如：curl http://localhost:8000/v2/health/ready
 
 # 运行 AI 服务测试
-cd /root/meeting-system-server/meeting-system/backend/ai-inference-service
+cd meeting-system/backend/ai-inference-service
 python3 test_ai_service.py
 ```
 
@@ -365,7 +343,7 @@ python3 test_ai_service.py
 ```bash
 cd meeting-system/backend/ai-inference-service/scripts
 chmod +x e2e_stream_pcm.sh
-./e2e_stream_pcm.sh localhost 9085
+./e2e_stream_pcm.sh localhost 9085   # 若 gRPC 未暴露宿主，请在容器内执行或映射端口
 ```
 
 可选环境变量：`SAMPLE_RATE`、`CHANNELS`、`CHUNK_MS`、`TASKS`（逗号分隔）。

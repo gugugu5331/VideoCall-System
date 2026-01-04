@@ -4,37 +4,19 @@
 
 ## 📖 文档列表
 
-### 核心模块文档
-- **[QUEUE_SYSTEM.md](QUEUE_SYSTEM.md)** - Redis 消息队列系统设计
-- **[QUEUE_SYSTEM_USAGE_GUIDE.md](QUEUE_SYSTEM_USAGE_GUIDE.md)** - 消息队列使用指南
-- **[TASK_DISPATCHER_GUIDE.md](TASK_DISPATCHER_GUIDE.md)** - 任务分发器指南
-- **[AI_INFERENCE_SERVICE.md](AI_INFERENCE_SERVICE.md)** - AI 推理微服务文档
-
-### 测试文档
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - 后端集成测试指南
-- **[E2E_TESTING_GUIDE.md](E2E_TESTING_GUIDE.md)** - 端到端测试执行指南
+- **核心**：`AI_INFERENCE_SERVICE.md`、`TASK_DISPATCHER_GUIDE.md`
+- **测试**：`TESTING_GUIDE.md`、`E2E_TESTING_GUIDE.md`
 
 ## 🏗️ 核心模块
 
-### 消息队列系统
-基于 Redis 的分布式消息队列，支持：
-- 任务队列
-- 事件总线
-- 任务调度
-- 死信队列
-
-**相关文档**:
-- [QUEUE_SYSTEM.md](QUEUE_SYSTEM.md) - 系统设计
-- [QUEUE_SYSTEM_USAGE_GUIDE.md](QUEUE_SYSTEM_USAGE_GUIDE.md) - 使用指南
-- [TASK_DISPATCHER_GUIDE.md](TASK_DISPATCHER_GUIDE.md) - 任务分发
+### 任务分发与队列
+代码位于 `backend/shared/queue`，使用 Redis 实现消息队列与 Pub/Sub；调度与任务分发参考 `TASK_DISPATCHER_GUIDE.md`。未提供单独队列文档，使用时以源码为准。
 
 ### AI 推理服务
 基于 Triton/TensorRT 的 AI 推理微服务，支持：
 - 语音识别 (ASR)
 - 情感检测
 - 合成检测
-- 音频降噪
-- 视频增强
 
 **相关文档**:
 - [AI_INFERENCE_SERVICE.md](AI_INFERENCE_SERVICE.md) - 服务文档
@@ -49,20 +31,21 @@
 
 ### 运行单元测试
 ```bash
-cd backend
+cd meeting-system/backend
 go test ./...
 ```
 
 ### 运行集成测试
 ```bash
-cd backend/tests
-./run_all_tests.sh
+cd meeting-system/backend/tests
+./run_all_tests.sh          # 或 quick_integration_test.sh / test_nginx_gateway.sh
 ```
 
 ### 运行 E2E 测试
 ```bash
-cd tests
-./run_e2e_tests.sh
+cd meeting-system/tests
+./e2e_queue_integration_test.sh   # 结合队列/信令
+# 其他 python 脚本参考目录说明
 ```
 
 ## 📚 开发流程

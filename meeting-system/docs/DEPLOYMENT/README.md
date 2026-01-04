@@ -14,7 +14,7 @@
 ### 本地开发环境
 ```bash
 cd meeting-system
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 远程生产环境
@@ -37,7 +37,7 @@ docker-compose up -d
 
 ### 检查服务状态
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ### 检查健康状态
@@ -47,20 +47,20 @@ curl http://localhost:8800/health
 
 ### 查看日志
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## 🛠️ 常见问题
 
 ### Q: 如何重启服务？
 ```bash
-docker-compose restart
+docker compose restart
 ```
 
 ### Q: 如何查看特定服务的日志？
 ```bash
-docker-compose logs -f <service_name>
-```
+docker compose logs -f <service_name>
+``` 
 
 ### Q: 如何更新配置？
 1. 修改配置文件

@@ -32,7 +32,7 @@ export REMOTE_HOST="<remote-host>"
 export REMOTE_PORT="22"
 export REMOTE_USER="root"
 export REMOTE_SSH_KEY="$HOME/.ssh/id_ed25519"
-export REMOTE_DIR="/root/meeting-system-server"
+export REMOTE_DIR="/root/VideoCall-System"
 export REMOTE_GATEWAY_URL="http://<public-host>:<public-port>"
 ./meeting-system/quick-deploy-remote.sh
 ```

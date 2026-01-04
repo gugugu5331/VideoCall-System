@@ -6,7 +6,7 @@
 
 ## 🚀 导航
 
-- **总览**：`../README.md`（仓库根）、`../README.md`（meeting-system 说明）
+- **总览**：`../../README.md`（仓库根）、`../README.md`（meeting-system 说明）
 - **架构**：`ARCHITECTURE_DIAGRAM.md`、`BACKEND_ARCHITECTURE.md`、`DATABASE_SCHEMA.md`
 - **API**：`API/API_DOCUMENTATION.md`
 - **部署**：`DEPLOYMENT/README.md`（含远程、GPU/模型指南）
@@ -26,7 +26,7 @@
 - `AI_MODELS_DEPLOYMENT_GUIDE.md`、`GPU_AI_NODES.md`：Triton/AI 节点与模型准备。
 
 ### 🔧 开发 (`DEVELOPMENT/`)
-- 队列/任务/AI 说明：`QUEUE_SYSTEM.md`、`QUEUE_SYSTEM_USAGE_GUIDE.md`、`TASK_DISPATCHER_GUIDE.md`、`AI_INFERENCE_SERVICE.md`
+- 任务/AI：`TASK_DISPATCHER_GUIDE.md`、`AI_INFERENCE_SERVICE.md`
 - 测试：`TESTING_GUIDE.md`、`E2E_TESTING_GUIDE.md`
 
 ### 💻 客户端 (`CLIENT/`)

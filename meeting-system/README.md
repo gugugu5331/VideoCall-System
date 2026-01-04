@@ -16,6 +16,69 @@
 
 完整拓扑与端口以 `docker-compose.yml` 为准，架构图见 `docs/ARCHITECTURE_DIAGRAM.md`。
 
+## 🧠 架构图（含创新点）
+
+```mermaid
+graph LR
+    Client["Web 客户端\n(frontend/dist)"] -->|HTTP/WS/WebRTC| Nginx["Nginx 网关\n8800/443\n(同源前端 + 反代)"]
+
+    Nginx -->|JWT/CSRF| UserSvc["user-service\n8080"]
+    Nginx --> MeetingSvc["meeting-service\n8082"]
+    Nginx -->|WS 透传| SignalSvc["signaling-service\n8081"]
+    Nginx --> MediaSvc["media-service\n8083"]
+    Nginx -->|/api/v1/ai/*| AISvc["ai-inference-service\n8085"]
+
+    UserSvc --> PG["PostgreSQL"]
+    MeetingSvc --> PG
+    MediaSvc --> PG
+    SignalSvc --> Redis["Redis\n房间/会话"]
+    MeetingSvc --> Redis
+    AISvc --> Mongo["MongoDB\nAI 结果（可选）"]
+    MediaSvc --> MinIO["MinIO\n录制/媒体"]
+    AISvc --> Triton["Triton\nGPU 8000"]
+
+    subgraph Obs["可观测性栈"]
+        Prom["Prometheus 8801"]
+        Graf["Grafana 8804"]
+        Jaeger["Jaeger 8803"]
+        Loki["Loki/Promtail 8805"]
+    end
+
+    UserSvc --> Prom
+    MeetingSvc --> Prom
+    SignalSvc --> Prom
+    MediaSvc --> Prom
+    AISvc --> Prom
+    Triton --> Prom
+
+    UserSvc --> Jaeger
+    MeetingSvc --> Jaeger
+    SignalSvc --> Jaeger
+    MediaSvc --> Jaeger
+    AISvc --> Jaeger
+
+    UserSvc --> Loki
+    MeetingSvc --> Loki
+    SignalSvc --> Loki
+    MediaSvc --> Loki
+    AISvc --> Loki
+
+    classDef ai fill:#e5f5ff,stroke:#1e88e5,stroke-width:2px;
+    classDef gateway fill:#fef3c7,stroke:#f59e0b,stroke-width:2px;
+    classDef obs fill:#f0fdf4,stroke:#10b981,stroke-width:2px;
+    class AISvc,Triton ai;
+    class Nginx gateway;
+    class Prom,Graf,Jaeger,Loki obs;
+```
+
+### ✨ 创新点
+
+- **实时可信 AI**：内置 AI 推理服务直连 Triton，提供 ASR/情绪/合成检测，浏览器端可一键调用 `/api/v1/ai/*`，用于会议实时鉴伪与字幕标注。
+- **同源一体化体验**：Nginx 同时托管前端与网关，WebSocket 信令 `/ws/signaling` 透传，减少 CORS/跨域复杂度。
+- **弹性 AI 上游**：Nginx 通过 `include conf.d/ai_inference_service.servers*.conf` 动态扩展多台 GPU 节点，无需改动代码。
+- **可观测性开箱即用**：Prometheus/Grafana/Jaeger/Loki 在默认 Compose 中启用，所有服务暴露 `/metrics` 和 trace/log，便于快速定位质量问题。
+- **安全基线内置**：JWT + CSRF Token、限流/CORS 环境变量、MinIO 私有存储与 etcd 服务发现全部预置在配置与示例 Compose 中。
+
 ## 🚀 一键启动
 
 ```bash

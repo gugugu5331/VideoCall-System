@@ -30,10 +30,10 @@
 ### 步骤1：构建Python推理服务
 
 ```bash
-cd /root/meeting-system-server/meeting-system
+cd meeting-system
 
 # 构建Python推理服务镜像（这将自动下载所有模型）
-docker-compose build python-inference
+docker compose build python-inference
 
 # 注意：这个过程可能需要30-60分钟，因为需要下载约1.3GB的模型文件
 ```
@@ -42,13 +42,13 @@ docker-compose build python-inference
 
 ```bash
 # 启动Python推理服务
-docker-compose up -d python-inference
+docker compose up -d python-inference
 
 # 检查服务状态
-docker-compose ps python-inference
+docker compose ps python-inference
 
 # 查看日志
-docker-compose logs -f python-inference
+docker compose logs -f python-inference
 ```
 
 ### 步骤3：验证模型下载
@@ -75,19 +75,19 @@ du -sh /models/*
 
 ```bash
 # 重新构建AI服务
-docker-compose build ai-service
+docker compose build ai-service
 
 # 重启AI服务
-docker-compose up -d ai-service
+docker compose up -d ai-service
 
 # 检查AI服务日志
-docker-compose logs -f ai-service
+docker compose logs -f ai-service
 ```
 
 ### 步骤5：运行E2E测试
 
 ```bash
-cd /root/meeting-system-server/meeting-system/backend/tests
+cd meeting-system/backend/tests
 
 # 运行完整的E2E测试
 go test -v -run TestE2EIntegration
@@ -278,7 +278,7 @@ if __name__ == "__main__":
 执行上述步骤后，运行E2E测试验证所有功能：
 
 ```bash
-cd /root/meeting-system-server/meeting-system/backend/tests
+cd meeting-system/backend/tests
 go test -v -run TestE2EIntegration 2>&1 | tee /tmp/e2e_with_real_models.log
 ```
 

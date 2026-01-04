@@ -2,95 +2,36 @@
 
 ## 快速开始
 
-### 运行完整测试（推荐）
 ```bash
-cd /root/meeting-system-server/meeting-system/backend/tests
-./run_all_tests.sh
+cd meeting-system/backend/tests
+./run_all_tests.sh          # 完整验证（推荐）
+./quick_integration_test.sh # 仅连通性/基础检查
+./test_nginx_gateway.sh     # 网关路由校验
 ```
 
-**测试内容**:
-- ✅ 服务发现与注册 (etcd)
-- ✅ Nginx 网关路由
-- ✅ 微服务健康检查
-- ✅ 真实实现验证
-
-**执行时间**: < 20 秒  
-**测试数量**: 25 项
-
----
+运行前确保依赖容器已启动（PostgreSQL、Redis、etcd、Nginx 等），可直接使用 `docker compose up -d`。
 
 ## 测试脚本说明
 
-### 1. 完整集成测试
-```bash
-./run_all_tests.sh
-```
-- 执行所有测试套件
-- 包含服务发现和 Nginx 网关测试
-- 生成完整的测试报告
+- **run_all_tests.sh**：整合服务发现、网关、HTTP 端点与基础业务流程。
+- **quick_integration_test.sh**：快速连通性，耗时短，适合开发自检。
+- **test_nginx_gateway.sh**：验证网关转发与 upstream 配置。
+- 其他脚本：`test_services_direct.sh`、`verify_ai_service.sh`、`complete_integration_test.py` 等覆盖特定场景。
 
-### 2. 快速集成测试
-```bash
-./quick_integration_test.sh
-```
-- 仅测试服务发现和注册
-- 测试微服务容器状态
-- 验证 HTTP 端点可访问性
+## 参考流程
 
-### 3. Nginx 网关测试
-```bash
-./test_nginx_gateway.sh
-```
-- 测试 Nginx 网关路由
-- 验证所有服务端点可通过网关访问
-- 检查路由配置正确性
+1. `docker compose up -d`（或按需启动基础设施/服务）
+2. `cd meeting-system/backend/tests && ./run_all_tests.sh`
+3. 查看输出/日志；若失败，排查容器状态与配置（JWT_SECRET、端口等）
 
----
+## 故障排查
 
-## 测试结果
+1. 检查容器：`docker compose ps`
+2. 查看服务日志：`docker compose logs -f <service>`
+3. 直接调用健康检查：`curl http://localhost:8800/health`
+4. 重新运行测试，确保已拉起依赖
 
-### 最新测试结果 (2025-10-05 00:54)
-
-**状态**: ✅ **全部通过 (25/25)**  
-**成功率**: **100%**
-
-#### 测试覆盖
-
-| 测试类别 | 测试数量 | 通过 | 失败 |
-|----------|----------|------|------|
-| 基础设施服务 | 5 | 5 | 0 |
-| 微服务容器 | 5 | 5 | 0 |
-| 服务注册 | 2 | 2 | 0 |
-| HTTP 端点 | 4 | 4 | 0 |
-| 服务发现 | 1 | 1 | 0 |
-| Nginx 网关路由 | 8 | 8 | 0 |
-| **总计** | **25** | **25** | **0** |
-
----
-
-## 架构验证
-
-### ✅ 服务发现与注册 (etcd)
-- 所有微服务成功注册到 etcd
-- 每个服务有 2 个实例（HTTP + gRPC）
-- 服务发现功能正常工作
-
-### ✅ Nginx 网关路由
-- 所有服务端点可通过 Nginx 访问
-- 路由配置正确
-- 负载均衡正常工作
-
-### ✅ 微服务健康状态
-- 所有容器运行正常
-- 健康检查通过
-- 服务间通信正常
-
-### ✅ 真实实现验证
-- 使用真实的数据库连接
-- 使用真实的网络请求
-- 无任何 mock/stub 实现
-
----
+测试结果未固化在文档中，请按需执行并记录到自己的环境。
 
 ## 服务列表
 
@@ -124,18 +65,18 @@ cd /root/meeting-system-server/meeting-system/backend/tests
 
 2. **检查服务日志**
    ```bash
-   docker logs <container-name>
+   docker compose logs -f <container-name>
    ```
 
 3. **重启服务**
    ```bash
-   cd /root/meeting-system-server/meeting-system
-   docker-compose restart
+   cd meeting-system
+   docker compose restart
    ```
 
 4. **重新运行测试**
    ```bash
-   cd /root/meeting-system-server/meeting-system/backend/tests
+   cd meeting-system/backend/tests
    ./run_all_tests.sh
    ```
 

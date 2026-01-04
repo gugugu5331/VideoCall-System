@@ -264,6 +264,12 @@ function setSeiStatus(text, kind = "info") {
     kind === "error" ? "rgba(255,77,79,0.92)" : kind === "ok" ? "rgba(61,214,208,0.92)" : kind === "warn" ? "rgba(255,183,77,0.92)" : "";
 }
 
+function isSafari() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua);
+}
+
 function updateFxUI() {
   if (els.fxEnableBeauty) els.fxEnableBeauty.checked = Boolean(state.fxBeautyEnabled);
   if (els.fxEnableFilter) els.fxEnableFilter.checked = Boolean(state.fxFilterEnabled);
@@ -352,6 +358,12 @@ function fxToCssFilter(fx) {
   } else if (beautyType === "strong") {
     blurMax = 2.2;
     brightenMax = 0.1;
+  } else if (beautyType === "bright") {
+    blurMax = 0.8;
+    brightenMax = 0.12;
+  } else if (beautyType === "soft") {
+    blurMax = 1.2;
+    brightenMax = 0.09;
   }
 
   const blur = (beauty / 100) * blurMax;
@@ -370,7 +382,15 @@ function fxToCssFilter(fx) {
           ? "grayscale(1)"
           : f === "vivid"
             ? "contrast(1.12) saturate(1.45)"
-            : "";
+            : f === "retro"
+              ? "sepia(0.38) contrast(1.05) saturate(0.85)"
+              : f === "film"
+                ? "contrast(1.08) saturate(0.9) brightness(0.98)"
+                : f === "soft"
+                  ? "blur(0.6px) saturate(1.1)"
+                  : f === "cyber"
+                    ? "contrast(1.25) saturate(1.35) hue-rotate(18deg)"
+                    : "";
 
   const parts = [soften, tone].filter(Boolean);
   return parts.length ? parts.join(" ") : "";
@@ -448,7 +468,13 @@ function initFxControls() {
   }
 
   state.fxSeiReady = canUseEncodedInsertableStreams();
-  setSeiStatus(state.fxSeiReady ? "可用" : "不支持", state.fxSeiReady ? "ok" : "warn");
+  if (state.fxSeiReady) {
+    setSeiStatus("可用", "ok");
+  } else if (isSafari()) {
+    setSeiStatus("不支持（Safari 缺少 Insertable Streams）", "warn");
+  } else {
+    setSeiStatus("不支持", "warn");
+  }
 }
 
 function createCanvasRenderer(width, height) {
@@ -500,6 +526,7 @@ function createFxRenderer(width, height) {
 
   const gl = canvas.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: false });
   if (!gl) return createCanvasRenderer(width, height);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
   const vsSrc = `
     attribute vec2 a_position;
@@ -681,6 +708,10 @@ function mapFilterMode(filter, filterEnabled) {
   if (f === "cool") return { mode: 2, saturation: 1.05, brightness: 0.01 };
   if (f === "gray") return { mode: 3, saturation: 0.0, brightness: 0.0 };
   if (f === "vivid") return { mode: 4, saturation: 1.25, brightness: 0.02 };
+  if (f === "retro") return { mode: 1, saturation: 0.85, brightness: -0.02 };
+  if (f === "film") return { mode: 2, saturation: 0.9, brightness: -0.01 };
+  if (f === "soft") return { mode: 0, saturation: 1.1, brightness: 0.03 };
+  if (f === "cyber") return { mode: 4, saturation: 1.4, brightness: 0.04 };
   return { mode: 0, saturation: 1.0, brightness: 0.0 };
 }
 
