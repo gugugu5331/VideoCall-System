@@ -543,8 +543,8 @@ function createCanvasRenderer(width, height) {
           ctx.scale(-1, 1);
         }
         if (params.slim && params.slim > 0) {
-          const sx = 1 - params.slim * 0.12;
-          const sy = 1 + params.slim * 0.06;
+          const sx = 1 - params.slim * 0.18;
+          const sy = 1 + params.slim * 0.02;
           ctx.translate(w / 2, h / 2);
           ctx.scale(sx, sy);
           ctx.drawImage(frame, -w / 2, -h / 2, w, h);
@@ -599,8 +599,10 @@ function createFxRenderer(width, height) {
       vec2 c = vec2(0.5, 0.5);
       vec2 delta = uv - c;
       float dist = length(delta);
-      float k = 1.0 - u_slim * 0.16 * exp(-dist * 4.5);
-      delta.x *= k;
+      float weight = exp(-pow(dist * 5.2, 2.0));
+      float kx = max(0.65, 1.0 - u_slim * 0.28);
+      float factor = mix(1.0, kx, weight);
+      delta.x *= factor;
       return c + delta;
     }
 
