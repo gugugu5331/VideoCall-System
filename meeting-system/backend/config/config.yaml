@@ -81,13 +81,6 @@ jwt:
   secret: "meeting-system-secret-key-change-in-production"  # 仅用于开发环境，生产环境必须通过环境变量设置
   expire_time: 24  # 小时
 
-# ZeroMQ配置（遗留配置，当前未使用）
-zmq:
-  unit_manager_host: "localhost"
-  unit_manager_port: 5001
-  unit_name: "meeting_ai_service"
-  timeout: 30  # 秒
-
 # 日志配置
 log:
   level: "info"  # debug, info, warn, error, fatal

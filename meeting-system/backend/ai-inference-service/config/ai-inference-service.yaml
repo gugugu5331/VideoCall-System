@@ -54,6 +54,13 @@ log:
 
 # AI 推理配置
 ai:
+  # HTTP 网关模式：当配置了 endpoint 时，ai-inference-service 将作为网关转发到远端 AI 服务
+  http:
+    endpoint: ""             # 留空表示本地直连 Triton；如需远端 HTTP AI，可填对应地址
+    timeout_ms: 30000
+    token: ""                # 当前无需鉴权，保留兼容字段
+    insecure_skip_verify: false
+
   # Triton Runtime 配置
   runtime:
     backend: "triton"

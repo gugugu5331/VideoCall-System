@@ -53,13 +53,6 @@ jwt:
   secret: "meeting-system-secret-key-change-in-production"
   expire_time: 24
 
-# ZMQ配置（遗留配置，当前未使用）
-zmq:
-  unit_manager_host: "localhost"
-  unit_manager_port: 10001
-  unit_name: "meeting_ai_service"
-  timeout: 30
-
 # 日志配置
 log:
   level: "info"

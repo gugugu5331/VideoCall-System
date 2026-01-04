@@ -71,13 +71,6 @@ signaling:
     # 兜底（部分网络可能无法访问 Google STUN）
     - urls: "stun:stun.l.google.com:19302"
 
-# ZMQ配置（可选，用于AI功能）
-zmq:
-  endpoint: "tcp://localhost:5555"
-  timeout: 30
-  retry_attempts: 3
-  retry_delay: 1
-
 # 日志配置
 log:
   level: "info"

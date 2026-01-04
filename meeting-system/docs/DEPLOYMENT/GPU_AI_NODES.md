@@ -10,7 +10,7 @@
   - `triton`（Triton Inference Server，TensorRT GPU 推理）
   - `ai-inference-service`（Go 服务，提供 HTTP `/api/v1/ai/*` 和 gRPC 流）
 - 模型文件放在每台 GPU 节点的 `/models`（Triton model repository）。
-- `ai-inference-service` 通过 `ai.runtime.triton.endpoint` 连接 Triton。
+- `ai-inference-service` 通过 `ai.runtime.triton.endpoint` 连接 Triton（`ai.http.endpoint` 留空表示使用本地 Triton，不再依赖 ZMQ/Edge-LLM）。
 - 多机扩展建议：每台机器各自部署一套，然后在主站（Nginx/网关）做 **多上游负载均衡**。
 
 ## 单台 GPU 服务器启动

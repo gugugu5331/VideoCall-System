@@ -40,12 +40,6 @@ jwt:
   secret: "meeting-system-secret-key-change-in-production"
   expire_time: 24
 
-zmq:
-  unit_manager_host: "localhost"
-  unit_manager_port: 5001
-  unit_name: "meeting_ai_service"
-  timeout: 30
-
 log:
   level: "info"
   filename: "logs/user-service-stress.log"

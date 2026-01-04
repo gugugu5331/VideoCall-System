@@ -1,6 +1,10 @@
 # Build stage
 FROM golang:1.24-bookworm AS builder
 
+ARG GOPROXY=https://proxy.golang.com.cn,direct
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=off
+
 WORKDIR /build
 
 # Copy backend sources (includes shared and ai-inference-service)

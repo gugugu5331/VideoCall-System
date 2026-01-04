@@ -16,6 +16,7 @@ import (
 type AIInferenceService struct {
 	config *config.Config
 	models *ModelManager
+	remote *RemoteAIClient
 }
 
 type ModelWarmupStatus struct {
@@ -80,6 +81,16 @@ type SynthesisDetectionResponse struct {
 
 // NewAIInferenceService 创建 AI 推理服务
 func NewAIInferenceService(cfg *config.Config) *AIInferenceService {
+	remote := NewRemoteAIClient(cfg.AI.HTTP)
+	if remote != nil {
+		// 网关模式：转发到远端 AI 服务
+		return &AIInferenceService{
+			config: cfg,
+			remote: remote,
+		}
+	}
+
+	// 本地推理模式
 	ctx := context.Background()
 	models, err := NewModelManager(ctx, cfg)
 	if err != nil {
@@ -101,6 +112,19 @@ func (s *AIInferenceService) Close() {
 
 // WarmupMeeting 预热模型（当前仅校验模型是否加载）
 func (s *AIInferenceService) WarmupMeeting(ctx context.Context, meetingID uint, models []string) (map[string]ModelWarmupStatus, error) {
+	if s.remote != nil {
+		if err := s.remote.Health(ctx); err != nil {
+			return nil, err
+		}
+		if len(models) == 0 {
+			models = []string{"asr", "emotion", "synthesis"}
+		}
+		statuses := make(map[string]ModelWarmupStatus, len(models))
+		for _, m := range models {
+			statuses[m] = ModelWarmupStatus{ModelName: m, Ready: true}
+		}
+		return statuses, nil
+	}
 	if s == nil || s.models == nil {
 		return nil, fmt.Errorf("model manager not initialized")
 	}
@@ -146,6 +170,9 @@ func (s *AIInferenceService) WarmupMeeting(ctx context.Context, meetingID uint, 
 
 // SpeechRecognition 语音识别（HTTP）
 func (s *AIInferenceService) SpeechRecognition(ctx context.Context, req *ASRRequest) (*ASRResponse, error) {
+	if s.remote != nil {
+		return s.remote.SpeechRecognition(ctx, req)
+	}
 	if req.AudioData == "" {
 		return nil, fmt.Errorf("audio_data is required")
 	}
@@ -244,6 +271,9 @@ func (s *AIInferenceService) SpeechRecognitionPCM(ctx context.Context, pcmData [
 
 // EmotionDetection 情感检测
 func (s *AIInferenceService) EmotionDetection(ctx context.Context, req *EmotionRequest) (*EmotionResponse, error) {
+	if s.remote != nil {
+		return s.remote.EmotionDetection(ctx, req)
+	}
 	startTime := time.Now()
 
 	if req.AudioData != "" {
@@ -388,6 +418,9 @@ func (s *AIInferenceService) EmotionDetectionPCM(ctx context.Context, pcmData []
 
 // SynthesisDetection 深度伪造检测
 func (s *AIInferenceService) SynthesisDetection(ctx context.Context, req *SynthesisDetectionRequest) (*SynthesisDetectionResponse, error) {
+	if s.remote != nil {
+		return s.remote.SynthesisDetection(ctx, req)
+	}
 	if req.AudioData == "" {
 		return nil, fmt.Errorf("audio_data is required")
 	}
@@ -481,7 +514,13 @@ func (s *AIInferenceService) SynthesisDetectionPCM(ctx context.Context, pcmData 
 
 // HealthCheck 健康检查
 func (s *AIInferenceService) HealthCheck(ctx context.Context) error {
-	if s == nil || s.models == nil {
+	if s == nil {
+		return fmt.Errorf("ai service not initialized")
+	}
+	if s.remote != nil {
+		return s.remote.Health(ctx)
+	}
+	if s.models == nil {
 		return fmt.Errorf("model manager not initialized")
 	}
 

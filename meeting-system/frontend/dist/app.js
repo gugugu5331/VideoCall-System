@@ -167,6 +167,10 @@ const state = {
   fxSenderAttached: false,
   fxRemote: new Map(), // tileKey -> { beautyEnabled, filterEnabled, beautyType, beauty, filter, updatedAt }
   fxReceiverAttached: new Set(), // tileKey
+  fxProcessingSupported: false,
+  fxProcessedTrack: null,
+  fxPipelineStop: null,
+  fxPipelineSourceId: null,
 };
 
 function uuid() {
@@ -242,6 +246,15 @@ function canUseEncodedInsertableStreams() {
   } catch {
     return false;
   }
+}
+
+function supportsFxProcessing() {
+  return (
+    typeof MediaStreamTrackProcessor === "function" &&
+    typeof MediaStreamTrackGenerator === "function" &&
+    typeof VideoFrame !== "undefined" &&
+    (typeof OffscreenCanvas !== "undefined" || typeof document !== "undefined")
+  );
 }
 
 function setSeiStatus(text, kind = "info") {
@@ -401,6 +414,8 @@ function clearRemoteFx(tileKey) {
 function initFxControls() {
   updateFxUI();
 
+  state.fxProcessingSupported = supportsFxProcessing();
+
   if (els.fxEnableBeauty) {
     els.fxEnableBeauty.addEventListener("change", () => {
       setLocalFx({ beautyEnabled: Boolean(els.fxEnableBeauty.checked) });
@@ -434,6 +449,349 @@ function initFxControls() {
 
   state.fxSeiReady = canUseEncodedInsertableStreams();
   setSeiStatus(state.fxSeiReady ? "可用" : "不支持", state.fxSeiReady ? "ok" : "warn");
+}
+
+function createCanvasRenderer(width, height) {
+  const canvas =
+    typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(Math.max(width, 2), Math.max(height, 2)) : (() => {
+      const c = document.createElement("canvas");
+      c.width = Math.max(width, 2);
+      c.height = Math.max(height, 2);
+      return c;
+    })();
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  return {
+    canvas,
+    width: canvas.width,
+    height: canvas.height,
+    render(frame, params) {
+      const w = frame.displayWidth || frame.codedWidth || this.width || 640;
+      const h = frame.displayHeight || frame.codedHeight || this.height || 360;
+      if (w !== this.width || h !== this.height) {
+        this.width = w;
+        this.height = h;
+        canvas.width = w;
+        canvas.height = h;
+      }
+      const radius = Math.max(0.6, params.radius || 1.0);
+      const brightness = 1 + (params.brightness || 0);
+      const saturation = params.saturation || 1;
+      const blurPx = radius * 1.5;
+      ctx.filter = `blur(${blurPx.toFixed(2)}px) brightness(${brightness.toFixed(3)}) saturate(${saturation.toFixed(3)})`;
+      try {
+        ctx.drawImage(frame, 0, 0, w, h);
+        return new VideoFrame(canvas, { timestamp: frame.timestamp, duration: frame.duration });
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+function createFxRenderer(width, height) {
+  const canvas =
+    typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(Math.max(width, 2), Math.max(height, 2)) : (() => {
+      const c = document.createElement("canvas");
+      c.width = Math.max(width, 2);
+      c.height = Math.max(height, 2);
+      return c;
+    })();
+
+  const gl = canvas.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: false });
+  if (!gl) return createCanvasRenderer(width, height);
+
+  const vsSrc = `
+    attribute vec2 a_position;
+    attribute vec2 a_texCoord;
+    varying vec2 v_texCoord;
+    void main() {
+      v_texCoord = a_texCoord;
+      gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+  `;
+  const fsSrc = `
+    precision mediump float;
+    varying vec2 v_texCoord;
+    uniform sampler2D u_texture;
+    uniform vec2 u_texel;
+    uniform float u_beautyMix;
+    uniform float u_radius;
+    uniform int u_filterMode;
+    uniform float u_brightness;
+    uniform float u_saturation;
+
+    vec3 applyFilter(vec3 c) {
+      if (u_filterMode == 1) { // warm
+        c.r *= 1.05; c.g *= 1.02; c.b *= 0.98;
+      } else if (u_filterMode == 2) { // cool
+        c.r *= 0.98; c.g *= 1.02; c.b *= 1.06;
+      } else if (u_filterMode == 3) { // gray
+        float g = dot(c, vec3(0.299, 0.587, 0.114));
+        c = vec3(g);
+      } else if (u_filterMode == 4) { // vivid
+        c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 1.35);
+      }
+      return c;
+    }
+
+    vec3 adjustSaturation(vec3 c, float sat) {
+      float g = dot(c, vec3(0.299, 0.587, 0.114));
+      return mix(vec3(g), c, sat);
+    }
+
+    void main() {
+      vec2 o = u_texel * u_radius;
+      vec3 sum = vec3(0.0);
+      sum += texture2D(u_texture, v_texCoord + vec2(-o.x, -o.y)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2( 0.0, -o.y)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2( o.x, -o.y)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2(-o.x,  0.0)).rgb;
+      sum += texture2D(u_texture, v_texCoord).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2( o.x,  0.0)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2(-o.x,  o.y)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2( 0.0,  o.y)).rgb;
+      sum += texture2D(u_texture, v_texCoord + vec2( o.x,  o.y)).rgb;
+      vec3 blur = sum / 9.0;
+
+      vec3 orig = texture2D(u_texture, v_texCoord).rgb;
+      vec3 mixed = mix(orig, blur, clamp(u_beautyMix, 0.0, 1.0));
+      vec3 filtered = applyFilter(mixed);
+      filtered = adjustSaturation(filtered, u_saturation);
+      filtered *= (1.0 + u_brightness);
+      gl_FragColor = vec4(filtered, 1.0);
+    }
+  `;
+
+  function compile(type, src) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return null;
+    return shader;
+  }
+  const vs = compile(gl.VERTEX_SHADER, vsSrc);
+  const fs = compile(gl.FRAGMENT_SHADER, fsSrc);
+  if (!vs || !fs) return null;
+
+  const program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+
+  const posLoc = gl.getAttribLocation(program, "a_position");
+  const texLoc = gl.getAttribLocation(program, "a_texCoord");
+  const uTexel = gl.getUniformLocation(program, "u_texel");
+  const uBeauty = gl.getUniformLocation(program, "u_beautyMix");
+  const uRadius = gl.getUniformLocation(program, "u_radius");
+  const uFilterMode = gl.getUniformLocation(program, "u_filterMode");
+  const uBrightness = gl.getUniformLocation(program, "u_brightness");
+  const uSaturation = gl.getUniformLocation(program, "u_saturation");
+
+  const posBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+    gl.STATIC_DRAW,
+  );
+
+  const texBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+    gl.STATIC_DRAW,
+  );
+
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  return {
+    canvas,
+    gl,
+    program,
+    posLoc,
+    texLoc,
+    uTexel,
+    uBeauty,
+    uRadius,
+    uFilterMode,
+    uBrightness,
+    uSaturation,
+    texture,
+    width: canvas.width,
+    height: canvas.height,
+    render(frame, params) {
+      const w = frame.displayWidth || frame.codedWidth || params.width || canvas.width || 640;
+      const h = frame.displayHeight || frame.codedHeight || params.height || canvas.height || 360;
+      if (w !== this.width || h !== this.height) {
+        this.width = w;
+        this.height = h;
+        canvas.width = w;
+        canvas.height = h;
+      }
+
+      gl.viewport(0, 0, w, h);
+      gl.useProgram(program);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+      gl.enableVertexAttribArray(texLoc);
+      gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      try {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+      } catch {
+        return null;
+      }
+
+      gl.uniform2f(uTexel, 1 / w, 1 / h);
+      gl.uniform1f(uBeauty, Math.max(0, Math.min(1, params.beautyMix || 0)));
+      gl.uniform1f(uRadius, Math.max(0.6, params.radius || 1.0));
+      gl.uniform1i(uFilterMode, params.filterMode || 0);
+      gl.uniform1f(uBrightness, params.brightness || 0);
+      gl.uniform1f(uSaturation, params.saturation || 1);
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      try {
+        return new VideoFrame(canvas, { timestamp: frame.timestamp, duration: frame.duration });
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+function mapFilterMode(filter, filterEnabled) {
+  if (!filterEnabled) return { mode: 0, saturation: 1, brightness: 0 };
+  const f = String(filter || "none");
+  if (f === "warm") return { mode: 1, saturation: 1.08, brightness: 0.02 };
+  if (f === "cool") return { mode: 2, saturation: 1.05, brightness: 0.01 };
+  if (f === "gray") return { mode: 3, saturation: 0.0, brightness: 0.0 };
+  if (f === "vivid") return { mode: 4, saturation: 1.25, brightness: 0.02 };
+  return { mode: 0, saturation: 1.0, brightness: 0.0 };
+}
+
+function startFxPipeline(sourceTrack) {
+  if (!sourceTrack || sourceTrack.readyState !== "live") return null;
+  if (!state.fxProcessingSupported) return null;
+
+  let renderer = null;
+  const processor = new MediaStreamTrackProcessor({ track: sourceTrack });
+  const generator = new MediaStreamTrackGenerator({ kind: "video" });
+  const reader = processor.readable;
+  const writer = generator.writable;
+
+  const stopPipeline = () => {
+    try {
+      reader.cancel().catch(() => null);
+    } catch {
+      // ignore
+    }
+    try {
+      writer.abort().catch(() => null);
+    } catch {
+      // ignore
+    }
+    try {
+      generator.stop();
+    } catch {
+      // ignore
+    }
+  };
+
+  const transformer = new TransformStream({
+    transform(frame, controller) {
+      try {
+        if (!renderer) {
+          const w = frame.displayWidth || frame.codedWidth || 640;
+          const h = frame.displayHeight || frame.codedHeight || 360;
+          renderer = createFxRenderer(w, h);
+          if (!renderer) {
+            controller.enqueue(frame);
+            return;
+          }
+        }
+
+        const beautyEnabled = state.fxBeautyEnabled;
+        const beautyStrength = beautyEnabled ? Math.max(0, Math.min(1, state.fxBeauty / 100)) : 0;
+        const beautyType = String(state.fxBeautyType || "natural");
+        const radius = beautyType === "strong" ? 2.2 : beautyType === "smooth" ? 1.6 : 1.1;
+        const filterMeta = mapFilterMode(state.fxFilter, state.fxFilterEnabled);
+        const brightness = (beautyType === "strong" ? 0.08 : beautyType === "smooth" ? 0.06 : 0.04) * beautyStrength + filterMeta.brightness;
+
+        const processed = renderer.render(frame, {
+          beautyMix: beautyStrength,
+          radius,
+          filterMode: filterMeta.mode,
+          brightness,
+          saturation: filterMeta.saturation,
+        });
+
+        if (processed) {
+          controller.enqueue(processed);
+          frame.close();
+        } else {
+          controller.enqueue(frame);
+        }
+      } catch {
+        controller.enqueue(frame);
+      }
+    },
+  });
+
+  reader.pipeThrough(transformer).pipeTo(writer).catch(() => null);
+
+  return { track: generator, stop: stopPipeline };
+}
+
+function stopFxPipeline() {
+  if (state.fxPipelineStop) {
+    try {
+      state.fxPipelineStop();
+    } catch {
+      // ignore
+    }
+  }
+  state.fxPipelineStop = null;
+  state.fxProcessedTrack = null;
+  state.fxPipelineSourceId = null;
+}
+
+async function ensureFxPipelineForCamera() {
+  const camTrack = state.localStream?.getVideoTracks?.()[0];
+  if (!camTrack) return null;
+  if (!state.fxProcessingSupported) state.fxProcessingSupported = supportsFxProcessing();
+  if (!state.fxProcessingSupported) return null;
+
+  if (state.fxProcessedTrack && state.fxPipelineSourceId === camTrack.id && state.fxProcessedTrack.readyState === "live") {
+    return state.fxProcessedTrack;
+  }
+
+  stopFxPipeline();
+  const pipeline = startFxPipeline(camTrack);
+  if (!pipeline || !pipeline.track) return null;
+  state.fxProcessedTrack = pipeline.track;
+  state.fxPipelineStop = pipeline.stop;
+  state.fxPipelineSourceId = camTrack.id;
+  try {
+    camTrack.addEventListener("ended", stopFxPipeline, { once: true });
+  } catch {
+    // ignore
+  }
+  return state.fxProcessedTrack;
 }
 
 function setAuthMsg(text, kind = "info") {
@@ -2256,7 +2614,7 @@ async function applyLocalTracksToSfu() {
   const pc = state.sfuPc;
 
   const audioTrack = state.localStream?.getAudioTracks?.()[0] || null;
-  const videoTrack = state.screenStream?.getVideoTracks?.()[0] || state.localStream?.getVideoTracks?.()[0] || null;
+  const videoTrack = state.screenStream?.getVideoTracks?.()[0] || state.fxProcessedTrack || state.localStream?.getVideoTracks?.()[0] || null;
 
   if (state.sfuAudioTransceiver?.sender) {
     try {
@@ -2460,8 +2818,15 @@ async function startLocalMedia() {
 
   const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   state.localStream = stream;
+  const audioTrack = state.localStream?.getAudioTracks?.()[0] || null;
+  const processedTrack = (await ensureFxPipelineForCamera().catch(() => null)) || state.localStream.getVideoTracks()[0];
+
+  const previewStream = new MediaStream();
+  if (processedTrack) previewStream.addTrack(processedTrack);
+  if (audioTrack) previewStream.addTrack(audioTrack);
+
   aiLiveUpsertInput("local", stream);
-  ensureVideoTile("local", "我（本地）", stream, { muted: true });
+  ensureVideoTile("local", "我（本地）", previewStream, { muted: true });
   updateCallButtons();
   await applyLocalTracksToSfu();
   return stream;
@@ -2471,6 +2836,7 @@ function stopLocalMedia() {
   if (state.localStream) {
     for (const t of state.localStream.getTracks()) t.stop();
   }
+  stopFxPipeline();
   state.localStream = null;
   aiLiveRemoveInput("local");
   removeVideoTile("local");
@@ -2530,7 +2896,7 @@ async function stopScreenShare() {
   state.screenStream = null;
   els.screenBtn.textContent = "共享屏幕";
 
-  const camTrack = state.localStream?.getVideoTracks()[0];
+  const camTrack = state.fxProcessedTrack || state.localStream?.getVideoTracks()[0];
   if (camTrack) await replaceVideoTrack(camTrack);
 }
 

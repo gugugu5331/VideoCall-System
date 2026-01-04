@@ -391,6 +391,32 @@ services:
       retries: 3
     restart: unless-stopped
 
+  # Triton Inference Server (GPU 推理后端)
+  triton:
+    image: nvcr.io/nvidia/tritonserver:23.10-py3
+    container_name: meeting-triton
+    command:
+      - tritonserver
+      - --model-repository=/models
+      - --log-verbose=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ai-models:/models:ro
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
   # AI Inference Service (Go微服务，调用 Triton/TensorRT)
   ai-inference-service:
     build:
@@ -413,9 +439,11 @@ services:
     volumes:
       - ./backend/ai-inference-service/config:/app/config
       - ./backend/ai-inference-service/logs:/app/logs
+      - ai-models:/models:ro
     ports:
       - "8085:8085"  # AI Inference Service API
     depends_on:
+      - triton
       - postgres
       - redis
       - etcd
@@ -487,4 +515,6 @@ volumes:
   loki_data:
     driver: local
   etcd_data:
+    driver: local
+  ai-models:
     driver: local

@@ -46,10 +46,6 @@ jwt:
   expires_in: 86400  # 24小时
   refresh_expires_in: 604800  # 7天
 
-zmq:
-  unit_manager_address: "tcp://unit-manager:5001"
-  timeout: 5000
-
 log:
   level: "info"
   filename: "logs/app.log"

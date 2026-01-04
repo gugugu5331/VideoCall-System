@@ -109,9 +109,10 @@ type ZMQConfig struct {
 // AIConfig AI 推理配置（ai-inference-service 使用）
 type AIConfig struct {
 	Runtime   AIRuntimeConfig   `mapstructure:"runtime"`
-	Models    AIModelsConfig     `mapstructure:"models"`
-	Request   AIRequestConfig    `mapstructure:"request"`
-	Streaming AIStreamingConfig  `mapstructure:"streaming"`
+	Models    AIModelsConfig    `mapstructure:"models"`
+	Request   AIRequestConfig   `mapstructure:"request"`
+	Streaming AIStreamingConfig `mapstructure:"streaming"`
+	HTTP      AIHTTPConfig      `mapstructure:"http"`
 }
 
 type AIModelsConfig struct {
@@ -122,14 +123,14 @@ type AIModelsConfig struct {
 
 // AIRuntimeConfig defines inference runtime settings.
 type AIRuntimeConfig struct {
-	Backend        string   `mapstructure:"backend"`
-	Providers      []string `mapstructure:"providers"`
-	DeviceID       int      `mapstructure:"device_id"`
-	LibraryPath    string   `mapstructure:"library_path"`
-	IntraOpThreads int      `mapstructure:"intra_op_threads"`
-	InterOpThreads int      `mapstructure:"inter_op_threads"`
-	EnableFP16     bool     `mapstructure:"enable_fp16"`
-	EnableTensorRT bool     `mapstructure:"enable_tensorrt"`
+	Backend        string       `mapstructure:"backend"`
+	Providers      []string     `mapstructure:"providers"`
+	DeviceID       int          `mapstructure:"device_id"`
+	LibraryPath    string       `mapstructure:"library_path"`
+	IntraOpThreads int          `mapstructure:"intra_op_threads"`
+	InterOpThreads int          `mapstructure:"inter_op_threads"`
+	EnableFP16     bool         `mapstructure:"enable_fp16"`
+	EnableTensorRT bool         `mapstructure:"enable_tensorrt"`
 	Triton         TritonConfig `mapstructure:"triton"`
 }
 
@@ -168,6 +169,14 @@ type AIRequestConfig struct {
 type AIStreamingConfig struct {
 	FlushIntervalMs int `mapstructure:"flush_interval_ms"`
 	MaxBufferMs     int `mapstructure:"max_buffer_ms"`
+}
+
+// AIHTTPConfig defines remote HTTP AI endpoint settings (used when ai-inference-service acts as a gateway).
+type AIHTTPConfig struct {
+	Endpoint           string `mapstructure:"endpoint"`
+	TimeoutMs          int    `mapstructure:"timeout_ms"`
+	Token              string `mapstructure:"token"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify"`
 }
 
 // LogConfig 日志配置
@@ -487,6 +496,10 @@ func setDefaults() {
 	viper.SetDefault("ai.request.timeout", 30)
 	viper.SetDefault("ai.streaming.flush_interval_ms", 0)
 	viper.SetDefault("ai.streaming.max_buffer_ms", 10000)
+	viper.SetDefault("ai.http.endpoint", "")
+	viper.SetDefault("ai.http.timeout_ms", 30000)
+	viper.SetDefault("ai.http.token", "")
+	viper.SetDefault("ai.http.insecure_skip_verify", false)
 
 	// 日志默认配置
 	viper.SetDefault("log.level", "info")
