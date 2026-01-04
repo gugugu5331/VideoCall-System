@@ -16,7 +16,7 @@
 
 完整拓扑与端口以 `docker-compose.yml` 为准，架构图见 `docs/ARCHITECTURE_DIAGRAM.md`。
 
-## 🧠 架构图（含创新点）
+## 🧠 架构图
 
 ```mermaid
 graph LR
