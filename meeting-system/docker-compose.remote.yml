@@ -377,34 +377,40 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # AI服务
-  ai-service:
+  # AI Inference Service (Go微服务，调用 Triton/TensorRT)
+  ai-inference-service:
     build:
       context: ./backend
-      dockerfile: ai-service/Dockerfile
-    container_name: meeting-ai-service
+      dockerfile: ai-inference-service/Dockerfile
+    container_name: meeting-ai-inference-service
     environment:
-      - CONFIG_PATH=/app/config/ai-service.yaml
-      - MONGODB_HOST=mongodb
+      - CONFIG_PATH=/app/config/ai-inference-service.yaml
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ETCD_ENDPOINTS=etcd:2379
+      # 安全配置
+      - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      # Jaeger 追踪配置
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
     volumes:
-      - ./backend/config:/app/config
-      - ./backend/logs:/app/logs
-      - ai_models:/app/models
+      - ./backend/ai-inference-service/config:/app/config
+      - ./backend/ai-inference-service/logs:/app/logs
+      - ai_models:/models
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - mongodb
-      - signaling-service
-      - media-service
+      - postgres
+      - redis
+      - etcd
       - jaeger
     networks:
       - meeting-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -428,7 +434,7 @@ services:
       - signaling-service
       - meeting-service
       - media-service
-      - ai-service
+      - ai-inference-service
     networks:
       - meeting-network
     healthcheck:
