@@ -1112,6 +1112,33 @@ function addAiLiveTag(tagsEl, text, kind = "info") {
   tagsEl.appendChild(span);
 }
 
+function addDanmaku({ who, text, tags = [] }) {
+  if (!els.aiDanmaku) return;
+  const content = `${who ? `${who}: ` : ""}${text || ""}${tags.length ? " · " + tags.map((t) => t.text).join(" / ") : ""}`;
+  if (!content.trim()) return;
+
+  const item = document.createElement("div");
+  item.className = "danmaku__item";
+  item.textContent = content;
+
+  const laneCount = 6;
+  const lane = state.danmakuLane % laneCount;
+  state.danmakuLane += 1;
+  item.style.top = `${8 + lane * 24}px`;
+  const duration = 8 + Math.random() * 4;
+  item.style.animationDuration = `${duration}s`;
+
+  item.addEventListener("animationend", () => {
+    try {
+      item.remove();
+    } catch {
+      // ignore
+    }
+  });
+
+  els.aiDanmaku.appendChild(item);
+}
+
 function upsertAiLiveLine(lineId, { who, timeText, text, tags = [] }) {
   if (!els.aiLiveLog) return;
 

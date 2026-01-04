@@ -4,6 +4,8 @@ go 1.23
 
 replace meeting-system/shared => ../shared
 
+replace golang.org/x/crypto => golang.org/x/crypto v0.23.0
+
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
