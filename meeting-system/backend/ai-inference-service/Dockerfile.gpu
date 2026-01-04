@@ -1,9 +1,20 @@
-# Build stage
-FROM golang:1.24-bookworm AS builder
+# Build stage (self-contained Go 1.24 install to avoid拉取失败)
+FROM debian:bookworm AS builder
 
+ARG GO_VERSION=1.24.0
 ARG GOPROXY=https://proxy.golang.com.cn,direct
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=off
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl build-essential git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go manually
+RUN curl -fsSL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz -o /tmp/go.tgz \
+    && tar -C /usr/local -xzf /tmp/go.tgz \
+    && ln -s /usr/local/go/bin/go /usr/local/bin/go \
+    && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt
 
 WORKDIR /build
 
