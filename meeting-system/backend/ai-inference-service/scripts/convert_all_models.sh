@@ -163,18 +163,8 @@ du -sh "$OUTPUT_DIR"
 echo ""
 
 echo "✅ 下一步:"
-echo "   1. 重新启动 Edge-LLM-Infra"
-echo "   2. 测试真实模型推理"
-echo "   3. 验证返回结果不再是固定文本"
+echo "   1. 将模型放入 Triton model repository"
+echo "   2. 重启/热加载 Triton"
+echo "   3. 测试真实模型推理"
 echo ""
-
-echo "🔧 重启 Edge-LLM-Infra 命令:"
-echo "   pkill -9 unit_manager llm"
-echo "   cd /root/meeting-system-server/meeting-system/Edge-LLM-Infra-master/unit-manager/build"
-echo "   ./unit_manager > unit_manager.log 2>&1 &"
-echo "   cd /root/meeting-system-server/meeting-system/Edge-LLM-Infra-master/node/llm/build"
-echo "   ./llm > llm.log 2>&1 &"
-echo ""
-
 echo "================================================================================"
-

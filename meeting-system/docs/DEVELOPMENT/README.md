@@ -29,7 +29,7 @@
 - [TASK_DISPATCHER_GUIDE.md](TASK_DISPATCHER_GUIDE.md) - 任务分发
 
 ### AI 推理服务
-集成 Edge-LLM-Infra 的 AI 推理微服务，支持：
+基于 Triton/TensorRT 的 AI 推理微服务，支持：
 - 语音识别 (ASR)
 - 情感检测
 - 合成检测
@@ -90,9 +90,9 @@ cd tests
 4. 编写测试用例
 
 ### 集成新的 AI 模型
-1. 在 Edge-LLM-Infra 中配置模型
-2. 在 AI Inference Service 中添加支持
-3. 在 AI Service 中暴露 API
+1. 准备 Triton 模型仓库并放入模型目录
+2. 在 AI Inference Service 中配置 `model_name` / 输入输出节点
+3. 在处理器中接入预处理/后处理逻辑
 4. 编写测试用例
 5. 更新文档
 
@@ -109,4 +109,3 @@ cd tests
 - [后端系统 README](../README.md)
 - [Go 官方文档](https://golang.org/doc/)
 - [Gin Web 框架](https://gin-gonic.com/)
-

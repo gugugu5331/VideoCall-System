@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -44,12 +45,16 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 
 	format := req.GetFormat()
 	if strings.TrimSpace(format) == "" {
-		format = "wav"
+		format = "pcm"
 	}
 
 	sampleRate := int(req.GetSampleRate())
 	if sampleRate <= 0 {
 		sampleRate = 16000
+	}
+	channels := int(req.GetChannels())
+	if channels <= 0 {
+		channels = 1
 	}
 
 	taskList := req.GetTasks()
@@ -60,7 +65,6 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 	b64 := base64.StdEncoding.EncodeToString(audio)
 	results := make(map[string]*pb.AIResult, len(taskList))
 
-	var transcript string
 	var firstErr error
 
 	for _, rawTask := range taskList {
@@ -75,6 +79,7 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 				AudioData:  b64,
 				Format:     format,
 				SampleRate: sampleRate,
+				Channels:   channels,
 			})
 			if err != nil {
 				if firstErr == nil {
@@ -82,8 +87,6 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 				}
 				continue
 			}
-			transcript = resp.Text
-
 			payload, _ := json.Marshal(resp)
 			results[rawTask] = &pb.AIResult{
 				ResultType: task,
@@ -96,6 +99,7 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 				AudioData:  b64,
 				Format:     format,
 				SampleRate: sampleRate,
+				Channels:   channels,
 			})
 			if err != nil {
 				if firstErr == nil {
@@ -112,13 +116,12 @@ func (s *aiGRPCServer) ProcessAudioData(ctx context.Context, req *pb.ProcessAudi
 				CreatedAt:  now,
 			}
 		case "emotion_detection", "emotion":
-			if transcript == "" {
-				if firstErr == nil {
-					firstErr = fmt.Errorf("emotion_detection requires speech_recognition result")
-				}
-				continue
-			}
-			resp, err := s.aiService.EmotionDetection(ctx, &services.EmotionRequest{Text: transcript})
+			resp, err := s.aiService.EmotionDetection(ctx, &services.EmotionRequest{
+				AudioData:  b64,
+				Format:     format,
+				SampleRate: sampleRate,
+				Channels:   channels,
+			})
 			if err != nil {
 				if firstErr == nil {
 					firstErr = err
@@ -165,6 +168,50 @@ func (s *aiGRPCServer) ProcessVideoFrame(ctx context.Context, req *pb.ProcessVid
 		Error:   "video processing is not implemented by ai-inference-service",
 		Results: map[string]*pb.AIResult{},
 	}, nil
+}
+
+func (s *aiGRPCServer) StreamAudioProcessing(stream pb.AIService_StreamAudioProcessingServer) error {
+	ctx := stream.Context()
+	var session *services.AudioStreamSession
+
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		if session == nil {
+			session = services.NewAudioStreamSession(
+				s.aiService,
+				chunk.GetStreamId(),
+				chunk.GetTasks(),
+				chunk.GetFormat(),
+				int(chunk.GetSampleRate()),
+				int(chunk.GetChannels()),
+			)
+		}
+
+		results, err := session.Append(ctx, chunk)
+		if err != nil {
+			return err
+		}
+		for _, result := range results {
+			if err := stream.Send(result); err != nil {
+				return err
+			}
+		}
+
+		if chunk.GetIsFinal() {
+			return nil
+		}
+	}
+}
+
+func (s *aiGRPCServer) StreamVideoProcessing(stream pb.AIService_StreamVideoProcessingServer) error {
+	return fmt.Errorf("video streaming is not implemented by ai-inference-service")
 }
 
 func startAIGrpcServer(port int, aiService *services.AIInferenceService) (*grpc.Server, error) {

@@ -38,13 +38,6 @@ etcd:
   dial_timeout: 5
   request_timeout: 10
 
-# ZMQ 配置（Edge-LLM-Infra 集成）
-zmq:
-  unit_manager_host: "localhost"  # unit-manager 地址
-  unit_manager_port: 19001        # unit-manager 端口
-  unit_name: "llm"                # 单元名称（必须是 "llm"）
-  timeout: 30                     # 超时时间（秒）
-
 # JWT 配置
 jwt:
   secret: "meeting-system-secret-key-change-in-production"
@@ -61,30 +54,70 @@ log:
 
 # AI 推理配置
 ai:
+  # Triton Runtime 配置
+  runtime:
+    backend: "triton"
+    triton:
+      endpoint: "http://localhost:8000"
+      timeout_ms: 60000
+    providers: ["cuda", "cpu"]
+    device_id: 0
+    library_path: "/opt/onnxruntime/lib/libonnxruntime.so"
+    intra_op_threads: 2
+    inter_op_threads: 2
+    enable_fp16: false
+    enable_tensorrt: true
+
   # 模型配置
   models:
     asr:
-      model_name: "asr-model"
+      model_name: "whisper-encoder"
+      model_path: ""
+      input_name: "mel"
+      output_names: ["encoder_output"]
+      input_type: "mel"
+      decoder_path: "whisper-decoder"
+      decoder_input_names: ["tokens", "encoder_output"]
+      decoder_output_names: ["logits"]
+      tokenizer_path: "/models/whisper/whisper_vocab.json"
+      special_tokens_path: "/models/whisper/whisper_special_tokens.json"
+      config_path: "/models/whisper/whisper_config.json"
+      sample_rate: 16000
+      channels: 1
       timeout: 30
-      max_concurrent: 10
+      max_concurrent: 4
     emotion:
-      model_name: "emotion-model"
+      model_name: "emotion"
+      model_path: ""
+      input_name: "audio_input"
+      output_names: ["logits"]
+      input_type: "waveform"
+      labels_path: "/models/emotion/labels.json"
+      sample_rate: 16000
+      channels: 1
       timeout: 15
-      max_concurrent: 20
+      max_concurrent: 8
     synthesis:
-      model_name: "synthesis-model"
+      model_name: "synthesis"
+      model_path: ""
+      input_name: "audio_input"
+      output_names: ["synthesis_output"]
+      input_type: "mel"
+      sample_rate: 16000
+      channels: 1
       timeout: 20
-      max_concurrent: 15
+      max_concurrent: 4
 
   # 请求配置
   request:
     max_retries: 3
     retry_delay: 1000  # 毫秒
     timeout: 30        # 秒
-    # 传输层保护：unit-manager TCP 侧可能出现粘包/拆包，导致 "json format error"。
-    max_single_delta_len: 2048
-    audio_stream_chunk_size: 512
-    audio_stream_chunk_delay_ms: 10
+
+  # 流式处理配置（gRPC 音频流）
+  streaming:
+    flush_interval_ms: 0
+    max_buffer_ms: 10000
 
   # 缓存配置
   cache:

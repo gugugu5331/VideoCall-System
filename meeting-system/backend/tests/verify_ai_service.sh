@@ -38,17 +38,11 @@ else
 fi
 echo ""
 
-# 6. 检查Edge-LLM-Infra状态
-echo "6. 检查Edge-LLM-Infra容器状态..."
-docker ps --filter "name=meeting-edge-model-infra" --format "table {{.Names}}\t{{.Status}}"
-echo ""
-
-# 7. 查看AI服务日志（最后20行）
-echo "7. AI服务日志（最后20行）..."
+# 6. 查看AI服务日志（最后20行）
+echo "6. AI服务日志（最后20行）..."
 docker logs meeting-ai-service --tail 20 2>&1
 echo ""
 
 echo "========================================="
 echo "验证完成"
 echo "========================================="
-

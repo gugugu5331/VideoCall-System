@@ -4,7 +4,7 @@ set -euo pipefail
 # One-key deploy for GPU AI nodes (SSH key auth required).
 #
 # Usage:
-#   MODEL_DIR=/models AI_HTTP_PORT=8800 UNIT_MANAGER_PORT=8801 ./deploy_gpu_ai_nodes.sh
+#   MODEL_DIR=/models AI_HTTP_PORT=8800 AI_GRPC_PORT=9800 ./deploy_gpu_ai_nodes.sh
 #
 # Optional:
 #   REMOTE_DIR=/root/VideoCall-System SSH_USER=root ./deploy_gpu_ai_nodes.sh
@@ -18,7 +18,10 @@ SSH_USER="${SSH_USER:-root}"
 REMOTE_DIR="${REMOTE_DIR:-/root/VideoCall-System}"
 MODEL_DIR="${MODEL_DIR:-/models}"
 AI_HTTP_PORT="${AI_HTTP_PORT:-8800}"
-UNIT_MANAGER_PORT="${UNIT_MANAGER_PORT:-8801}"
+AI_GRPC_PORT="${AI_GRPC_PORT:-9800}"
+TRITON_HTTP_PORT="${TRITON_HTTP_PORT:-8000}"
+TRITON_GRPC_PORT="${TRITON_GRPC_PORT:-8001}"
+TRITON_METRICS_PORT="${TRITON_METRICS_PORT:-8002}"
 
 GPU_AI_NODES="${GPU_AI_NODES:-}"
 GPU_AI_NODES_FILE="${GPU_AI_NODES_FILE:-}"
@@ -56,7 +59,8 @@ for node in "${NODES[@]}"; do
 
   ssh "${SSH_BASE_OPTS[@]}" -p "${port}" "${SSH_USER}@${host}" \
     "cd '${REMOTE_DIR}/meeting-system' && \
-     MODEL_DIR='${MODEL_DIR}' AI_HTTP_PORT='${AI_HTTP_PORT}' UNIT_MANAGER_PORT='${UNIT_MANAGER_PORT}' \
+     MODEL_DIR='${MODEL_DIR}' AI_HTTP_PORT='${AI_HTTP_PORT}' AI_GRPC_PORT='${AI_GRPC_PORT}' \
+     TRITON_HTTP_PORT='${TRITON_HTTP_PORT}' TRITON_GRPC_PORT='${TRITON_GRPC_PORT}' TRITON_METRICS_PORT='${TRITON_METRICS_PORT}' \
      docker compose -f deployment/gpu-ai/docker-compose.gpu-ai.yml up -d --build"
 done
 

@@ -386,8 +386,6 @@ services:
     environment:
       - CONFIG_PATH=/app/config/ai-service.yaml
       - MONGODB_HOST=mongodb
-      - ZMQ_UNIT_MANAGER_HOST=host.docker.internal
-      - ZMQ_UNIT_MANAGER_PORT=10001
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
       - JAEGER_SAMPLER_TYPE=const
@@ -396,7 +394,6 @@ services:
       - ./backend/config:/app/config
       - ./backend/logs:/app/logs
       - ai_models:/app/models
-      - /tmp/llm:/tmp/llm
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -404,7 +401,6 @@ services:
       - signaling-service
       - media-service
       - jaeger
-      - edge-model-infra
     networks:
       - meeting-network
     healthcheck:
@@ -412,50 +408,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
-
-  # Edge-LLM-Infra (AI推理基础设施)
-  edge-model-infra:
-    build:
-      context: .
-      dockerfile: edge-llm-infra/Dockerfile
-    container_name: meeting-edge-model-infra
-    environment:
-      - TZ=Asia/Shanghai
-      - LD_LIBRARY_PATH=/usr/local/lib
-    volumes:
-      - /models:/models:ro
-      - /tmp/llm:/tmp/llm
-    ports:
-      - "10001:10001"
-      - "10002:10002"
-    networks:
-      - meeting-network
-    restart: unless-stopped
-
-  # AI Inference Worker (Python推理节点)
-  ai-inference-worker:
-    build:
-      context: .
-      dockerfile: ai-inference-service/Dockerfile
-    container_name: meeting-ai-inference-worker
-    environment:
-      - TZ=Asia/Shanghai
-      - MODEL_CACHE_DIR=/models
-      - TRANSFORMERS_CACHE=/models
-      - HF_HOME=/models
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - /models:/models:ro
-      - ./ai-inference-service/logs:/app/logs
-      - ./ai-inference-service/temp:/app/temp
-      - ./ai-inference-service/results:/app/results
-    ports:
-      - "5010:5010"  # ZMQ endpoint for Edge-LLM-Infra
-    depends_on:
-      - edge-model-infra
-    networks:
-      - meeting-network
     restart: unless-stopped
 
   # Nginx API网关 - 映射到外网端口 22176

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 	"meeting-system/shared/middleware"
 	"meeting-system/shared/queue"
 	"meeting-system/shared/tracing"
-	"meeting-system/shared/zmq"
 )
 
 var (
@@ -80,37 +78,6 @@ func main() {
 		defer registry.Close()
 		fmt.Println("✅ Service registry connected")
 	}
-
-	// 异步初始化 ZeroMQ（用于与 Edge-LLM-Infra 通信）
-	// ZMQ 初始化在部分环境/依赖不可用时可能会 panic；不应阻塞或导致服务退出。
-	var zmqInitialized bool
-	if isTruthyEnv("ENABLE_ZMQ") {
-		fmt.Println("Initializing ZeroMQ client...")
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					logger.Warn(fmt.Sprintf("ZeroMQ initialization panicked (ignored): %v", r))
-					fmt.Printf("⚠️  ZeroMQ initialization panicked (ignored): %v\n", r)
-				}
-			}()
-
-			if err := zmq.InitZMQ(cfg.ZMQ); err != nil {
-				logger.Warn("Failed to initialize ZeroMQ: " + err.Error())
-				fmt.Println("⚠️  ZeroMQ initialization failed: ", err)
-				return
-			}
-
-			zmqInitialized = true
-			fmt.Println("✅ ZeroMQ initialized")
-		}()
-	} else {
-		fmt.Println("Skipping ZeroMQ init (set ENABLE_ZMQ=1 to enable)")
-	}
-	defer func() {
-		if zmqInitialized {
-			zmq.CloseZMQ()
-		}
-	}()
 
 	advertiseHost := resolveAdvertiseHost(cfg.Server.Host)
 	var httpInstanceID string
@@ -396,17 +363,4 @@ func registerAITaskHandlers(qm *queue.QueueManager) {
 	}
 
 	logger.Info("All AI task handlers registered successfully")
-}
-
-func isTruthyEnv(key string) bool {
-	val := strings.TrimSpace(os.Getenv(key))
-	if val == "" {
-		return false
-	}
-	switch strings.ToLower(val) {
-	case "1", "true", "yes", "y", "on":
-		return true
-	default:
-		return false
-	}
 }

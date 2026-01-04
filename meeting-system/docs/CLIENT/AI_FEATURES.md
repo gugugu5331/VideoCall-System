@@ -207,8 +207,7 @@ analyzer->setEmotionDetectionEnabled(true);    // 启用情绪识别
 
 ## 未来改进
 
-1. 支持本地AI推理（使用ONNX Runtime）
+1. 支持本地AI推理（使用 Triton/TensorRT）
 2. 添加更多AI功能（人脸识别、手势识别等）
 3. 优化网络传输（使用WebSocket发送数据）
 4. 添加用户配置界面（允许用户自定义分析参数）
-

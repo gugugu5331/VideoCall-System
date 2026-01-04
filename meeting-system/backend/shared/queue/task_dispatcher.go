@@ -114,7 +114,7 @@ func NewTaskDispatcher() *TaskDispatcher {
 // registerDefaultRoutes 保留默认路由配置
 func (td *TaskDispatcher) registerDefaultRoutes() {
 	td.RegisterRoute(&ServiceRoute{
-		ServiceName: "ai-service",
+		ServiceName: "ai-inference-service",
 		QueueName:   "ai_tasks",
 		TaskTypes: []TaskType{
 			TaskTypeSpeechRecognition,

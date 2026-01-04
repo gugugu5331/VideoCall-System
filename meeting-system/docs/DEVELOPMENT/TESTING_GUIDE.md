@@ -106,7 +106,7 @@ cd /root/meeting-system-server/meeting-system/backend/tests
 - meeting-service (会议服务) - 端口 8082
 - signaling-service (信令服务) - 端口 8081
 - media-service (媒体服务) - 端口 8083
-- ai-service (AI 服务) - 端口 8084
+- ai-inference-service (AI 推理服务) - 端口 8085
 
 ### API 网关
 - Nginx (API 网关) - 端口 8800
@@ -165,4 +165,3 @@ cat INTEGRATION_TEST_REPORT.md
 
 **最后更新**: 2025-10-05 00:54  
 **测试版本**: v1.1.0
-

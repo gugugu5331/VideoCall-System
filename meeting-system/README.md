@@ -16,13 +16,13 @@
 
 ## 📖 系统概述
 
-Meeting System Backend 是一个基于 Go 语言的微服务架构视频会议系统后端，采用 SFU (Selective Forwarding Unit) 媒体转发架构，集成 Edge-LLM-Infra 分布式 AI 推理框架。
+Meeting System Backend 是一个基于 Go 语言的微服务架构视频会议系统后端，采用 SFU (Selective Forwarding Unit) 媒体转发架构，集成 AI 推理服务（Triton/TensorRT 推理后端，提供 HTTP/gRPC 推理接口）。
 
 **核心特性：**
-- 🏗️ **微服务架构**: 5个独立的 Go 微服务 + AI 推理服务
+- 🏗️ **微服务架构**: 5个独立的 Go 微服务（含 AI 推理服务）
 - 🔐 **安全认证**: JWT + CSRF 保护 + 限流
 - 📡 **实时通信**: WebSocket 信令 + WebRTC 媒体传输
-- 🤖 **AI 集成**: ZeroMQ 连接 Edge-LLM-Infra
+- 🤖 **AI 集成**: AI Inference Service + Triton/TensorRT 提供 HTTP/gRPC 推理能力
 - 📊 **完整监控**: Prometheus + Jaeger + Loki
 - 🔄 **服务发现**: etcd 服务注册与发现
 - 🐳 **容器化**: Docker Compose 一键部署
@@ -50,7 +50,7 @@ graph TB
         MeetingSvc["📞 会议服务<br/>:8082 / gRPC:50052<br/>会议管理/参与者"]
         SignalSvc["📡 信令服务<br/>:8081<br/>WebSocket/媒体协商"]
         MediaSvc["🎬 媒体服务<br/>:8083<br/>SFU转发/录制"]
-        AISvc["🤖 AI服务<br/>:8084 / gRPC:9084<br/>AI分析请求"]
+        AIInferenceSvc["🤖 AI推理服务<br/>:8085 / gRPC:9085<br/>AI API"]
         NotifySvc["🔔 通知服务<br/>:8085<br/>邮件/短信/推送"]
     end
 
@@ -62,12 +62,10 @@ graph TB
         Discovery["服务发现"]
         Queue["消息队列"]
         Storage["存储管理"]
-        ZMQ["ZMQ通信"]
     end
 
     subgraph AILayer["🤖 AI推理层"]
-        AIInference["AI推理服务<br/>:8085<br/>模型推理/ZMQ"]
-        EdgeLLM["Edge-LLM-Infra<br/>C++推理框架<br/>GPU/CPU优化"]
+        Triton["🧠 Triton Inference Server<br/>:8000 / gRPC:8001<br/>TensorRT"]
     end
 
     subgraph DataLayer["💾 数据层"]
@@ -98,22 +96,21 @@ graph TB
     UserSvc -.->|gRPC| MeetingSvc
     MeetingSvc -.->|gRPC| SignalSvc
     SignalSvc -.->|gRPC| MediaSvc
-    MediaSvc -.->|gRPC| AISvc
-    AISvc -.->|ZMQ| AIInference
-    AIInference -->|C++| EdgeLLM
+    MediaSvc -.->|HTTP/gRPC| AIInferenceSvc
+    AIInferenceSvc -.->|HTTP/gRPC| Triton
 
     UserSvc --> SharedLayer
     MeetingSvc --> SharedLayer
     SignalSvc --> SharedLayer
     MediaSvc --> SharedLayer
-    AISvc --> SharedLayer
+    AIInferenceSvc --> SharedLayer
     NotifySvc --> SharedLayer
 
     UserSvc -->|SQL| PostgreSQL
     MeetingSvc -->|SQL| PostgreSQL
     SignalSvc -->|Redis| Redis
     MediaSvc -->|SQL| PostgreSQL
-    AISvc -->|NoSQL| MongoDB
+    AIInferenceSvc -->|NoSQL| MongoDB
     NotifySvc -->|Redis| Redis
 
     PostgreSQL -.->|缓存| Redis
@@ -124,7 +121,7 @@ graph TB
     MeetingSvc -.->|metrics| Prometheus
     SignalSvc -.->|metrics| Prometheus
     MediaSvc -.->|metrics| Prometheus
-    AISvc -.->|metrics| Prometheus
+    AIInferenceSvc -.->|metrics| Prometheus
     NotifySvc -.->|metrics| Prometheus
 
     Prometheus --> Grafana
@@ -133,14 +130,14 @@ graph TB
     MeetingSvc -.->|traces| Jaeger
     SignalSvc -.->|traces| Jaeger
     MediaSvc -.->|traces| Jaeger
-    AISvc -.->|traces| Jaeger
+    AIInferenceSvc -.->|traces| Jaeger
     NotifySvc -.->|traces| Jaeger
 
     UserSvc -.->|logs| Loki
     MeetingSvc -.->|logs| Loki
     SignalSvc -.->|logs| Loki
     MediaSvc -.->|logs| Loki
-    AISvc -.->|logs| Loki
+    AIInferenceSvc -.->|logs| Loki
     NotifySvc -.->|logs| Loki
 
     classDef client fill:#e1f5ff,stroke:#01579b,stroke-width:2px
@@ -153,9 +150,9 @@ graph TB
 
     class Qt6,Web,Mobile client
     class Nginx,APIGateway gateway
-    class UserSvc,MeetingSvc,SignalSvc,MediaSvc,AISvc,NotifySvc service
-    class Config,Logger,Metrics,Tracing,Discovery,Queue,Storage,ZMQ shared
-    class AIInference,EdgeLLM ai
+    class UserSvc,MeetingSvc,SignalSvc,MediaSvc,AIInferenceSvc,NotifySvc service
+    class Config,Logger,Metrics,Tracing,Discovery,Queue,Storage shared
+    class Triton ai
     class PostgreSQL,Redis,MongoDB,MinIO,Etcd data
     class Prometheus,Grafana,Jaeger,Loki obs
 ```
@@ -168,8 +165,7 @@ graph TB
 | **meeting-service** | 8082 | 会议创建、管理、参与者控制 | PostgreSQL, Redis, etcd |
 | **signaling-service** | 8081 | WebSocket 信令、房间管理 | Redis, etcd |
 | **media-service** | 8083 | SFU 媒体转发、录制、存储 | PostgreSQL, MinIO |
-| **ai-service** | 8084 | AI 分析请求、结果管理 | MongoDB, ZMQ |
-| **ai-inference-service** | 8085 | AI 模型推理、ZMQ 通信 | PostgreSQL, Redis, ZMQ |
+| **ai-inference-service** | 8085 / 9085 | AI 模型推理（Triton/TensorRT） | PostgreSQL, Redis |
 
 ---
 
@@ -187,7 +183,6 @@ graph TB
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | **WebSocket** | gorilla/websocket 1.5.3 | 实时信令通信 |
-| **ZeroMQ** | pebbe/zmq4 1.4.0 | AI 服务高性能通信 |
 | **HTTP/2** | - | RESTful API |
 
 ### 数据存储
@@ -204,6 +199,12 @@ graph TB
 | **etcd** | 3.6.5 | 服务注册与发现 |
 | **Nginx** | alpine | API 网关、反向代理 |
 | **Docker** | 20.0+ | 容器化部署 |
+
+### AI 推理
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| **Triton Inference Server** | 23.10+ | GPU 推理服务（HTTP/gRPC） |
+| **TensorRT** | 8.x+ | GPU 推理加速引擎 |
 
 ### 监控与追踪
 | 技术 | 版本 | 用途 |
@@ -457,55 +458,36 @@ POST   /api/v1/recordings/stop   # 停止录制
 
 ---
 
-### 5. AI Service (AI 服务)
+### 5. AI Inference Service (AI 推理服务)
 
-**端口**: 8084
-**职责**: AI 分析请求、结果管理
-
-**主要功能**:
-- ✅ AI 分析任务提交
-- ✅ 分析结果查询
-- ✅ MongoDB 结果存储
-
-**技术实现**:
-- Gin Web 框架
-- MongoDB Go Driver
-- ZMQ 通信（与 AI Inference Service）
-
-**API 端点**:
-```
-POST   /api/v1/ai/analyze        # 提交分析任务
-GET    /api/v1/ai/results/:id    # 获取分析结果
-```
-
-**配置文件**: `backend/config/ai-service.yaml`
-
----
-
-### 6. AI Inference Service (AI 推理服务)
-
-**端口**: 8085
-**职责**: AI 模型推理、ZMQ 通信
+**端口**: 8085 (HTTP) / 9085 (gRPC)
+**职责**: AI 模型推理（Triton/TensorRT），提供 HTTP/gRPC 推理接口
 
 **主要功能**:
-- ✅ 推理任务调度
-- ✅ ZMQ 连接 Unit Manager
-- ✅ 模型列表查询
+- ✅ 模型加载与热身
+- ✅ HTTP/gRPC 推理接口
 - ✅ 推理结果返回
+- ✅ 健康检查与监控指标
 
 **技术实现**:
 - Gin Web 框架
-- ZeroMQ (pebbe/zmq4)
-- 连接宿主机 Unit Manager (:19001)
+- gRPC 服务
+- Triton Inference Server（TensorRT 后端）
+
+> 部署建议：Triton 推理节点请参考 `docs/DEPLOYMENT/GPU_AI_NODES.md`。
 
 **API 端点**:
 ```
-POST   /api/v1/inference/submit  # 提交推理任务
-GET    /api/v1/inference/:id     # 获取推理结果
-GET    /api/v1/models            # 可用模型列表
+GET    /health                   # 健康检查
+GET    /api/v1/ai/health          # AI 健康检查
+GET    /api/v1/ai/info            # 服务信息/模型能力
+POST   /api/v1/ai/asr             # 语音识别
+POST   /api/v1/ai/emotion         # 情感检测
+POST   /api/v1/ai/synthesis       # 深度伪造检测
+POST   /api/v1/ai/batch           # 批量推理
 ```
 
-**配置文件**: `backend/config/ai-inference-service.yaml`
+**配置文件**: `backend/ai-inference-service/config/ai-inference-service.yaml`
 
 ---
 
@@ -639,16 +621,18 @@ Authorization: Bearer <jwt_token>
 
 ### 配置文件位置
 
-所有配置文件位于 `backend/config/` 目录：
+核心服务配置位于 `backend/config/` 目录，AI 推理服务配置位于 `backend/ai-inference-service/config/`：
 
 ```
 backend/config/
 ├── config.yaml                 # user-service 配置
 ├── meeting-service.yaml        # meeting-service 配置
 ├── signaling-service.yaml      # signaling-service 配置
-├── media-service.yaml          # media-service 配置
-├── ai-service.yaml             # ai-service 配置
-└── ai-inference-service.yaml   # ai-inference-service 配置
+└── media-service.yaml          # media-service 配置
+
+backend/ai-inference-service/config/
+├── ai-inference-service.yaml         # 容器/生产配置
+└── ai-inference-service-local.yaml   # 本地开发配置
 ```
 
 ### 配置文件示例 (config.yaml)
@@ -730,9 +714,6 @@ export JWT_SECRET=your-super-secret-key
 # etcd 配置
 export ETCD_ENDPOINTS=etcd:2379
 
-# ZMQ 配置（AI 服务）
-export ZMQ_UNIT_MANAGER_HOST=host.docker.internal
-export ZMQ_UNIT_MANAGER_PORT=19001
 ```
 
 ---
@@ -758,8 +739,8 @@ docker-compose up -d prometheus grafana jaeger loki promtail
 # 3. 启动业务服务
 docker-compose up -d user-service meeting-service signaling-service media-service
 
-# 4. 启动 AI 服务
-docker-compose up -d ai-service ai-inference-service
+# 4. 启动 AI 推理服务
+docker-compose up -d ai-inference-service
 
 # 5. 启动网关
 docker-compose up -d nginx
@@ -956,7 +937,6 @@ go run main.go -config=../config/stress-test-config.yaml
 - [Qt6 客户端文档](../qt6-client/README.md)
 - [部署文档](docs/deployment/)
 - [测试文档](docs/testing/)
-- [Edge-LLM-Infra](Edge-LLM-Infra-master/)
 
 ---
 

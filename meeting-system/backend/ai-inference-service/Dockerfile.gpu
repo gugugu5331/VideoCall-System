@@ -1,0 +1,44 @@
+# Build stage
+FROM golang:1.24-bookworm AS builder
+
+WORKDIR /build
+
+# Copy backend sources (includes shared and ai-inference-service)
+COPY . .
+
+WORKDIR /build/ai-inference-service
+
+RUN go mod download
+
+# Build static binary for Triton client usage.
+RUN CGO_ENABLED=0 GOOS=linux go build -o ai-inference-service .
+
+# Runtime stage
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+
+ENV TZ=Asia/Shanghai
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Triton runs remotely; no local ONNX runtime libraries required.
+
+WORKDIR /app
+
+COPY --from=builder /build/ai-inference-service/ai-inference-service .
+COPY --from=builder /build/ai-inference-service/config ./config
+
+RUN useradd -m appuser \
+    && mkdir -p /app/logs \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8085
+EXPOSE 9085
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8085/health || exit 1
+
+CMD ["./ai-inference-service"]

@@ -8,6 +8,7 @@ replace meeting-system/shared => ../shared
 
 require (
 	github.com/gin-gonic/gin v1.10.0
+	github.com/mjibson/go-dsp v0.0.0-20180508042940-11479a337f12
 	golang.org/x/sync v0.17.0
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.9

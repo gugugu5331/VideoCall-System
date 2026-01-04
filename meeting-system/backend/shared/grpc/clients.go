@@ -62,7 +62,7 @@ func (sc *ServiceClients) Initialize() error {
 		{"meeting-service", sc.connectToMeetingService},
 		{"signaling-service", sc.connectToSignalingService},
 		{"media-service", sc.connectToMediaService},
-		{"ai-service", sc.connectToAIService},
+		{"ai-inference-service", sc.connectToAIService},
 		{"notification-service", sc.connectToNotificationService},
 	}
 
@@ -152,8 +152,8 @@ func (sc *ServiceClients) connectToAIService() error {
 	if sc.config != nil {
 		svcCfg = sc.config.Services.AIService
 	}
-	address, timeout := sc.resolveServiceEndpoint(svcCfg, "127.0.0.1", 8084, 10*time.Second)
-	conn, err := sc.createConnection("ai-service", address, timeout)
+	address, timeout := sc.resolveServiceEndpoint(svcCfg, "127.0.0.1", 8085, 10*time.Second)
+	conn, err := sc.createConnection("ai-inference-service", address, timeout)
 	if err != nil {
 		return err
 	}

@@ -105,8 +105,14 @@ print_subheader "1. Infrastructure Services Check"
 print_info "Checking Docker containers..."
 docker ps | grep -E "postgres|redis|etcd|jaeger|nginx|ai-inference" || print_error "Some containers are not running"
 
-print_info "Checking Edge-LLM-Infra..."
-netstat -tlnp 2>/dev/null | grep 19001 && print_success "unit-manager is running" || print_error "unit-manager is not running"
+print_info "Checking Triton readiness (optional)..."
+if [ -n "${TRITON_ENDPOINT:-}" ]; then
+    curl -s "${TRITON_ENDPOINT%/}/v2/health/ready" >/dev/null 2>&1 \
+        && print_success "Triton ready at ${TRITON_ENDPOINT}" \
+        || print_error "Triton not ready at ${TRITON_ENDPOINT}"
+else
+    print_info "TRITON_ENDPOINT not set, skipping Triton readiness check"
+fi
 
 # ============================================================================
 # 2. 直接访问测试（绕过 Nginx）
@@ -148,7 +154,7 @@ run_test "ASR (Speech Recognition) via Nginx" \
     "code"
 
 run_test "Emotion Detection via Nginx" \
-    "curl -s -X POST http://$NGINX_HOST:$NGINX_PORT/api/v1/ai/emotion -H 'Content-Type: application/json' -d '{\"text\":\"I am very happy today!\"}'" \
+    "curl -s -X POST http://$NGINX_HOST:$NGINX_PORT/api/v1/ai/emotion -H 'Content-Type: application/json' -d '{\"audio_data\":\"c2FtcGxlIGF1ZGlvIGRhdGE=\",\"format\":\"wav\",\"sample_rate\":16000}'" \
     "code"
 
 run_test "Synthesis Detection via Nginx" \
@@ -201,4 +207,3 @@ else
     print_error "SOME TESTS FAILED! ✗"
     exit 1
 fi
-

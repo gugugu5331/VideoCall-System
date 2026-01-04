@@ -1,6 +1,6 @@
 # AI Inference Service
 
-AI 推理微服务，集成 Edge-LLM-Infra 框架，为 meeting-system 提供 AI 推理能力。
+AI 推理微服务，基于 Triton Inference Server（TensorRT 后端），为 meeting-system 提供 AI 推理能力。
 
 ## 功能特性
 
@@ -12,7 +12,7 @@ AI 推理微服务，集成 Edge-LLM-Infra 框架，为 meeting-system 提供 AI
    - 返回识别文本和置信度
 
 2. **Emotion Detection** - 情感检测
-   - 分析文本的情感倾向
+   - 分析音频的情感倾向
    - 返回主要情感和所有情感分数
    - 支持多种情感类别
 
@@ -24,7 +24,7 @@ AI 推理微服务，集成 Edge-LLM-Infra 框架，为 meeting-system 提供 AI
 ### 架构特点
 
 - **RESTful API**: 提供用户友好的 HTTP 接口
-- **Edge-LLM-Infra 集成**: 通过 TCP 连接到 unit-manager
+- **Triton/TensorRT 集成**: 支持 GPU 推理
 - **完整的请求流程**: 自动处理 setup → inference → exit 流程
 - **资源管理**: 确保每次请求后正确释放资源
 - **错误处理**: 完整的错误处理和超时机制
@@ -78,9 +78,9 @@ GET /api/v1/ai/info
     "version": "1.0.0",
     "capabilities": ["speech_recognition", "emotion_detection", "synthesis_detection"],
     "models": {
-      "asr": "asr-model",
-      "emotion": "emotion-model",
-      "synthesis": "synthesis-model"
+      "asr": "whisper-encoder",
+      "emotion": "emotion",
+      "synthesis": "synthesis"
     }
   }
 }
@@ -125,9 +125,13 @@ POST /api/v1/ai/emotion
 **请求体**:
 ```json
 {
-  "text": "I am very happy today!"
+  "audio_data": "base64_encoded_audio_data",
+  "format": "wav",
+  "sample_rate": 16000
 }
 ```
+
+> 注：Triton 运行时仅支持音频输入，文本模式不支持。
 
 **响应示例**:
 ```json
@@ -200,7 +204,9 @@ POST /api/v1/ai/batch
       "task_id": "task_2",
       "type": "emotion",
       "data": {
-        "text": "Sample text for emotion detection"
+        "audio_data": "base64_encoded_audio_data",
+        "format": "wav",
+        "sample_rate": 16000
       }
     }
   ]
@@ -230,13 +236,28 @@ POST /api/v1/ai/batch
 }
 ```
 
+## 模型输入输出约定
+
+以下为 Triton 端模型的默认输入输出约定，需与 `ai-inference-service` 配置保持一致：
+
+| 任务 | Triton 模型名 | 输入/形状 | 输出 | 采样率 |
+|------|--------------|-----------|------|--------|
+| ASR (Whisper) | `whisper-encoder` / `whisper-decoder` | `mel`: `[1, 80, T]`，`tokens`: `[1, S]` | `encoder_output`, `logits` | 16k |
+| Emotion | `emotion` | `audio_input`: `[1, N]` (waveform FP32) | `logits` | 16k |
+| Synthesis | `synthesis` | `audio_input`: `[1, 80, T]` (mel) 或 `[1, N]` (waveform) | `synthesis_output` | 16k |
+
+补充说明：
+- Whisper 解码会读取 `tokenizer_path`、`special_tokens_path`、`config_path`。
+- Emotion 任务会读取 `labels_path`（若提供）。
+- `input_type` 控制 `audio_input` 采用 `waveform` 还是 `mel`。
+
 ## 部署指南
 
 ### 前置条件
 
-1. **Edge-LLM-Infra 框架**
-   - unit-manager 运行在 `localhost:19001`
-   - llm 节点已启动并注册
+1. **Triton Inference Server**
+   - Triton 可访问（`ai.runtime.triton.endpoint`）。
+   - Triton 模型仓库准备完成（Whisper/Emotion/Synthesis）。
 
 2. **基础设施**
    - PostgreSQL (可选)
@@ -253,11 +274,11 @@ go mod download
 ```
 
 2. **配置文件**:
-编辑 `config/ai-inference-service.yaml`，确保 `zmq.unit_manager_host` 和 `zmq.unit_manager_port` 正确。
+编辑 `config/ai-inference-service.yaml`，确保 `ai.runtime.triton.endpoint` 与 `ai.models.*` 的模型名/输入输出名一致。
 
 3. **启动服务**:
 ```bash
-go run main.go --config config/ai-inference-service.yaml
+go run . -config config/ai-inference-service.yaml
 ```
 
 4. **测试服务**:
@@ -284,6 +305,7 @@ docker run -d \
   -p 8085:8085 \
   -v $(pwd)/config:/app/config \
   -v $(pwd)/logs:/app/logs \
+  -v /models:/models:ro \
   ai-inference-service:latest
 ```
 
@@ -299,6 +321,7 @@ ai-inference-service:
   container_name: meeting-ai-inference-service
   ports:
     - "8085:8085"
+    - "9085:9085"
   environment:
     - SERVICE_ADVERTISE_HOST=ai-inference-service
   volumes:
@@ -329,17 +352,25 @@ go test ./...
 ### 集成测试
 
 ```bash
-# 确保 unit-manager 和 llm 节点正在运行
-cd /root/meeting-system-server/meeting-system/Edge-LLM-Infra-master/unit-manager/build
-./unit_manager &
-
-cd /root/meeting-system-server/meeting-system/Edge-LLM-Infra-master/node/llm/build
-./llm &
+# 确保 Triton 可达且模型已就绪
+# 例如：curl http://localhost:8000/v2/health/ready
 
 # 运行 AI 服务测试
 cd /root/meeting-system-server/meeting-system/backend/ai-inference-service
 python3 test_ai_service.py
 ```
+
+### 流式端到端验证
+
+```bash
+cd meeting-system/backend/ai-inference-service/scripts
+chmod +x e2e_stream_pcm.sh
+./e2e_stream_pcm.sh localhost 9085
+```
+
+可选环境变量：`SAMPLE_RATE`、`CHANNELS`、`CHUNK_MS`、`TASKS`（逗号分隔）。
+
+> 依赖 grpcurl（https://github.com/fullstorydev/grpcurl）。
 
 ### 压力测试
 
@@ -385,20 +416,18 @@ tail -f logs/ai-inference-service.log
 
 ### 常见问题
 
-1. **无法连接到 unit-manager**
-   - 检查 unit-manager 是否运行：`netstat -tlnp | grep 19001`
-   - 检查配置文件中的 `zmq.unit_manager_host` 和 `zmq.unit_manager_port`
-   - 检查防火墙设置
+1. **Triton 不可达**
+   - 确认 `ai.runtime.triton.endpoint` 可访问
+   - 使用 `curl http://<triton-host>:8000/v2/health/ready` 验证
 
 2. **推理请求超时**
-   - 检查 llm 节点是否正常运行
-   - 增加 `zmq.timeout` 配置
-   - 查看 llm 节点日志
+   - 检查模型是否过大或 GPU 资源占用过高
+   - 适当调整 `ai.request.timeout`
+   - 查看服务日志定位具体模型
 
-3. **资源未释放**
-   - 检查 exit 请求是否成功
-   - 查看 unit-manager 日志中的 "release work_id success" 消息
-   - 重启 unit-manager 和 llm 节点
+3. **模型加载失败**
+   - 检查 `ai.models.*.model_name`、输入输出名是否与 Triton 模型一致
+   - 确认 Triton 模型仓库结构与 `config.pbtxt` 正确
 
 ## 开发指南
 
@@ -417,8 +446,11 @@ ai-inference-service/
 ├── handlers/               # HTTP 处理器
 │   └── ai_handler.go
 ├── services/               # 业务逻辑
-│   ├── edge_llm_client.go  # Edge-LLM-Infra 客户端
-│   └── ai_inference_service.go
+│   ├── ai_inference_service.go
+│   └── model_manager.go
+├── runtime/                # 推理运行时封装
+│   ├── triton/             # Triton 适配器
+│   └── audio/              # 音频特征处理
 ├── models/                 # 数据模型（可选）
 ├── main.go                 # 主程序
 ├── Dockerfile              # Docker 配置
@@ -429,4 +461,3 @@ ai-inference-service/
 ## 许可证
 
 MIT License
-

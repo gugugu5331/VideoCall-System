@@ -30,7 +30,7 @@ docker ps
 # - meeting-service
 # - media-service
 # - signaling-service
-# - ai-service
+# - ai-inference-service
 # - redis
 # - nginx
 ```
@@ -168,7 +168,7 @@ redis-cli LLEN meeting_system:normal_queue
 - 成功创建会议，获取 meeting_id
 - meeting-service 日志中有 "Processing meeting create task"
 - `meeting_events` 频道发布了 `meeting.created` 事件
-- ai-service、media-service、signaling-service 接收到该事件
+- ai-inference-service、media-service、signaling-service 接收到该事件
 
 **检查命令**：
 
@@ -177,7 +177,7 @@ redis-cli LLEN meeting_system:normal_queue
 tail -f backend/meeting-service/logs/service.log | grep "meeting"
 
 # 检查其他服务是否接收到事件
-tail -f backend/ai-service/logs/service.log | grep "Received meeting event"
+tail -f backend/ai-inference-service/logs/service.log | grep "Received meeting event"
 tail -f backend/media-service/logs/service.log | grep "Received meeting event"
 tail -f backend/signaling-service/logs/service.log | grep "Received meeting event"
 ```
@@ -212,7 +212,7 @@ tail -f backend/media-service/logs/service.log | grep "User.*joined"
 
 **验证点**：
 - AI 任务成功提交
-- ai-service 日志中有任务处理记录
+- ai-inference-service 日志中有任务处理记录
 - `ai_events` 频道发布了完成事件
 - meeting-service 接收到 AI 处理完成事件
 
@@ -220,10 +220,10 @@ tail -f backend/media-service/logs/service.log | grep "User.*joined"
 
 ```bash
 # 检查 AI 任务处理
-tail -f backend/ai-service/logs/service.log | grep "Processing.*task"
+tail -f backend/ai-inference-service/logs/service.log | grep "Processing.*task"
 
 # 检查 AI 事件发布
-tail -f backend/ai-service/logs/service.log | grep "ai_events"
+tail -f backend/ai-inference-service/logs/service.log | grep "ai_events"
 
 # 检查 meeting-service 接收 AI 事件
 tail -f backend/meeting-service/logs/service.log | grep "Received AI event"
@@ -235,7 +235,7 @@ tail -f backend/meeting-service/logs/service.log | grep "Received AI event"
 
 ```
 Meeting Service → meeting_events → AI/Media/Signaling Services
-AI Service → ai_events → Meeting/Media Services
+AI Inference Service → ai_events → Meeting/Media Services
 Media Service → media_events → Meeting/Signaling Services
 Signaling Service → signaling_events → Meeting/Media Services
 User Service → user_events → Meeting Service
@@ -253,7 +253,7 @@ redis-cli monitor | grep "PUBLISH"
 
 ```bash
 # 检查所有服务的事件接收
-for service in user-service meeting-service media-service signaling-service ai-service; do
+for service in user-service meeting-service media-service signaling-service ai-inference-service; do
     echo "=== $service ==="
     grep "Received.*event" backend/$service/logs/service.log | tail -5
 done
@@ -429,4 +429,3 @@ dead_letter_queue: 0
 4. 排查和解决常见问题
 
 如有问题，请查看各服务的详细日志或联系开发团队。
-

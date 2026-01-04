@@ -1,12 +1,9 @@
 # GPU 服务器部署（AI 推理节点）
 
-本目录用于在 **单台 GPU 服务器** 上部署一套完整的 AI 推理节点：
+本目录用于在 **单台 GPU 服务器** 上部署一套 AI 推理节点（Triton Inference Server + TensorRT）：
 
-- `ai-inference-service`（Go HTTP API，提供 `/api/v1/ai/*`）
-- `edge-unit-manager`（Edge-LLM-Infra unit-manager，TCP 19001）
-- `edge-llm-node`（Edge-LLM-Infra 推理节点 `llm`）
-
-注意：当前 Edge-LLM-Infra 组件内部通过 **IPC(/tmp/rpc.* + /tmp/llm/*)** 通信，所以 `unit-manager` 与 `llm` **必须运行在同一台机器**（本 compose 已通过共享 `edge_ipc` volume 实现）。
+- `triton`（Triton Inference Server，TensorRT GPU 推理）
+- `ai-inference-service`（Go 服务，提供 `/api/v1/ai/*` 与 gRPC 流）
 
 ---
 
@@ -17,7 +14,10 @@
 本部署默认使用：
 
 - `AI_HTTP_PORT`（默认 `8800`）：映射到容器 `ai-inference-service:8085`
-- `UNIT_MANAGER_PORT`（默认 `8801`）：映射到容器 `edge-unit-manager:19001`（可选；通常不建议暴露公网）
+- `AI_GRPC_PORT`（默认 `9800`）：映射到容器 `ai-inference-service:9085`
+- `TRITON_HTTP_PORT`（默认 `8000`）：映射到容器 `triton:8000`
+- `TRITON_GRPC_PORT`（默认 `8001`）：映射到容器 `triton:8001`
+- `TRITON_METRICS_PORT`（默认 `8002`）：映射到容器 `triton:8002`
 
 ---
 
@@ -26,7 +26,7 @@
 前置条件：
 
 - 已安装 `docker` + `docker compose` 插件
-- 服务器上已有模型目录（默认挂载 `MODEL_DIR=/models` 到容器 `/work/models`）
+- 服务器上已有模型目录（默认挂载 `MODEL_DIR=/models` 到容器 `/models`）
 
 启动：
 
@@ -35,7 +35,10 @@ cd /root/VideoCall-System/meeting-system
 
 export MODEL_DIR=/models
 export AI_HTTP_PORT=8800
-export UNIT_MANAGER_PORT=8801
+export AI_GRPC_PORT=9800
+export TRITON_HTTP_PORT=8000
+export TRITON_GRPC_PORT=8001
+export TRITON_METRICS_PORT=8002
 
 docker compose -f deployment/gpu-ai/docker-compose.gpu-ai.yml up -d --build
 ```
@@ -50,12 +53,11 @@ curl -s http://localhost:${AI_HTTP_PORT}/api/v1/ai/health
 
 ---
 
-## 两台 GPU 服务器的协作方式（推荐）
-
-因为单台机器内的 Edge-LLM-Infra 通过 IPC 通信，跨机器的“分布式”建议用 **双节点部署 + 上层负载均衡**：
+## 多台 GPU 服务器协作方式（推荐）
 
 1. 在 GPU-1、GPU-2 各自运行一套本目录的 `docker-compose.gpu-ai.yml`
 2. 在主站 Nginx（或任何网关）里将 `/api/v1/ai/*` 代理到两个节点的 `AI_HTTP_PORT`
+3. gRPC 流式建议走 L4 负载均衡或 gRPC-aware 代理
 
 本项目网关已在 `meeting-system/nginx/nginx.conf` 中把 `/api/v1/ai/*` 代理到 upstream `ai_inference_service`，并通过 `include /etc/nginx/conf.d/ai_inference_service.servers*.conf` 读取上游列表。
 
@@ -81,6 +83,6 @@ bash meeting-system/nginx/scripts/gen_ai_inference_service_servers_conf.sh
 ```bash
 cd /root/VideoCall-System/meeting-system/deployment/gpu-ai
 GPU_AI_NODES_FILE=./nodes.example.txt \
-MODEL_DIR=/models AI_HTTP_PORT=8800 UNIT_MANAGER_PORT=8801 \
+MODEL_DIR=/models AI_HTTP_PORT=8800 AI_GRPC_PORT=9800 TRITON_HTTP_PORT=8000 TRITON_GRPC_PORT=8001 TRITON_METRICS_PORT=8002 \
 ./deploy_gpu_ai_nodes.sh
 ```

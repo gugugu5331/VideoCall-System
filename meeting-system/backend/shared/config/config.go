@@ -98,7 +98,7 @@ type JWTConfig struct {
 	ExpireTime int    `mapstructure:"expire_time"` // 小时
 }
 
-// ZMQConfig ZeroMQ配置 (与Edge-LLM-Infra集成)
+// ZMQConfig ZeroMQ配置（遗留配置，当前未使用）
 type ZMQConfig struct {
 	UnitManagerHost string `mapstructure:"unit_manager_host"`
 	UnitManagerPort int    `mapstructure:"unit_manager_port"`
@@ -108,8 +108,10 @@ type ZMQConfig struct {
 
 // AIConfig AI 推理配置（ai-inference-service 使用）
 type AIConfig struct {
-	Models  AIModelsConfig  `mapstructure:"models"`
-	Request AIRequestConfig `mapstructure:"request"`
+	Runtime   AIRuntimeConfig   `mapstructure:"runtime"`
+	Models    AIModelsConfig     `mapstructure:"models"`
+	Request   AIRequestConfig    `mapstructure:"request"`
+	Streaming AIStreamingConfig  `mapstructure:"streaming"`
 }
 
 type AIModelsConfig struct {
@@ -118,19 +120,54 @@ type AIModelsConfig struct {
 	Synthesis AIModelConfig `mapstructure:"synthesis"`
 }
 
+// AIRuntimeConfig defines inference runtime settings.
+type AIRuntimeConfig struct {
+	Backend        string   `mapstructure:"backend"`
+	Providers      []string `mapstructure:"providers"`
+	DeviceID       int      `mapstructure:"device_id"`
+	LibraryPath    string   `mapstructure:"library_path"`
+	IntraOpThreads int      `mapstructure:"intra_op_threads"`
+	InterOpThreads int      `mapstructure:"inter_op_threads"`
+	EnableFP16     bool     `mapstructure:"enable_fp16"`
+	EnableTensorRT bool     `mapstructure:"enable_tensorrt"`
+	Triton         TritonConfig `mapstructure:"triton"`
+}
+
+// TritonConfig defines the remote Triton inference server settings.
+type TritonConfig struct {
+	Endpoint  string `mapstructure:"endpoint"`
+	TimeoutMs int    `mapstructure:"timeout_ms"`
+}
+
 type AIModelConfig struct {
-	ModelName     string `mapstructure:"model_name"`
-	Timeout       int    `mapstructure:"timeout"`        // 秒
-	MaxConcurrent int    `mapstructure:"max_concurrent"` // 并发上限（预留）
+	ModelName          string   `mapstructure:"model_name"`
+	ModelPath          string   `mapstructure:"model_path"`
+	InputName          string   `mapstructure:"input_name"`
+	OutputNames        []string `mapstructure:"output_names"`
+	InputType          string   `mapstructure:"input_type"`
+	DecoderPath        string   `mapstructure:"decoder_path"`
+	DecoderInputNames  []string `mapstructure:"decoder_input_names"`
+	DecoderOutputNames []string `mapstructure:"decoder_output_names"`
+	TokenizerPath      string   `mapstructure:"tokenizer_path"`
+	SpecialTokensPath  string   `mapstructure:"special_tokens_path"`
+	ConfigPath         string   `mapstructure:"config_path"`
+	LabelsPath         string   `mapstructure:"labels_path"`
+	SampleRate         int      `mapstructure:"sample_rate"`
+	Channels           int      `mapstructure:"channels"`
+	Timeout            int      `mapstructure:"timeout"`        // 秒
+	MaxConcurrent      int      `mapstructure:"max_concurrent"` // 并发上限（预留）
 }
 
 type AIRequestConfig struct {
-	MaxRetries              int `mapstructure:"max_retries"`
-	RetryDelay              int `mapstructure:"retry_delay"` // 毫秒
-	Timeout                 int `mapstructure:"timeout"`     // 秒
-	MaxSingleDeltaLen       int `mapstructure:"max_single_delta_len"`
-	AudioStreamChunkSize    int `mapstructure:"audio_stream_chunk_size"`
-	AudioStreamChunkDelayMs int `mapstructure:"audio_stream_chunk_delay_ms"`
+	MaxRetries int `mapstructure:"max_retries"`
+	RetryDelay int `mapstructure:"retry_delay"` // 毫秒
+	Timeout    int `mapstructure:"timeout"`     // 秒
+}
+
+// AIStreamingConfig defines stream aggregation behavior for gRPC audio streams.
+type AIStreamingConfig struct {
+	FlushIntervalMs int `mapstructure:"flush_interval_ms"`
+	MaxBufferMs     int `mapstructure:"max_buffer_ms"`
 }
 
 // LogConfig 日志配置
@@ -400,23 +437,56 @@ func setDefaults() {
 	viper.SetDefault("zmq.timeout", 30)
 
 	// AI 默认配置（仅 ai-inference-service 使用；其他服务可忽略）
-	viper.SetDefault("ai.models.asr.model_name", "asr-model")
+	viper.SetDefault("ai.runtime.backend", "triton")
+	viper.SetDefault("ai.runtime.providers", []string{"cuda", "cpu"})
+	viper.SetDefault("ai.runtime.device_id", 0)
+	viper.SetDefault("ai.runtime.library_path", "/opt/onnxruntime/lib/libonnxruntime.so")
+	viper.SetDefault("ai.runtime.intra_op_threads", 2)
+	viper.SetDefault("ai.runtime.inter_op_threads", 2)
+	viper.SetDefault("ai.runtime.enable_fp16", false)
+	viper.SetDefault("ai.runtime.enable_tensorrt", false)
+	viper.SetDefault("ai.runtime.triton.endpoint", "http://localhost:8000")
+	viper.SetDefault("ai.runtime.triton.timeout_ms", 60000)
+
+	viper.SetDefault("ai.models.asr.model_name", "whisper")
+	viper.SetDefault("ai.models.asr.model_path", "")
+	viper.SetDefault("ai.models.asr.input_name", "mel")
+	viper.SetDefault("ai.models.asr.output_names", []string{"encoder_output"})
+	viper.SetDefault("ai.models.asr.input_type", "mel")
+	viper.SetDefault("ai.models.asr.decoder_path", "")
+	viper.SetDefault("ai.models.asr.decoder_input_names", []string{"tokens", "encoder_output"})
+	viper.SetDefault("ai.models.asr.decoder_output_names", []string{"logits"})
+	viper.SetDefault("ai.models.asr.tokenizer_path", "")
+	viper.SetDefault("ai.models.asr.special_tokens_path", "")
+	viper.SetDefault("ai.models.asr.config_path", "")
+	viper.SetDefault("ai.models.asr.sample_rate", 16000)
+	viper.SetDefault("ai.models.asr.channels", 1)
 	viper.SetDefault("ai.models.asr.timeout", 30)
 	viper.SetDefault("ai.models.asr.max_concurrent", 10)
-	viper.SetDefault("ai.models.emotion.model_name", "emotion-model")
+	viper.SetDefault("ai.models.emotion.model_name", "emotion")
+	viper.SetDefault("ai.models.emotion.model_path", "")
+	viper.SetDefault("ai.models.emotion.input_name", "audio_input")
+	viper.SetDefault("ai.models.emotion.output_names", []string{"logits"})
+	viper.SetDefault("ai.models.emotion.input_type", "waveform")
+	viper.SetDefault("ai.models.emotion.labels_path", "")
+	viper.SetDefault("ai.models.emotion.sample_rate", 16000)
+	viper.SetDefault("ai.models.emotion.channels", 1)
 	viper.SetDefault("ai.models.emotion.timeout", 15)
 	viper.SetDefault("ai.models.emotion.max_concurrent", 20)
-	viper.SetDefault("ai.models.synthesis.model_name", "synthesis-model")
+	viper.SetDefault("ai.models.synthesis.model_name", "synthesis")
+	viper.SetDefault("ai.models.synthesis.model_path", "")
+	viper.SetDefault("ai.models.synthesis.input_name", "audio_input")
+	viper.SetDefault("ai.models.synthesis.output_names", []string{"synthesis_output"})
+	viper.SetDefault("ai.models.synthesis.input_type", "mel")
+	viper.SetDefault("ai.models.synthesis.sample_rate", 16000)
+	viper.SetDefault("ai.models.synthesis.channels", 1)
 	viper.SetDefault("ai.models.synthesis.timeout", 20)
 	viper.SetDefault("ai.models.synthesis.max_concurrent", 15)
 	viper.SetDefault("ai.request.max_retries", 3)
 	viper.SetDefault("ai.request.retry_delay", 1000)
 	viper.SetDefault("ai.request.timeout", 30)
-	// 传输层保护：大 payload 走 stream，限制 chunk 尺寸避免 unit-manager "json format error"
-	viper.SetDefault("ai.request.max_single_delta_len", 2048)
-	viper.SetDefault("ai.request.audio_stream_chunk_size", 1024)
-	// 进一步降低多条 JSON 粘包概率（unit-manager TCP 侧未做按行切分时会报错）
-	viper.SetDefault("ai.request.audio_stream_chunk_delay_ms", 2)
+	viper.SetDefault("ai.streaming.flush_interval_ms", 0)
+	viper.SetDefault("ai.streaming.max_buffer_ms", 10000)
 
 	// 日志默认配置
 	viper.SetDefault("log.level", "info")
@@ -436,9 +506,9 @@ func setDefaults() {
 	viper.SetDefault("services.meeting_service.host", "127.0.0.1")
 	viper.SetDefault("services.meeting_service.port", 8082)
 	viper.SetDefault("services.meeting_service.timeout", "5s")
-	viper.SetDefault("services.ai_service.host", "127.0.0.1")
-	viper.SetDefault("services.ai_service.port", 8084)
-	viper.SetDefault("services.ai_service.grpc_port", 9084)
+	viper.SetDefault("services.ai_service.host", "ai-inference-service")
+	viper.SetDefault("services.ai_service.port", 8085)
+	viper.SetDefault("services.ai_service.grpc_port", 9085)
 	viper.SetDefault("services.ai_service.timeout", "10s")
 
 	// etcd默认配置

@@ -118,7 +118,6 @@ ssh_exec "docker logs meeting-ai-service --tail 10 2>&1" || true
 echo ""
 
 log_info "Edge Model Infra 日志:"
-ssh_exec "docker logs meeting-edge-model-infra --tail 10 2>&1" || true
 echo ""
 
 # 7. 测试服务可访问性

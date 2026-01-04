@@ -1,18 +1,22 @@
 package handlers
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"meeting-system/ai-inference-service/runtime"
 	"meeting-system/ai-inference-service/services"
 	"meeting-system/shared/database"
 	"meeting-system/shared/logger"
 	"meeting-system/shared/queue"
 	"meeting-system/shared/response"
-	"meeting-system/shared/zmq"
 )
 
 // AIHandler AI 推理处理器
@@ -59,7 +63,7 @@ func (h *AIHandler) SpeechRecognition(c *gin.Context) {
 	result, err := h.aiService.SpeechRecognition(ctx, &req)
 	if err != nil {
 		logger.Error("Speech recognition failed: " + err.Error())
-		response.Error(c, http.StatusInternalServerError, "Speech recognition failed: "+err.Error())
+		respondAIError(c, err, "Speech recognition failed")
 		return
 	}
 
@@ -85,12 +89,24 @@ func (h *AIHandler) EmotionDetection(c *gin.Context) {
 		return
 	}
 
+	if req.AudioData != "" {
+		if req.Format == "" {
+			req.Format = "wav"
+		}
+		if req.SampleRate == 0 {
+			req.SampleRate = 16000
+		}
+		if req.Channels == 0 {
+			req.Channels = 1
+		}
+	}
+
 	// 执行情感检测
 	ctx := c.Request.Context()
 	result, err := h.aiService.EmotionDetection(ctx, &req)
 	if err != nil {
 		logger.Error("Emotion detection failed: " + err.Error())
-		response.Error(c, http.StatusInternalServerError, "Emotion detection failed: "+err.Error())
+		respondAIError(c, err, "Emotion detection failed")
 		return
 	}
 
@@ -129,7 +145,7 @@ func (h *AIHandler) SynthesisDetection(c *gin.Context) {
 	result, err := h.aiService.SynthesisDetection(ctx, &req)
 	if err != nil {
 		logger.Error("Synthesis detection failed: " + err.Error())
-		response.Error(c, http.StatusInternalServerError, "Synthesis detection failed: "+err.Error())
+		respondAIError(c, err, "Synthesis detection failed")
 		return
 	}
 	response.Success(c, result)
@@ -173,7 +189,7 @@ func (h *AIHandler) SetupMeeting(c *gin.Context) {
 }
 
 // Analyze 通用 AI 推理接口（客户端直连 AI 服务）
-// 通过 ZeroMQ 将 Task 对象发送到 Edge-LLM-Infra (C++) 并返回结果
+// 当前仅支持 asr/emotion/synthesis 基础任务。
 func (h *AIHandler) Analyze(c *gin.Context) {
 	var req struct {
 		TaskType  string            `json:"task_type"`
@@ -201,48 +217,105 @@ func (h *AIHandler) Analyze(c *gin.Context) {
 		payload = b
 	}
 
-	// Build AITask
-	task := &zmq.AITask{
-		TaskID:    time.Now().Format("20060102150405.000000000"),
-		TaskType:  req.TaskType,
-		ModelPath: req.ModelPath,
-		InputData: payload,
-		Params:    req.Params,
-	}
-
+	taskID := time.Now().Format("20060102150405.000000000")
 	ctx := c.Request.Context()
-	client := zmq.GetZMQClient()
-	if client == nil {
-		response.Error(c, http.StatusServiceUnavailable, "ZMQ client not initialized")
-		return
-	}
 
-	// Send task to Edge-LLM-Infra via ZeroMQ
-	aiResp, err := client.SendTask(ctx, task)
-	if err != nil {
-		logger.Error("AI analyze via ZMQ failed: " + err.Error())
-		response.Error(c, http.StatusInternalServerError, "AI analyze failed: "+err.Error())
-		return
-	}
-
-	// Publish ai_events for downstream services (meeting-service to persist)
-	if rdb := database.GetRedis(); rdb != nil {
-		pubsub := queue.NewRedisPubSubQueue(rdb)
-		_ = pubsub.Publish(ctx, "ai_events", &queue.PubSubMessage{
-			Type: "" + req.TaskType + ".completed",
-			Payload: map[string]interface{}{
-				"task_id":    task.TaskID,
-				"meeting_id": req.MeetingID,
-				"user_id":    req.UserID,
-				"result":     aiResp.Data,
-			},
+	taskType := strings.ToLower(strings.TrimSpace(req.TaskType))
+	switch taskType {
+	case "asr", "speech_recognition":
+		sampleRate := parseIntParam(req.Params, "sample_rate", 16000)
+		channels := parseIntParam(req.Params, "channels", 1)
+		format := ""
+		language := ""
+		if req.Params != nil {
+			format = strings.TrimSpace(req.Params["format"])
+			language = req.Params["language"]
+		}
+		if format == "" {
+			format = "pcm"
+		}
+		resp, err := h.aiService.SpeechRecognition(ctx, &services.ASRRequest{
+			AudioData:  req.InputData,
+			Format:     format,
+			SampleRate: sampleRate,
+			Channels:   channels,
+			Language:   language,
 		})
+		if err != nil {
+			respondAIError(c, err, "AI analyze failed")
+			return
+		}
+		publishAIEvent(ctx, taskType, taskID, req.MeetingID, req.UserID, resp)
+		response.Success(c, gin.H{"task_id": taskID, "result": resp})
+	case "emotion", "emotion_detection":
+		text := ""
+		format := ""
+		sampleRate := parseIntParam(req.Params, "sample_rate", 16000)
+		channels := parseIntParam(req.Params, "channels", 1)
+		if req.Params != nil {
+			text = strings.TrimSpace(req.Params["text"])
+			format = strings.TrimSpace(req.Params["format"])
+		}
+		if format != "" && req.InputData != "" {
+			if sampleRate == 0 {
+				sampleRate = 16000
+			}
+			if channels == 0 {
+				channels = 1
+			}
+			resp, err := h.aiService.EmotionDetection(ctx, &services.EmotionRequest{
+				AudioData:  req.InputData,
+				Format:     format,
+				SampleRate: sampleRate,
+				Channels:   channels,
+			})
+			if err != nil {
+				respondAIError(c, err, "AI analyze failed")
+				return
+			}
+			publishAIEvent(ctx, taskType, taskID, req.MeetingID, req.UserID, resp)
+			response.Success(c, gin.H{"task_id": taskID, "result": resp})
+			return
+		}
+		if text == "" && len(payload) > 0 {
+			text = strings.TrimSpace(string(payload))
+		}
+		if text == "" {
+			response.Error(c, http.StatusBadRequest, "text is required for emotion detection")
+			return
+		}
+		resp, err := h.aiService.EmotionDetection(ctx, &services.EmotionRequest{Text: text})
+		if err != nil {
+			respondAIError(c, err, "AI analyze failed")
+			return
+		}
+		publishAIEvent(ctx, taskType, taskID, req.MeetingID, req.UserID, resp)
+		response.Success(c, gin.H{"task_id": taskID, "result": resp})
+	case "synthesis", "synthesis_detection":
+		sampleRate := parseIntParam(req.Params, "sample_rate", 16000)
+		channels := parseIntParam(req.Params, "channels", 1)
+		format := ""
+		if req.Params != nil {
+			format = strings.TrimSpace(req.Params["format"])
+		}
+		if format == "" {
+			format = "pcm"
+		}
+		resp, err := h.aiService.SynthesisDetection(ctx, &services.SynthesisDetectionRequest{
+			AudioData:  req.InputData,
+			Format:     format,
+			SampleRate: sampleRate,
+			Channels:   channels,
+		})
+		if err != nil {
+			respondAIError(c, err, "AI analyze failed")
+			return
+		}
+		publishAIEvent(ctx, taskType, taskID, req.MeetingID, req.UserID, resp)
+		response.Success(c, gin.H{"task_id": taskID, "result": resp})
+	default:
+		response.Error(c, http.StatusBadRequest, "unsupported task_type: "+req.TaskType)
 	}
-
-	response.Success(c, gin.H{
-		"task_id": task.TaskID,
-		"result":  aiResp.Data,
-	})
 }
 
 // HealthCheck 健康检查接口
@@ -257,7 +330,7 @@ func (h *AIHandler) HealthCheck(c *gin.Context) {
 	ctx := c.Request.Context()
 	if err := h.aiService.HealthCheck(ctx); err != nil {
 		logger.Error("Health check failed: " + err.Error())
-		response.Error(c, http.StatusServiceUnavailable, "Service unhealthy: "+err.Error())
+		respondAIError(c, err, "Service unhealthy")
 		return
 	}
 
@@ -279,16 +352,16 @@ func (h *AIHandler) GetServiceInfo(c *gin.Context) {
 	info := gin.H{
 		"service":     "ai-inference-service",
 		"version":     "1.0.0",
-		"description": "AI Inference Service integrated with Edge-LLM-Infra",
+		"description": "AI Inference Service powered by Triton + TensorRT",
 		"capabilities": []string{
 			"speech_recognition",
 			"emotion_detection",
 			"synthesis_detection",
 		},
 		"models": gin.H{
-			"asr":       "asr-model",
-			"emotion":   "emotion-model",
-			"synthesis": "synthesis-model",
+			"asr":       "whisper",
+			"emotion":   "emotion",
+			"synthesis": "synthesis",
 		},
 		"timestamp": time.Now().Unix(),
 	}
@@ -332,6 +405,7 @@ func (h *AIHandler) BatchInference(c *gin.Context) {
 					AudioData:  getString(asrReq, "audio_data"),
 					Format:     getString(asrReq, "format"),
 					SampleRate: getInt(asrReq, "sample_rate"),
+					Channels:   getInt(asrReq, "channels"),
 					Language:   getString(asrReq, "language"),
 				}
 				resp, err := h.aiService.SpeechRecognition(ctx, req)
@@ -345,7 +419,22 @@ func (h *AIHandler) BatchInference(c *gin.Context) {
 		case "emotion":
 			if emotionReq, ok := task.Data.(map[string]interface{}); ok {
 				req := &services.EmotionRequest{
-					Text: getString(emotionReq, "text"),
+					Text:       getString(emotionReq, "text"),
+					AudioData:  getString(emotionReq, "audio_data"),
+					Format:     getString(emotionReq, "format"),
+					SampleRate: getInt(emotionReq, "sample_rate"),
+					Channels:   getInt(emotionReq, "channels"),
+				}
+				if req.AudioData != "" {
+					if req.Format == "" {
+						req.Format = "wav"
+					}
+					if req.SampleRate == 0 {
+						req.SampleRate = 16000
+					}
+					if req.Channels == 0 {
+						req.Channels = 1
+					}
 				}
 				resp, err := h.aiService.EmotionDetection(ctx, req)
 				if err != nil {
@@ -361,6 +450,7 @@ func (h *AIHandler) BatchInference(c *gin.Context) {
 					AudioData:  getString(synthesisReq, "audio_data"),
 					Format:     getString(synthesisReq, "format"),
 					SampleRate: getInt(synthesisReq, "sample_rate"),
+					Channels:   getInt(synthesisReq, "channels"),
 				}
 				resp, err := h.aiService.SynthesisDetection(ctx, req)
 				if err != nil {
@@ -422,4 +512,50 @@ func getInt(m map[string]interface{}, key string) int {
 		return int(val)
 	}
 	return 0
+}
+
+func respondAIError(c *gin.Context, err error, fallback string) {
+	if err == nil {
+		response.Error(c, http.StatusInternalServerError, fallback)
+		return
+	}
+	if errors.Is(err, runtime.ErrInferenceNotImplemented) {
+		response.Error(c, http.StatusNotImplemented, fallback+": "+err.Error())
+		return
+	}
+	if errors.Is(err, runtime.ErrModelNotLoaded) {
+		response.Error(c, http.StatusServiceUnavailable, fallback+": "+err.Error())
+		return
+	}
+	response.Error(c, http.StatusInternalServerError, fallback+": "+err.Error())
+}
+
+func parseIntParam(params map[string]string, key string, defaultValue int) int {
+	if params == nil {
+		return defaultValue
+	}
+	val := strings.TrimSpace(params[key])
+	if val == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}
+
+func publishAIEvent(ctx context.Context, taskType, taskID, meetingID, userID string, result interface{}) {
+	if rdb := database.GetRedis(); rdb != nil {
+		pubsub := queue.NewRedisPubSubQueue(rdb)
+		_ = pubsub.Publish(ctx, "ai_events", &queue.PubSubMessage{
+			Type: taskType + ".completed",
+			Payload: map[string]interface{}{
+				"task_id":    taskID,
+				"meeting_id": meetingID,
+				"user_id":    userID,
+				"result":     result,
+			},
+		})
+	}
 }

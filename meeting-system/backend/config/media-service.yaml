@@ -92,7 +92,7 @@ etcd:
 
 services:
   ai_service:
-    host: "ai-service"
-    port: 8084
-    grpc_port: 9084
+    host: "ai-inference-service"
+    port: 8085
+    grpc_port: 9085
     timeout: 10s

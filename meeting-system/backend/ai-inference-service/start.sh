@@ -35,21 +35,8 @@ echo -e "${GREEN}✓ Configuration file found${NC}"
 mkdir -p logs
 echo -e "${GREEN}✓ Log directory created${NC}"
 
-# 检查 unit-manager 是否运行
-echo -e "${YELLOW}Checking unit-manager...${NC}"
-if ! netstat -tlnp 2>/dev/null | grep -q ":19001"; then
-    echo -e "${YELLOW}⚠️  unit-manager is not running on port 19001${NC}"
-    echo -e "${YELLOW}   Please start unit-manager first:${NC}"
-    echo -e "${YELLOW}   cd /root/meeting-system-server/meeting-system/Edge-LLM-Infra-master/unit-manager/build${NC}"
-    echo -e "${YELLOW}   ./unit_manager${NC}"
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
-else
-    echo -e "${GREEN}✓ unit-manager is running${NC}"
-fi
+# 提示 Triton 依赖
+echo -e "${YELLOW}ℹ 请确保 Triton Inference Server 可访问（ai.runtime.triton.endpoint）${NC}"
 
 # 下载依赖
 echo -e "${YELLOW}Downloading dependencies...${NC}"
@@ -71,4 +58,3 @@ echo -e "${GREEN}Starting AI Inference Service...${NC}"
 echo -e "${GREEN}========================================${NC}"
 
 ./ai-inference-service --config "$CONFIG_FILE"
-

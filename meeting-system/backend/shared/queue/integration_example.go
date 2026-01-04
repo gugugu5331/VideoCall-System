@@ -102,7 +102,7 @@ func (ie *IntegrationExample) PublishAITask(taskType string, payload map[string]
 		Payload:    payload,
 		MaxRetries: 3,
 		Timeout:    30,
-		Source:     "ai-service",
+		Source:     "ai-inference-service",
 	}
 	
 	ctx := context.Background()
@@ -302,4 +302,3 @@ func RunCompleteExample(cfg *config.Config, redisClient *redis.Client) error {
 	
 	return nil
 }
-

@@ -51,7 +51,7 @@ jwt:
   secret: "meeting-system-secret-key-change-in-production"
   expire_time: 24  # 小时
 
-# ZeroMQ配置 (与Edge-LLM-Infra集成)
+# ZeroMQ配置（遗留配置，当前未使用）
 zmq:
   unit_manager_host: "localhost"
   unit_manager_port: 5001

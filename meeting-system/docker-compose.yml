@@ -391,92 +391,7 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # AI服务
-  ai-service:
-    build:
-      context: ./backend
-      dockerfile: ai-service/Dockerfile
-    container_name: meeting-ai-service
-    environment:
-      - CONFIG_PATH=/app/config/ai-service.yaml
-      - MONGODB_HOST=mongodb
-      - ZMQ_UNIT_MANAGER_HOST=edge-model-infra
-      - ZMQ_UNIT_MANAGER_PORT=10001
-      # Jaeger 追踪配置
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
-    volumes:
-      - ./backend/config:/app/config
-      - ./backend/logs:/app/logs
-      - ai_models:/app/models
-      - /tmp/llm:/tmp/llm
-    # 端口不暴露，仅通过 Nginx 访问
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - mongodb
-      - signaling-service
-      - media-service
-      - jaeger
-      - edge-model-infra
-    networks:
-      - meeting-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
-
-
-  # Edge-LLM-Infra (AI推理基础设施)
-  edge-model-infra:
-    build:
-      context: ..
-      dockerfile: meeting-system/edge-llm-infra/Dockerfile
-    container_name: meeting-edge-model-infra
-    environment:
-      - TZ=Asia/Shanghai
-      - LD_LIBRARY_PATH=/usr/local/lib
-    volumes:
-      - /models:/models:ro
-      - /tmp/llm:/tmp/llm  # IPC socket directory
-    ports:
-      - "10001:10001"  # TCP port
-      - "10002:10002"  # ZMQ port
-    networks:
-      - meeting-network
-    restart: unless-stopped
-
-  # # AI Inference Worker (Python推理节点)
-  # ai-inference-worker:
-  #   build:
-  #     context: .
-  #     dockerfile: ai-inference-service/Dockerfile
-  #   container_name: meeting-ai-inference-worker
-  #   environment:
-  #     - TZ=Asia/Shanghai
-  #     - MODEL_CACHE_DIR=/models
-  #     - TRANSFORMERS_CACHE=/models
-  #     - HF_HOME=/models
-  #     - PYTHONUNBUFFERED=1
-  #   volumes:
-  #     - /models:/models:ro
-  #     - ./ai-inference-service/logs:/app/logs
-  #     - ./ai-inference-service/temp:/app/temp
-  #     - ./ai-inference-service/results:/app/results
-  #   ports:
-  #     - "5010:5010"  # ZMQ endpoint for Edge-LLM-Infra
-  #   depends_on:
-  #     - edge-model-infra
-  #   networks:
-  #     - meeting-network
-  #   restart: unless-stopped
-
-  # AI Inference Service (Go微服务，集成Edge-LLM-Infra)
+  # AI Inference Service (Go微服务，调用 Triton/TensorRT)
   ai-inference-service:
     build:
       context: ./backend
@@ -489,9 +404,6 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ETCD_ENDPOINTS=etcd:2379
-      # ZMQ 配置（连接到宿主机的 unit-manager）
-      - ZMQ_UNIT_MANAGER_HOST=host.docker.internal
-      - ZMQ_UNIT_MANAGER_PORT=19001
       # 安全配置
       - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
@@ -532,7 +444,7 @@ services:
       - signaling-service
       - meeting-service
       - media-service
-      - ai-service
+      - ai-inference-service
     networks:
       - meeting-network
     healthcheck:
@@ -565,8 +477,6 @@ volumes:
   media_temp:
     driver: local
   recordings_data:
-    driver: local
-  ai_models:
     driver: local
   prometheus_data:
     driver: local

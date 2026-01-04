@@ -105,8 +105,8 @@ services:
     port: 8083
     timeout: 5s
   ai_service:
-    host: "ai-service"
-    port: 8084
+    host: "ai-inference-service"
+    port: 8085
     timeout: 10s
   notification_service:
     host: "notification-service"

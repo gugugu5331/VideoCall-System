@@ -20,7 +20,7 @@ graph TB
         MeetingSvc["📞 会议服务<br/>:8082 / gRPC:50052<br/>会议管理/参与者"]
         SignalSvc["📡 信令服务<br/>:8081<br/>WebSocket/媒体协商"]
         MediaSvc["🎬 媒体服务<br/>:8083<br/>SFU转发/录制"]
-        AISvc["🤖 AI服务<br/>:8084 / gRPC:9084<br/>AI分析请求"]
+        AISvc["🤖 AI推理服务<br/>:8085 / gRPC:9085<br/>AI分析请求"]
         NotifySvc["🔔 通知服务<br/>:8085<br/>邮件/短信/推送"]
     end
 
@@ -32,12 +32,10 @@ graph TB
         Discovery["服务发现"]
         Queue["消息队列"]
         Storage["存储管理"]
-        ZMQ["ZMQ通信"]
     end
 
     subgraph AILayer["🤖 AI推理层"]
-        AIInference["AI推理服务<br/>:8085<br/>模型推理/ZMQ"]
-        EdgeLLM["Edge-LLM-Infra<br/>C++推理框架<br/>GPU/CPU优化"]
+        AIInference["Triton Inference Server<br/>HTTP:8000 / gRPC:8001<br/>TensorRT/CUDA"]
     end
 
     subgraph DataLayer["💾 数据层"]
@@ -69,8 +67,7 @@ graph TB
     MeetingSvc -.->|gRPC| SignalSvc
     SignalSvc -.->|gRPC| MediaSvc
     MediaSvc -.->|gRPC| AISvc
-    AISvc -.->|ZMQ| AIInference
-    AIInference -->|C++| EdgeLLM
+    AISvc -.->|HTTP/gRPC| AIInference
 
     UserSvc --> SharedLayer
     MeetingSvc --> SharedLayer
@@ -124,8 +121,8 @@ graph TB
     class Qt6,Web,Mobile client
     class Nginx,APIGateway gateway
     class UserSvc,MeetingSvc,SignalSvc,MediaSvc,AISvc,NotifySvc service
-    class Config,Logger,Metrics,Tracing,Discovery,Queue,Storage,ZMQ shared
-    class AIInference,EdgeLLM ai
+    class Config,Logger,Metrics,Tracing,Discovery,Queue,Storage shared
+    class AIInference ai
     class PostgreSQL,Redis,MongoDB,MinIO,Etcd data
     class Prometheus,Grafana,Jaeger,Loki obs
 ```
@@ -276,13 +273,13 @@ GET    /api/v1/media/stats        # 获取媒体统计
 **依赖**:
 - MongoDB: AI 结果存储
 - Redis: 缓存、队列
-- ZMQ: 与推理节点通信
 - PostgreSQL: 配置存储
+- AI Inference Service: 推理执行（HTTP/gRPC）
 
 **通信方式**:
 - HTTP REST API
 - gRPC (服务间通信)
-- ZMQ (与推理节点通信)
+- HTTP/gRPC (与 AI 推理服务通信)
 
 **支持的 AI 功能**:
 - 语音识别 (ASR)
@@ -331,7 +328,6 @@ GET    /api/v1/media/stats        # 获取媒体统计
 | **models** | 数据模型定义 |
 | **queue** | 消息队列、Redis 操作 |
 | **storage** | 文件存储、MinIO 操作 |
-| **zmq** | ZeroMQ 通信 |
 | **discovery** | 服务发现、etcd 操作 |
 
 ---
@@ -371,11 +367,11 @@ GET    /api/v1/media/stats        # 获取媒体统计
 - 会议服务 ↔ 信令服务
 - 媒体服务 ↔ AI 服务
 
-### ZMQ 通信
+### HTTP/gRPC 通信
 
-用于 AI 服务与推理节点的异步通信:
+用于 AI 服务与 AI 推理服务的同步通信:
 - 请求/应答模式
-- 发布/订阅模式
+- gRPC 流式音频
 
 ### Redis 消息队列
 
@@ -480,22 +476,16 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant MediaSvc as 媒体服务
-    participant AISvc as AI服务
-    participant AIInference as AI推理服务
-    participant EdgeLLM as Edge-LLM-Infra
+    participant AISvc as AI推理服务(API)
+    participant AIInference as Triton 推理服务
     participant MongoDB as MongoDB
-    participant ZMQ as ZMQ
 
     MediaSvc->>AISvc: 发送分析请求(gRPC)
     AISvc->>MongoDB: 查询模型配置
     MongoDB-->>AISvc: 模型信息
 
-    AISvc->>ZMQ: 发送推理请求
-    ZMQ->>AIInference: 转发请求
-    AIInference->>EdgeLLM: 执行推理
-    EdgeLLM-->>AIInference: 推理结果
-    AIInference->>ZMQ: 返回结果
-    ZMQ-->>AISvc: 结果数据
+AISvc->>AIInference: 发起推理(HTTP/gRPC)
+AIInference-->>AISvc: 推理结果
 
     AISvc->>MongoDB: 存储分析结果
     MongoDB-->>AISvc: OK
@@ -512,7 +502,6 @@ Docker Compose 编排:
 ├── meeting-service (容器)
 ├── signaling-service (容器)
 ├── media-service (容器)
-├── ai-service (容器)
 ├── ai-inference-service (容器)
 ├── notification-service (容器)
 ├── PostgreSQL (容器)

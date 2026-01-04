@@ -105,13 +105,13 @@ func NewMediaProcessor(config *config.Config, aiClient *AIClient, ffmpegService 
 	// 尝试初始化 gRPC 客户端
 	aiHost := config.Services.AIService.Host
 	if aiHost == "" {
-		aiHost = "ai-service"
+		aiHost = "ai-inference-service"
 	}
 	aiGRPCPort := config.Services.AIService.GrpcPort
 	if aiGRPCPort == 0 {
 		aiHTTPPort := config.Services.AIService.Port
 		if aiHTTPPort == 0 {
-			aiHTTPPort = 8084
+			aiHTTPPort = 8085
 		}
 		aiGRPCPort = aiHTTPPort + 1000
 	}

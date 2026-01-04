@@ -1,5 +1,7 @@
 # AI模型部署指南
 
+> 注意：本指南针对历史的 Python/ONNX 推理链路，已不再作为默认方案。当前 Triton/TensorRT 部署请参考 `docs/DEPLOYMENT/GPU_AI_NODES.md`。
+
 ## ✅ 已完成的工作
 
 ### 1. 删除所有模拟/降级逻辑
@@ -281,4 +283,3 @@ go test -v -run TestE2EIntegration 2>&1 | tee /tmp/e2e_with_real_models.log
 ```
 
 预期所有AI模型测试成功率达到100%！
-

@@ -69,7 +69,7 @@ docker-compose ps
 
 **核心模块**:
 - **消息队列**: 基于 Redis 的分布式消息队列系统
-- **AI 推理**: 集成 Edge-LLM-Infra 的 AI 推理服务
+- **AI 推理**: 基于 Triton/TensorRT 的 AI 推理服务
 - **WebRTC SFU**: 媒体转发单元实现
 
 ---
@@ -106,7 +106,8 @@ Qt6 客户端相关的文档和指南。
 - [项目主 README](../../README.md) - 项目总体介绍
 - [后端系统 README](../README.md) - 后端详细说明
 - [Qt6 客户端 README](../../qt6-client/README.md) - 客户端文档
-- [Edge-LLM-Infra README](../Edge-LLM-Infra-master/node/llm/README.md) - AI 推理框架
+- [Triton Inference Server](https://github.com/triton-inference-server/server) - GPU 推理服务
+- [TensorRT](https://developer.nvidia.com/tensorrt) - GPU 推理加速引擎
 
 ### 外部资源
 - [Go 官方文档](https://golang.org/doc/)
@@ -193,4 +194,3 @@ A: 请参考 [API 文档](API/API_DOCUMENTATION.md) 和 [客户端 API 使用指
 **最后更新**: 2025-10-20
 **文档版本**: 1.0
 **维护者**: 开发团队
-
