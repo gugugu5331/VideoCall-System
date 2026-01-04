@@ -740,6 +740,22 @@ function startFxPipeline(sourceTrack) {
           saturation: filterMeta.saturation,
         });
 
+        if (!processed) {
+          const w = frame.displayWidth || frame.codedWidth || 640;
+          const h = frame.displayHeight || frame.codedHeight || 360;
+          const fallback = createCanvasRenderer(w, h);
+          if (fallback) {
+            renderer = fallback;
+            processed = renderer.render(frame, {
+              beautyMix: beautyStrength,
+              radius,
+              filterMode: filterMeta.mode,
+              brightness,
+              saturation: filterMeta.saturation,
+            });
+          }
+        }
+
         if (processed) {
           controller.enqueue(processed);
           frame.close();
@@ -2614,7 +2630,8 @@ async function applyLocalTracksToSfu() {
   const pc = state.sfuPc;
 
   const audioTrack = state.localStream?.getAudioTracks?.()[0] || null;
-  const videoTrack = state.screenStream?.getVideoTracks?.()[0] || state.fxProcessedTrack || state.localStream?.getVideoTracks?.()[0] || null;
+  const processedCamTrack = await ensureFxPipelineForCamera().catch(() => null);
+  const videoTrack = state.screenStream?.getVideoTracks?.()[0] || processedCamTrack || state.fxProcessedTrack || state.localStream?.getVideoTracks?.()[0] || null;
 
   if (state.sfuAudioTransceiver?.sender) {
     try {
