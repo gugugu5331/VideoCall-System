@@ -1,8 +1,6 @@
 module meeting-system/shared
 
-go 1.24.0
-
-toolchain go1.24.11
+go 1.23
 
 require (
 	github.com/alicebob/miniredis/v2 v2.35.0
@@ -18,7 +16,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/uber/jaeger-client-go v2.30.0+incompatible
-	go.etcd.io/etcd/client/v3 v3.6.5
+	go.etcd.io/etcd/client/v3 v3.5.14
 	go.mongodb.org/mongo-driver v1.17.4
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.42.0

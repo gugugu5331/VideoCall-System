@@ -153,6 +153,11 @@ code {
   overflow: hidden;
 }
 
+.card--split {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
 .card__header {
   padding: 18px 18px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -205,6 +210,27 @@ code {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.subcard--grid {
+  display: grid;
+  gap: 12px;
+}
+
+.subcard--controls .controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.controls--wrap {
+  flex-wrap: wrap;
 }
 
 .field {

@@ -26,7 +26,7 @@
         </div>
       </section>
 
-      <section id="authCard" class="card">
+      <section id="authCard" class="card card--split">
         <div class="card__header">
           <h2>登录 / 注册</h2>
           <div id="authMsg" class="msg" role="status" aria-live="polite"></div>
@@ -84,7 +84,7 @@
           </div>
 
           <div class="stack">
-            <div class="subcard">
+            <div class="subcard subcard--grid">
               <h3>创建会议</h3>
               <label class="field">
                 <span>标题</span>
@@ -103,7 +103,7 @@
               <div id="createResult" class="hint"></div>
             </div>
 
-            <div class="subcard">
+            <div class="subcard subcard--grid">
               <h3>加入会议</h3>
               <div class="row row--gap">
                 <label class="field field--grow">
@@ -115,28 +115,27 @@
               <div id="joinResult" class="hint"></div>
             </div>
 
-            <div class="subcard">
+            <div class="subcard subcard--grid subcard--controls">
               <h3>通话控制</h3>
-              <div class="row row--gap row--wrap">
+              <div class="controls">
                 <button id="startMediaBtn" class="btn btn--secondary" type="button">打开摄像头/麦克风</button>
                 <button id="leaveBtn" class="btn btn--danger" type="button" disabled>离开会议</button>
-              </div>
-              <div class="row row--gap row--wrap">
                 <button id="muteBtn" class="btn btn--ghost" type="button" disabled>静音</button>
                 <button id="videoBtn" class="btn btn--ghost" type="button" disabled>关摄像头</button>
                 <button id="screenBtn" class="btn btn--ghost" type="button" disabled>共享屏幕</button>
               </div>
-              <div class="small">
-                WS：<span id="wsState">-</span> · ICE：<span id="iceState">-</span>
+              <div class="small pillline">
+                <span class="pill pill--ghost">WS：<strong id="wsState">-</strong></span>
+                <span class="pill pill--ghost">ICE：<strong id="iceState">-</strong></span>
               </div>
             </div>
 
-            <div class="subcard">
+            <div class="subcard subcard--grid">
               <h3>参与者</h3>
               <ul id="participants" class="list"></ul>
             </div>
 
-            <div class="subcard">
+            <div class="subcard subcard--grid">
               <h3>聊天</h3>
               <div id="chatLog" class="chatlog" aria-live="polite"></div>
               <form id="chatForm" class="row row--gap">
@@ -154,9 +153,9 @@
           </div>
 
           <div class="stack">
-            <div class="subcard">
+            <div class="subcard subcard--grid">
               <h3>实时检测（当前说话人）</h3>
-              <div class="row row--gap row--wrap">
+              <div class="controls controls--wrap">
                 <button id="aiLiveToggleBtn" class="btn btn--secondary" type="button">启用实时检测</button>
                 <button id="aiLiveClearBtn" class="btn btn--ghost" type="button">清空字幕</button>
                 <button id="aiHealthBtn" class="btn btn--ghost" type="button">AI 健康检查</button>
@@ -311,6 +310,10 @@
               <label class="field">
                 <span>美颜强度 <strong id="fxBeautyVal">20</strong></span>
                 <input id="fxBeauty" type="range" min="0" max="100" value="20" />
+              </label>
+              <label class="field">
+                <span>瘦脸强度 <strong id="fxSlimVal">0</strong></span>
+                <input id="fxSlim" type="range" min="0" max="100" value="0" />
               </label>
               <div class="hint fx__hint">参数通过 H264 SEI(user_data_unregistered) 同步；仅本地渲染（SFU 不改码流）。</div>
             </div>

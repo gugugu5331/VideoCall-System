@@ -66,6 +66,8 @@ const els = {
   fxBeautyType: document.getElementById("fxBeautyType"),
   fxBeauty: document.getElementById("fxBeauty"),
   fxBeautyVal: document.getElementById("fxBeautyVal"),
+  fxSlim: document.getElementById("fxSlim"),
+  fxSlimVal: document.getElementById("fxSlimVal"),
   fxFilter: document.getElementById("fxFilter"),
   seiStatus: document.getElementById("seiStatus"),
 
@@ -159,6 +161,7 @@ const state = {
   fxFilterEnabled: false,
   fxBeautyType: "natural",
   fxBeauty: 20,
+  fxSlim: 0,
   fxFilter: "none",
   fxVersion: 1,
   fxLastInjectedVersion: 0,
@@ -171,6 +174,7 @@ const state = {
   fxProcessedTrack: null,
   fxPipelineStop: null,
   fxPipelineSourceId: null,
+  fxMirrorX: false,
 };
 
 function uuid() {
@@ -270,12 +274,19 @@ function isSafari() {
   return /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua);
 }
 
+function isAndroid() {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent || "");
+}
+
 function updateFxUI() {
   if (els.fxEnableBeauty) els.fxEnableBeauty.checked = Boolean(state.fxBeautyEnabled);
   if (els.fxEnableFilter) els.fxEnableFilter.checked = Boolean(state.fxFilterEnabled);
   if (els.fxBeautyType && els.fxBeautyType.value !== state.fxBeautyType) els.fxBeautyType.value = state.fxBeautyType;
   if (els.fxBeauty && els.fxBeauty.value !== String(state.fxBeauty)) els.fxBeauty.value = String(state.fxBeauty);
   if (els.fxBeautyVal) els.fxBeautyVal.textContent = String(state.fxBeauty);
+  if (els.fxSlim && els.fxSlim.value !== String(state.fxSlim)) els.fxSlim.value = String(state.fxSlim);
+  if (els.fxSlimVal) els.fxSlimVal.textContent = String(state.fxSlim);
   if (els.fxFilter && els.fxFilter.value !== state.fxFilter) els.fxFilter.value = state.fxFilter;
 
   const beautyDisabled = !state.fxBeautyEnabled;
@@ -286,7 +297,7 @@ function updateFxUI() {
   if (els.fxFilter) els.fxFilter.disabled = filterDisabled;
 }
 
-function setLocalFx({ beautyEnabled, filterEnabled, beautyType, beauty, filter } = {}) {
+function setLocalFx({ beautyEnabled, filterEnabled, beautyType, beauty, slim, filter } = {}) {
   let changed = false;
 
   if (typeof beautyEnabled === "boolean" && beautyEnabled !== state.fxBeautyEnabled) {
@@ -315,6 +326,14 @@ function setLocalFx({ beautyEnabled, filterEnabled, beautyType, beauty, filter }
     }
   }
 
+  if (typeof slim === "number" && Number.isFinite(slim)) {
+    const s = Math.max(0, Math.min(100, Math.round(slim)));
+    if (s !== state.fxSlim) {
+      state.fxSlim = s;
+      changed = true;
+    }
+  }
+
   if (typeof filter === "string") {
     const f = filter || "none";
     if (f !== state.fxFilter) {
@@ -336,16 +355,18 @@ function getFxForTile(tileKey) {
       filterEnabled: state.fxFilterEnabled,
       beautyType: state.fxBeautyType,
       beauty: state.fxBeauty,
+      slim: state.fxSlim,
       filter: state.fxFilter,
     };
   }
   const fx = state.fxRemote.get(tileKey);
   if (fx && typeof fx.beauty === "number" && typeof fx.filter === "string") return fx;
-  return { beautyEnabled: false, filterEnabled: false, beautyType: "natural", beauty: 0, filter: "none" };
+  return { beautyEnabled: false, filterEnabled: false, beautyType: "natural", beauty: 0, slim: 0, filter: "none" };
 }
 
 function fxToCssFilter(fx) {
   const rawBeauty = Math.max(0, Math.min(100, Number(fx?.beauty ?? 0)));
+  const rawSlim = Math.max(0, Math.min(100, Number(fx?.slim ?? 0)));
   const beautyEnabled = typeof fx?.beautyEnabled === "boolean" ? fx.beautyEnabled : rawBeauty > 0;
   const beautyType = String(fx?.beautyType || "natural");
   const beauty = beautyEnabled ? rawBeauty : 0;
@@ -408,6 +429,7 @@ function applyFxToTile(tileKey) {
 function setRemoteFx(tileKey, fx) {
   if (!tileKey) return;
   const beauty = Math.max(0, Math.min(100, Number(fx?.beauty ?? fx?.b ?? 0)));
+  const slim = Math.max(0, Math.min(100, Number(fx?.slim ?? fx?.s ?? 0)));
   const filter = String(fx?.filter ?? fx?.f ?? "none") || "none";
   const beautyEnabled =
     typeof fx?.beautyEnabled === "boolean" ? fx.beautyEnabled : typeof fx?.eb === "boolean" ? fx.eb : beauty > 0;
@@ -420,6 +442,7 @@ function setRemoteFx(tileKey, fx) {
     filterEnabled: Boolean(filterEnabled),
     beautyType: beautyType || "natural",
     beauty: Math.round(beauty),
+    slim: Math.round(slim),
     filter,
     updatedAt,
   });
@@ -435,6 +458,7 @@ function initFxControls() {
   updateFxUI();
 
   state.fxProcessingSupported = supportsFxProcessing();
+  state.fxMirrorX = isAndroid();
 
   if (els.fxEnableBeauty) {
     els.fxEnableBeauty.addEventListener("change", () => {
@@ -464,6 +488,13 @@ function initFxControls() {
   if (els.fxFilter) {
     els.fxFilter.addEventListener("change", () => {
       setLocalFx({ filter: String(els.fxFilter.value || "none") });
+    });
+  }
+
+  if (els.fxSlim) {
+    els.fxSlim.addEventListener("input", () => {
+      const v = Number(els.fxSlim.value || 0);
+      setLocalFx({ slim: v });
     });
   }
 
@@ -506,7 +537,21 @@ function createCanvasRenderer(width, height) {
       const blurPx = radius * 1.5;
       ctx.filter = `blur(${blurPx.toFixed(2)}px) brightness(${brightness.toFixed(3)}) saturate(${saturation.toFixed(3)})`;
       try {
-        ctx.drawImage(frame, 0, 0, w, h);
+        ctx.save();
+        if (params.mirrorX) {
+          ctx.translate(w, 0);
+          ctx.scale(-1, 1);
+        }
+        if (params.slim && params.slim > 0) {
+          const sx = 1 - params.slim * 0.12;
+          const sy = 1 + params.slim * 0.06;
+          ctx.translate(w / 2, h / 2);
+          ctx.scale(sx, sy);
+          ctx.drawImage(frame, -w / 2, -h / 2, w, h);
+        } else {
+          ctx.drawImage(frame, 0, 0, w, h);
+        }
+        ctx.restore();
         return new VideoFrame(canvas, { timestamp: frame.timestamp, duration: frame.duration });
       } catch {
         return null;
@@ -547,6 +592,17 @@ function createFxRenderer(width, height) {
     uniform int u_filterMode;
     uniform float u_brightness;
     uniform float u_saturation;
+    uniform float u_slim;
+
+    vec2 warpSlim(vec2 uv) {
+      if (u_slim <= 0.0) return uv;
+      vec2 c = vec2(0.5, 0.5);
+      vec2 delta = uv - c;
+      float dist = length(delta);
+      float k = 1.0 - u_slim * 0.16 * exp(-dist * 4.5);
+      delta.x *= k;
+      return c + delta;
+    }
 
     vec3 applyFilter(vec3 c) {
       if (u_filterMode == 1) { // warm
@@ -570,18 +626,19 @@ function createFxRenderer(width, height) {
     void main() {
       vec2 o = u_texel * u_radius;
       vec3 sum = vec3(0.0);
-      sum += texture2D(u_texture, v_texCoord + vec2(-o.x, -o.y)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2( 0.0, -o.y)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2( o.x, -o.y)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2(-o.x,  0.0)).rgb;
-      sum += texture2D(u_texture, v_texCoord).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2( o.x,  0.0)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2(-o.x,  o.y)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2( 0.0,  o.y)).rgb;
-      sum += texture2D(u_texture, v_texCoord + vec2( o.x,  o.y)).rgb;
+      vec2 base = warpSlim(v_texCoord);
+      sum += texture2D(u_texture, warpSlim(base + vec2(-o.x, -o.y))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2( 0.0, -o.y))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2( o.x, -o.y))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2(-o.x,  0.0))).rgb;
+      sum += texture2D(u_texture, base).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2( o.x,  0.0))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2(-o.x,  o.y))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2( 0.0,  o.y))).rgb;
+      sum += texture2D(u_texture, warpSlim(base + vec2( o.x,  o.y))).rgb;
       vec3 blur = sum / 9.0;
 
-      vec3 orig = texture2D(u_texture, v_texCoord).rgb;
+      vec3 orig = texture2D(u_texture, base).rgb;
       vec3 mixed = mix(orig, blur, clamp(u_beautyMix, 0.0, 1.0));
       vec3 filtered = applyFilter(mixed);
       filtered = adjustSaturation(filtered, u_saturation);
@@ -615,6 +672,7 @@ function createFxRenderer(width, height) {
   const uFilterMode = gl.getUniformLocation(program, "u_filterMode");
   const uBrightness = gl.getUniformLocation(program, "u_brightness");
   const uSaturation = gl.getUniformLocation(program, "u_saturation");
+  const uSlim = gl.getUniformLocation(program, "u_slim");
 
   const posBuf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
@@ -629,6 +687,14 @@ function createFxRenderer(width, height) {
   gl.bufferData(
     gl.ARRAY_BUFFER,
     new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+    gl.STATIC_DRAW,
+  );
+
+  const texBufMirror = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, texBufMirror);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([1, 0, 0, 0, 1, 1, 0, 1]),
     gl.STATIC_DRAW,
   );
 
@@ -671,7 +737,7 @@ function createFxRenderer(width, height) {
       gl.enableVertexAttribArray(posLoc);
       gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+      gl.bindBuffer(gl.ARRAY_BUFFER, params.mirrorX ? texBufMirror : texBuf);
       gl.enableVertexAttribArray(texLoc);
       gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
 
@@ -689,6 +755,7 @@ function createFxRenderer(width, height) {
       gl.uniform1i(uFilterMode, params.filterMode || 0);
       gl.uniform1f(uBrightness, params.brightness || 0);
       gl.uniform1f(uSaturation, params.saturation || 1);
+      gl.uniform1f(uSlim, Math.max(0, Math.min(1, params.slim || 0)));
 
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -762,6 +829,7 @@ function startFxPipeline(sourceTrack) {
         const radius = beautyType === "strong" ? 2.2 : beautyType === "smooth" ? 1.6 : 1.1;
         const filterMeta = mapFilterMode(state.fxFilter, state.fxFilterEnabled);
         const brightness = (beautyType === "strong" ? 0.08 : beautyType === "smooth" ? 0.06 : 0.04) * beautyStrength + filterMeta.brightness;
+        const slimStrength = Math.max(0, Math.min(1, state.fxSlim / 100));
 
         const processed = renderer.render(frame, {
           beautyMix: beautyStrength,
@@ -769,6 +837,8 @@ function startFxPipeline(sourceTrack) {
           filterMode: filterMeta.mode,
           brightness,
           saturation: filterMeta.saturation,
+          mirrorX: state.fxMirrorX,
+          slim: slimStrength,
         });
 
         if (!processed) {
@@ -783,6 +853,8 @@ function startFxPipeline(sourceTrack) {
               filterMode: filterMeta.mode,
               brightness,
               saturation: filterMeta.saturation,
+              mirrorX: state.fxMirrorX,
+              slim: slimStrength,
             });
           }
         }
@@ -2400,6 +2472,7 @@ function buildFxSeiNal() {
     ef: Boolean(state.fxFilterEnabled),
     bt: String(state.fxBeautyType || "natural"),
     b: state.fxBeautyEnabled ? state.fxBeauty : 0,
+    s: state.fxSlim || 0,
     f: state.fxFilterEnabled ? state.fxFilter : "none",
     t: Date.now(),
   };
