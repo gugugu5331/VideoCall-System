@@ -28,19 +28,6 @@ docker compose up -d   # 需 Docker 20+ / Compose 2+
 
 > 生产环境请通过环境变量设置 `JWT_SECRET`、允许的 CORS 源和 TLS 证书（位于 `meeting-system/nginx/ssl/`）。
 
-## 📁 仓库结构（当前实际）
-
-```
-VideoCall-System/
-├── meeting-system/          # 主项目（微服务、前端静态资源、文档、运维脚本）
-│   ├── backend/             # Go 微服务代码
-│   ├── frontend/dist        # 预构建 Web 客户端
-│   ├── nginx/               # 网关配置
-│   ├── docs/                # 项目文档
-│   └── docker-compose.yml   # 默认编排
-├── clash-for-linux-install/ # 独立的 Clash 安装脚本（与会议系统无依赖）
-└── 其他音视频示例/证书文件   # 开发用样例文件
-```
 
 ## 🔌 主要能力
 
