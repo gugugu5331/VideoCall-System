@@ -2,7 +2,7 @@
 
 企业级 WebRTC 会议系统，提供安全的音视频会议、AI 语音识别/情感/合成检测，支持容器化一键启动。项目当前包含后端微服务、预构建的 Web 客户端（`meeting-system/frontend/dist`），以及完整的运维监控栈；不再包含 Qt6 客户端或其他未提交的子项目。
 
-## 🏗️ 当前架构（与仓库一致）
+## 🏗️ 当前架构
 
 - **网关**：Nginx（HTTP/HTTPS，端口 `8800/443`）
 - **微服务**：`user-service` (8080)、`signaling-service` (8081)、`meeting-service` (8082)、`media-service` (8083)、`ai-inference-service` (8085)
@@ -46,12 +46,4 @@ docker compose up -d   # 需 Docker 20+ / Compose 2+
 - 开发与测试：`meeting-system/docs/DEVELOPMENT/README.md`
 - Web 客户端：`meeting-system/docs/CLIENT/README.md`
 
-## 🤝 贡献
 
-1. 在 `meeting-system` 下开发，运行 `docker compose up -d` 拉起依赖。
-2. 提交前运行相关测试脚本（见 `backend/tests` 目录）。
-3. 提交 PR 时请附变更说明和必要的配置/部署注意事项。
-
-## 📄 许可证
-
-MIT License。详见 `LICENSE`（若无，请与仓库所有者确认）。
