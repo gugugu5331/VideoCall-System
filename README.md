@@ -1,7 +1,7 @@
 # 🎥 Meeting System - 后端与运维说明
 
 
-
+## 演示地址：https://www.safemeeting.top
 ## ⚡ 架构概览
 
 - **网关**：Nginx（HTTP 8800/HTTPS 443，静态前端与反向代理）
