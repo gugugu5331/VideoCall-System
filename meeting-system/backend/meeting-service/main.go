@@ -116,25 +116,20 @@ func main() {
 		}
 	}()
 
-	// 初始化消息队列系统
-	var queueManager *queue.QueueManager
-	if redisInitialized {
-		logger.Info("Initializing message queue system...")
-		log.Println("Initializing message queue system...")
-		redisClient := database.GetRedis()
-		var err error
-		queueManager, err = queue.InitializeQueueSystem(cfg, redisClient)
-		if err != nil {
-			logger.Warn("Failed to initialize queue system: " + err.Error())
-			log.Printf("Failed to initialize queue system: %v", err)
-		} else {
-			defer queueManager.Stop()
-			logger.Info("Message queue system initialized successfully")
-			log.Println("Message queue system initialized successfully")
+	// 初始化消息队列系统（Kafka 优先）
+	logger.Info("Initializing message queue system...")
+	log.Println("Initializing message queue system...")
+	queueManager, err := queue.InitializeQueueSystem(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize queue system: " + err.Error())
+		log.Printf("Failed to initialize queue system: %v", err)
+	} else {
+		defer queueManager.Stop()
+		logger.Info("Message queue system initialized successfully")
+		log.Println("Message queue system initialized successfully")
 
-			// 注册会议任务处理器
-			registerMeetingTaskHandlers(queueManager)
-		}
+		// 注册会议任务处理器
+		registerMeetingTaskHandlers(queueManager)
 	}
 
 	// 跳过MongoDB初始化（可选功能）
@@ -372,10 +367,10 @@ func setupRoutes(r *gin.Engine, meetingHandler *handlers.MeetingHandler) {
 func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 	logger.Info("Registering meeting task handlers...")
 
-	// 注册Redis消息队列处理器
-	if redisQueue := qm.GetRedisMessageQueue(); redisQueue != nil {
+	// 注册Kafka消息队列处理器
+	if kafkaQueue := qm.GetKafkaMessageQueue(); kafkaQueue != nil {
 		// 会议创建任务
-		redisQueue.RegisterHandler("meeting_create", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("meeting_create", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing meeting create task: %s", msg.ID))
 
 			// 从payload中获取会议信息
@@ -383,7 +378,7 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Creating meeting: %+v", meetingData))
 
 			// 发布会议创建完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "meeting_events", &queue.PubSubMessage{
 					Type: "meeting.created",
 					Payload: map[string]interface{}{
@@ -398,14 +393,14 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 会议结束任务
-		redisQueue.RegisterHandler("meeting_end", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("meeting_end", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing meeting end task: %s", msg.ID))
 
 			meetingID := msg.Payload["meeting_id"]
 			logger.Info(fmt.Sprintf("Ending meeting: %v", meetingID))
 
 			// 发布会议结束事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "meeting_events", &queue.PubSubMessage{
 					Type: "meeting.ended",
 					Payload: map[string]interface{}{
@@ -420,7 +415,7 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 用户加入会议任务
-		redisQueue.RegisterHandler("meeting_user_join", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("meeting_user_join", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user join task: %s", msg.ID))
 
 			meetingID := msg.Payload["meeting_id"]
@@ -429,7 +424,7 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("User %v joining meeting %v", userID, meetingID))
 
 			// 发布用户加入事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "meeting_events", &queue.PubSubMessage{
 					Type: "meeting.user_joined",
 					Payload: map[string]interface{}{
@@ -444,7 +439,7 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 用户离开会议任务
-		redisQueue.RegisterHandler("meeting_user_leave", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("meeting_user_leave", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user leave task: %s", msg.ID))
 
 			meetingID := msg.Payload["meeting_id"]
@@ -453,7 +448,7 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("User %v leaving meeting %v", userID, meetingID))
 
 			// 发布用户离开事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "meeting_events", &queue.PubSubMessage{
 					Type: "meeting.user_left",
 					Payload: map[string]interface{}{
@@ -467,11 +462,11 @@ func registerMeetingTaskHandlers(qm *queue.QueueManager) {
 			return nil
 		})
 
-		logger.Info("Redis message queue handlers registered")
+		logger.Info("Kafka message queue handlers registered")
 	}
 
 	// 注册发布订阅处理器
-	if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+	if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 		// 订阅AI事件
 		pubsub.Subscribe("ai_events", func(ctx context.Context, msg *queue.PubSubMessage) error {
 			logger.Info(fmt.Sprintf("Received AI event: %s", msg.Type))

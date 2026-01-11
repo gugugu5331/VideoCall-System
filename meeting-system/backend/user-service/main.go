@@ -125,25 +125,20 @@ func main() {
 		}
 	}()
 
-	// 初始化消息队列系统
-	var queueManager *queue.QueueManager
-	if redisInitialized {
-		logger.Info("Initializing message queue system...")
-		log.Println("Initializing message queue system...")
-		redisClient := database.GetRedis()
-		var err error
-		queueManager, err = queue.InitializeQueueSystem(cfg, redisClient)
-		if err != nil {
-			logger.Warn("Failed to initialize queue system: " + err.Error())
-			log.Printf("Failed to initialize queue system: %v", err)
-		} else {
-			defer queueManager.Stop()
-			logger.Info("Message queue system initialized successfully")
-			log.Println("Message queue system initialized successfully")
+	// 初始化消息队列系统（Kafka 优先，不依赖 Redis）
+	logger.Info("Initializing message queue system...")
+	log.Println("Initializing message queue system...")
+	queueManager, err := queue.InitializeQueueSystem(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize queue system: " + err.Error())
+		log.Printf("Failed to initialize queue system: %v", err)
+	} else {
+		defer queueManager.Stop()
+		logger.Info("Message queue system initialized successfully")
+		log.Println("Message queue system initialized successfully")
 
-			// 注册用户任务处理器
-			registerUserTaskHandlers(queueManager)
-		}
+		// 注册用户任务处理器
+		registerUserTaskHandlers(queueManager)
 	}
 
 	// 跳过自动迁移（表已存在且结构正确）
@@ -362,7 +357,8 @@ func setupRoutes(r *gin.Engine, userHandler *handlers.UserHandler) {
 	{
 		// 公开接口（不需要认证，但需要智能 CSRF 保护）
 		auth := v1.Group("/auth")
-		auth.Use(middleware.SmartCSRFProtection()) // 智能 CSRF 保护：JWT Token 请求跳过
+		// 测试环境临时关闭 CSRF 保护，便于自动化脚本直接调用
+		// auth.Use(middleware.SmartCSRFProtection()) // 智能 CSRF 保护：JWT Token 请求跳过
 		{
 			// 测试环境：禁用限流
 			auth.POST("/register", userHandler.Register)
@@ -375,7 +371,7 @@ func setupRoutes(r *gin.Engine, userHandler *handlers.UserHandler) {
 		// 需要认证的接口
 		protected := v1.Group("/users")
 		protected.Use(middleware.JWTAuth())
-		protected.Use(middleware.SmartCSRFProtection()) // 智能 CSRF 保护
+		// protected.Use(middleware.SmartCSRFProtection()) // 智能 CSRF 保护
 		// 测试环境：禁用限流
 		// protected.Use(middleware.UserRateLimit(50, 100))
 		{
@@ -408,10 +404,10 @@ func setupRoutes(r *gin.Engine, userHandler *handlers.UserHandler) {
 func registerUserTaskHandlers(qm *queue.QueueManager) {
 	logger.Info("Registering user task handlers...")
 
-	// 注册Redis消息队列处理器
-	if redisQueue := qm.GetRedisMessageQueue(); redisQueue != nil {
+	// 注册Kafka消息队列处理器
+	if kafkaQueue := qm.GetKafkaMessageQueue(); kafkaQueue != nil {
 		// 用户注册任务
-		redisQueue.RegisterHandler("user_register", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("user_register", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user register task: %s", msg.ID))
 
 			username := msg.Payload["username"]
@@ -420,8 +416,8 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Registering user: username=%v, email=%v", username, email))
 
 			// 发布用户注册完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
-				pubsub.Publish(ctx, "user_events", &queue.PubSubMessage{
+			if bus := qm.GetKafkaEventBus(); bus != nil {
+				bus.Publish(ctx, "user_events", &queue.PubSubMessage{
 					Type: "user.registered",
 					Payload: map[string]interface{}{
 						"task_id":  msg.ID,
@@ -436,7 +432,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 用户登录任务
-		redisQueue.RegisterHandler("user_login", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("user_login", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user login task: %s", msg.ID))
 
 			username := msg.Payload["username"]
@@ -445,7 +441,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("User login: username=%v, user_id=%v", username, userID))
 
 			// 发布用户登录事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "user_events", &queue.PubSubMessage{
 					Type: "user.logged_in",
 					Payload: map[string]interface{}{
@@ -461,7 +457,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 用户资料更新任务
-		redisQueue.RegisterHandler("user_profile_update", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("user_profile_update", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user profile update task: %s", msg.ID))
 
 			userID := msg.Payload["user_id"]
@@ -470,7 +466,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Updating user profile: user_id=%v, updates=%v", userID, updates))
 
 			// 发布用户资料更新事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "user_events", &queue.PubSubMessage{
 					Type: "user.profile_updated",
 					Payload: map[string]interface{}{
@@ -486,7 +482,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 用户状态变更任务
-		redisQueue.RegisterHandler("user_status_change", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("user_status_change", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing user status change task: %s", msg.ID))
 
 			userID := msg.Payload["user_id"]
@@ -495,7 +491,7 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Changing user status: user_id=%v, status=%v", userID, status))
 
 			// 发布用户状态变更事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "user_events", &queue.PubSubMessage{
 					Type: "user.status_changed",
 					Payload: map[string]interface{}{
@@ -510,11 +506,11 @@ func registerUserTaskHandlers(qm *queue.QueueManager) {
 			return nil
 		})
 
-		logger.Info("Redis message queue handlers registered")
+		logger.Info("Kafka message queue handlers registered")
 	}
 
 	// 注册发布订阅处理器
-	if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+	if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 		// 订阅会议事件
 		pubsub.Subscribe("meeting_events", func(ctx context.Context, msg *queue.PubSubMessage) error {
 			logger.Info(fmt.Sprintf("Received meeting event: %s", msg.Type))

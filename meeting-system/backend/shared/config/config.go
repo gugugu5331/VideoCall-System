@@ -17,6 +17,7 @@ type Config struct {
 	GRPC           GRPCConfig           `mapstructure:"grpc"`
 	Database       DatabaseConfig       `mapstructure:"database"`
 	Redis          RedisConfig          `mapstructure:"redis"`
+	Kafka          KafkaConfig          `mapstructure:"kafka"`
 	MongoDB        MongoConfig          `mapstructure:"mongodb"`
 	MinIO          MinIOConfig          `mapstructure:"minio"`
 	JWT            JWTConfig            `mapstructure:"jwt"`
@@ -74,6 +75,30 @@ type RedisConfig struct {
 	RoomPrefix    string `mapstructure:"room_prefix"`
 	MessagePrefix string `mapstructure:"message_prefix"`
 	SessionTTL    int    `mapstructure:"session_ttl"`
+}
+
+// KafkaConfig Kafka 配置
+type KafkaConfig struct {
+	Enabled     bool            `mapstructure:"enabled"`
+	Brokers     []string        `mapstructure:"brokers"`
+	TopicPrefix string          `mapstructure:"topic_prefix"`
+	GroupID     string          `mapstructure:"group_id"`
+	SASL        KafkaSASLConfig `mapstructure:"sasl"`
+	TLS         KafkaTLSConfig  `mapstructure:"tls"`
+}
+
+// KafkaSASLConfig SASL 认证配置
+type KafkaSASLConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	Mechanism string `mapstructure:"mechanism"` // 目前支持 PLAIN
+	Username  string `mapstructure:"username"`
+	Password  string `mapstructure:"password"`
+}
+
+// KafkaTLSConfig TLS 配置
+type KafkaTLSConfig struct {
+	Enabled            bool `mapstructure:"enabled"`
+	InsecureSkipVerify bool `mapstructure:"insecure_skip_verify"`
 }
 
 // MongoConfig MongoDB配置
@@ -300,7 +325,7 @@ type EtcdConfig struct {
 // MessageQueueConfig 消息队列配置
 type MessageQueueConfig struct {
 	Enabled               bool   `mapstructure:"enabled"`
-	Type                  string `mapstructure:"type"` // redis, memory
+	Type                  string `mapstructure:"type"` // kafka, memory
 	QueueName             string `mapstructure:"queue_name"`
 	Workers               int    `mapstructure:"workers"`
 	VisibilityTimeout     int    `mapstructure:"visibility_timeout"` // 秒
@@ -320,7 +345,7 @@ type TaskSchedulerConfig struct {
 // EventBusConfig 事件总线配置
 type EventBusConfig struct {
 	Enabled    bool   `mapstructure:"enabled"`
-	Type       string `mapstructure:"type"` // redis_pubsub, local
+	Type       string `mapstructure:"type"` // kafka, local
 	BufferSize int    `mapstructure:"buffer_size"`
 	Workers    int    `mapstructure:"workers"`
 }
@@ -376,6 +401,21 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
+	// 显式处理 KAFKA_BROKERS（逗号分隔）
+	if brokersEnv := strings.TrimSpace(viper.GetString("KAFKA_BROKERS")); brokersEnv != "" {
+		parts := strings.Split(brokersEnv, ",")
+		brokers := make([]string, 0, len(parts))
+		for _, part := range parts {
+			value := strings.TrimSpace(part)
+			if value != "" {
+				brokers = append(brokers, value)
+			}
+		}
+		if len(brokers) > 0 {
+			config.Kafka.Brokers = brokers
+		}
+	}
+
 	// 优先从环境变量读取JWT密钥
 	if jwtSecret := viper.GetString("JWT_SECRET"); jwtSecret != "" {
 		config.JWT.Secret = jwtSecret
@@ -422,6 +462,18 @@ func setDefaults() {
 	viper.SetDefault("redis.password", "")
 	viper.SetDefault("redis.db", 0)
 	viper.SetDefault("redis.pool_size", 10)
+
+	// Kafka 默认配置（仅队列/事件总线使用）
+	viper.SetDefault("kafka.enabled", true)
+	viper.SetDefault("kafka.brokers", []string{"kafka:9092"})
+	viper.SetDefault("kafka.topic_prefix", "meeting")
+	viper.SetDefault("kafka.group_id", "meeting-system")
+	viper.SetDefault("kafka.sasl.enabled", false)
+	viper.SetDefault("kafka.sasl.mechanism", "PLAIN")
+	viper.SetDefault("kafka.sasl.username", "")
+	viper.SetDefault("kafka.sasl.password", "")
+	viper.SetDefault("kafka.tls.enabled", false)
+	viper.SetDefault("kafka.tls.insecure_skip_verify", false)
 
 	// MongoDB默认配置
 	viper.SetDefault("mongodb.uri", "mongodb://localhost:27017")
@@ -532,7 +584,7 @@ func setDefaults() {
 
 	// 消息队列默认配置
 	viper.SetDefault("message_queue.enabled", true)
-	viper.SetDefault("message_queue.type", "redis")
+	viper.SetDefault("message_queue.type", "kafka")
 	viper.SetDefault("message_queue.queue_name", "meeting_system")
 	viper.SetDefault("message_queue.workers", 4)
 	viper.SetDefault("message_queue.visibility_timeout", 30)
@@ -548,7 +600,7 @@ func setDefaults() {
 
 	// 事件总线默认配置
 	viper.SetDefault("event_bus.enabled", true)
-	viper.SetDefault("event_bus.type", "redis_pubsub")
+	viper.SetDefault("event_bus.type", "kafka")
 	viper.SetDefault("event_bus.buffer_size", 1000)
 	viper.SetDefault("event_bus.workers", 4)
 

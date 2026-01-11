@@ -1,49 +1,49 @@
 # Web 客户端通信设计
 
-适用于当前 Web 前端（`frontend/dist`）与后端微服务的通信方式，覆盖 HTTP、WebSocket、WebRTC 与 AI 请求。
+面向当前 Web 前端（`frontend/dist`），涵盖 HTTP、WebSocket、WebRTC 与可选的 AI 请求。
 
 ## 总览
 
 ```
-Browser (Web UI)
-  ├─ HTTP(S) → Nginx → user/meeting/media/ai services
+Browser
+  ├─ HTTP(S) → Nginx → user/meeting/media/ai
   ├─ WebSocket → Nginx → signaling-service (/ws/signaling)
-  └─ WebRTC (P2P/SFU) → 通过信令协商媒体
+  └─ WebRTC → P2P/SFU（通过信令协商）
 ```
 
-- **基址**：同源 `window.location.origin`（默认 `http://localhost:8800`）。
-- **认证**：JWT Bearer；CSRF Token `GET /api/v1/csrf-token`（stateful 变更接口使用 `X-CSRF-Token`）。
-- **错误处理**：响应包含 `code`/`message`，HTTP 非 2xx 视为失败。
+- **基址**：`window.location.origin`（默认 `http://localhost:8800`）
+- **认证**：JWT `Authorization: Bearer <token>`；变更接口可带 `X-CSRF-Token`
+- **错误格式**：`{code, message, data}`，HTTP 非 2xx 视为失败
 
 ## HTTP API
 
 - 用户：`/api/v1/auth/*`、`/api/v1/users/*`、`/api/v1/admin/users/*`
 - 会议：`/api/v1/meetings/*`、`/api/v1/my/*`、`/api/v1/admin/meetings/*`
 - 媒体/录制：`/api/v1/media/*`、`/api/v1/recording/*`、`/api/v1/webrtc/*`、`/api/v1/ffmpeg/*`
-- AI 推理：`/api/v1/ai/{health,info,asr,emotion,synthesis,setup,batch,analyze}`
+- AI（可选）：`/api/v1/ai/{health,info,asr,emotion,synthesis,setup,batch,analyze}`
 
-`app.js` 的 `apiFetch` 封装了默认头、JWT、可选 CSRF 与超时。
+请求统一走同源相对路径，默认 JSON；上传接口按需使用表单/文件流。
 
 ## WebSocket 信令
 
 - URL：`ws(s)://<host>/ws/signaling?user_id=<uid>&meeting_id=<mid>&peer_id=<uuid>&token=<jwt>`
-- 消息结构：`{id, type, peer_id, payload}`，`type` 对应 `WS_TYPES`（JOIN/OFFER/ANSWER/ICE/LEAVE/CHAT 等）。
-- 服务器广播房间事件和错误；前端维护 `wsState`、心跳与重连提示。
+- 消息结构：`{id, type, peer_id, payload}`，`type` 取值与前端 `WS_TYPES` 对应（JOIN/OFFER/ANSWER/ICE/LEAVE/CHAT 等）
+- 心跳/重连：前端维护基本心跳和状态提示，后端 Redis 持久化房间状态
 
 ## WebRTC 媒体
 
-- ICE/STUN/TURN：来自 `signaling-service` 配置（`backend/config/signaling-service.yaml`），前端在 `join` 后获取并应用。
-- SDP/ICE 交换：通过 WebSocket 消息 `OFFER/ANSWER/ICE`。
-- 媒体控制：本地按钮控制音视频/屏幕共享，信令仅传输必要控制与聊天。
+- ICE/STUN/TURN 配置来自 `signaling-service`（`backend/config/signaling-service.yaml`）
+- SDP/ICE 通过 WS 交换；浏览器直接建立 P2P/SFU 连接
+- 录制与媒资由 `media-service` 提供独立接口，不依赖信令通道
 
-## AI 请求
+## AI 请求（可选）
 
-- 实时检测：录制当前说话人音频，定期调用 `/api/v1/ai/{asr,emotion,synthesis}`。
-- 手动检测：文件上传/文本输入触发对应 API。
-- 健康/信息：`/api/v1/ai/health`、`/api/v1/ai/info`。
+- 实时或手动调用 `/api/v1/ai/{asr,emotion,synthesis}`，音频以 base64（WAV/PCM）提交
+- 健康/信息：`/api/v1/ai/{health,info}`
+- 上游依赖 `ai-inference-service` + Triton；未部署时前端应禁用相关按钮
 
-## 安全与部署注意
+## 安全与部署提示
 
-- 生产启用 HTTPS；否则浏览器可能拒绝 `getUserMedia`。
-- 必须在后端设置强 `JWT_SECRET`，调整 `ALLOWED_ORIGINS` 以匹配实际域名。
-- 若 AI 节点独立部署，更新 Nginx `ai_inference_service` 上游配置。
+- 生产必须启用 HTTPS，确保 `getUserMedia` 和 WebRTC 正常工作
+- 与后端保持同源，调整域名/端口时更新 Nginx 反代即可
+- JWT 秘钥不一致会导致 401/403；如跨域访问需同步调整 `ALLOWED_ORIGINS`

@@ -1,374 +1,81 @@
-# 💾 数据库架构设计
+# 💾 数据与存储设计
 
-## 📊 数据库总览
+> 权威 schema 位于 `backend/shared/database/schema.sql`。本页概述各存储的职责、关键表与约定，便于对照服务实现。
 
-```mermaid
-graph TB
-    subgraph PostgreSQL["🗄️ PostgreSQL (主数据库)"]
-        Users["👤 Users<br/>用户账户信息"]
-        Meetings["📞 Meetings<br/>会议信息"]
-        Participants["👥 Participants<br/>参与者信息"]
-        Recordings["📹 Recordings<br/>录制元数据"]
-        MediaStreams["📡 MediaStreams<br/>媒体流信息"]
-        Permissions["🔐 Permissions<br/>权限配置"]
-    end
+## 总览
 
-    subgraph Redis["⚡ Redis (缓存/队列)"]
-        Sessions["🔑 Sessions<br/>用户会话"]
-        RoomCache["🏠 RoomCache<br/>房间状态"]
-        MessageQueue["📨 MessageQueue<br/>消息队列"]
-        Cache["💾 Cache<br/>数据缓存"]
-        Locks["🔒 Locks<br/>分布式锁"]
-    end
+- **PostgreSQL**：核心业务数据（用户、会议、信令、录制、配置、AI 任务）。
+- **Redis**：会话/房间状态缓存、速率限制、短期数据。
+- **Kafka**：任务队列与事件总线（主题前缀 `meeting.*`，配置见 `backend/config/*.yaml`）。
+- **MinIO**：录制文件、媒资上传、头像等对象。
+- **MongoDB**：AI 结果或分析数据（可选）。
+- **etcd**：服务注册/配置命名空间（仅内部使用）。
 
-    subgraph MongoDB["📊 MongoDB (AI数据)"]
-        AIResults["🤖 AIResults<br/>推理结果"]
-        AnalysisData["📈 AnalysisData<br/>分析数据"]
-        ChatHistory["💬 ChatHistory<br/>聊天记录"]
-        Logs["📝 Logs<br/>日志数据"]
-    end
+## PostgreSQL 主要表
 
-    subgraph MinIO["📦 MinIO (对象存储)"]
-        Recordings_Files["📹 Recordings<br/>录制文件"]
-        MediaFiles["🎬 MediaFiles<br/>媒体文件"]
-        Avatars["👤 Avatars<br/>用户头像"]
-        Documents["📄 Documents<br/>文档资料"]
-    end
+| 表 | 用途 | 关键字段/索引 |
+| --- | --- | --- |
+| `users` | 用户账号、角色、状态 | `username`/`email` 唯一；`role`/`status` 索引 |
+| `meetings` | 会议基本信息/设置 | `creator_id`、`status`、`start_time` 索引 |
+| `meeting_participants` | 参会者关系 | `(meeting_id, user_id)` 唯一；状态/角色索引 |
+| `meeting_rooms` | WebRTC 房间/节点 | `room_id` 唯一，`status`/`meeting_id` 索引 |
+| `media_streams` | 音视频流元数据 | `room_id`/`user_id`/`stream_type` 索引 |
+| `meeting_recordings` | 录制文件元数据 | `meeting_id`/`status` 索引，记录路径/时长/格式 |
+| `signaling_sessions` | WS 会话/房间状态快照 | `session_id` 唯一，`meeting_id`/`status` 索引 |
+| `signaling_messages` | 部分信令/聊天持久化 | `message_id` 唯一，`meeting_id`/`from_user_id` 索引 |
+| `ai_tasks` | AI 推理任务追踪 | `task_id` 唯一，`task_type`/`status`/`priority` 索引 |
+| `system_configs` | 运行时配置键值 | `config_key` 唯一，公共配置标记 |
+| `operation_logs` | 管理/操作审计 | `user_id`、资源类型/ID、时间索引 |
+| 视图 `active_meetings_stats` | 活跃会议统计 | 便于报表/监控 |
 
-    subgraph Etcd["🔧 etcd (配置/发现)"]
-        ServiceRegistry["📍 ServiceRegistry<br/>服务注册"]
-        Config["⚙️ Config<br/>配置信息"]
-        Locks_Etcd["🔒 Locks<br/>分布式锁"]
-    end
+所有表包含 `created_at/updated_at` 触发器，部分表具备软删除列 `deleted_at`。
 
-    Users -.->|缓存| Sessions
-    Meetings -.->|缓存| RoomCache
-    Recordings -.->|存储| Recordings_Files
-    MediaStreams -.->|存储| MediaFiles
-    AIResults -.->|查询| AnalysisData
-    Avatars -.->|存储| Avatars
+## Redis 约定
 
-    classDef postgres fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef redis fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef mongo fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef minio fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    classDef etcd fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+- **会话/房间**：`session:{id}`、`room:{meeting_id}`，保存当前参会者/心跳；TTL 按场景设置（会议房间默认天级）。
+- **限流/锁**：按需在服务配置启用，键格式 `rate:{user}`、`lock:{resource}`。
+- **缓存**：热点会议/用户信息短期缓存；写后更新或依赖 TTL 自动失效。
 
-    class Users,Meetings,Participants,Recordings,MediaStreams,Permissions postgres
-    class Sessions,RoomCache,MessageQueue,Cache,Locks redis
-    class AIResults,AnalysisData,ChatHistory,Logs mongo
-    class Recordings_Files,MediaFiles,Avatars,Documents minio
-    class ServiceRegistry,Config,Locks_Etcd etcd
-```
+## Kafka 主题（队列/事件）
 
----
+- `meeting.tasks` / `meeting.tasks.dlq`：任务队列与死信。
+- `meeting.system_events` 等自定义事件主题：由 `kafka.topic_prefix` 控制。
+- 消费组、重试与优先级由 `backend/shared/queue` 管理，使用时参考 `docs/DEVELOPMENT/TASK_DISPATCHER_GUIDE.md`。
 
-## 🗄️ PostgreSQL 数据库设计
-
-### 用户表 (users)
-
-```sql
-CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
-    username VARCHAR(255) UNIQUE NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    full_name VARCHAR(255),
-    avatar_url VARCHAR(512),
-    status VARCHAR(50) DEFAULT 'active',
-    role VARCHAR(50) DEFAULT 'user',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_username ON users(username);
-```
-
-### 会议表 (meetings)
-
-```sql
-CREATE TABLE meetings (
-    id BIGSERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    creator_id BIGINT NOT NULL REFERENCES users(id),
-    status VARCHAR(50) DEFAULT 'scheduled',
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP,
-    max_participants INT DEFAULT 100,
-    is_recording BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP
-);
-
-CREATE INDEX idx_meetings_creator_id ON meetings(creator_id);
-CREATE INDEX idx_meetings_status ON meetings(status);
-CREATE INDEX idx_meetings_start_time ON meetings(start_time);
-```
-
-### 参与者表 (meeting_participants)
-
-```sql
-CREATE TABLE meeting_participants (
-    id BIGSERIAL PRIMARY KEY,
-    meeting_id BIGINT NOT NULL REFERENCES meetings(id),
-    user_id BIGINT NOT NULL REFERENCES users(id),
-    join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    leave_time TIMESTAMP,
-    role VARCHAR(50) DEFAULT 'participant',
-    is_muted BOOLEAN DEFAULT FALSE,
-    is_video_on BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_participants_meeting_id ON meeting_participants(meeting_id);
-CREATE INDEX idx_participants_user_id ON meeting_participants(user_id);
-CREATE UNIQUE INDEX idx_participants_unique ON meeting_participants(meeting_id, user_id);
-```
-
-### 录制表 (meeting_recordings)
-
-```sql
-CREATE TABLE meeting_recordings (
-    id BIGSERIAL PRIMARY KEY,
-    meeting_id BIGINT NOT NULL REFERENCES meetings(id),
-    file_path VARCHAR(512) NOT NULL,
-    file_size BIGINT,
-    duration INT,
-    format VARCHAR(50),
-    status VARCHAR(50) DEFAULT 'processing',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_recordings_meeting_id ON meeting_recordings(meeting_id);
-CREATE INDEX idx_recordings_status ON meeting_recordings(status);
-```
-
-### 媒体流表 (media_streams)
-
-```sql
-CREATE TABLE media_streams (
-    id BIGSERIAL PRIMARY KEY,
-    meeting_id BIGINT NOT NULL REFERENCES meetings(id),
-    participant_id BIGINT NOT NULL REFERENCES meeting_participants(id),
-    stream_type VARCHAR(50),
-    codec VARCHAR(50),
-    bitrate INT,
-    resolution VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_streams_meeting_id ON media_streams(meeting_id);
-CREATE INDEX idx_streams_participant_id ON media_streams(participant_id);
-```
-
----
-
-## ⚡ Redis 数据结构
-
-### Session 存储
-
-```
-Key: session:{session_id}
-Value: {
-    user_id: 123,
-    username: "john_doe",
-    email: "john@example.com",
-    login_time: 1234567890,
-    last_activity: 1234567890
-}
-TTL: 3600 (1小时)
-```
-
-### 房间状态
-
-```
-Key: room:{room_id}
-Value: {
-    meeting_id: 456,
-    participants: [user_id1, user_id2, ...],
-    created_at: 1234567890,
-    status: "active"
-}
-TTL: 86400 (24小时)
-```
-
-### 消息队列
-
-```
-Key: queue:notifications
-Type: List
-Values: [
-    {type: "email", to: "user@example.com", subject: "..."},
-    {type: "sms", to: "+1234567890", message: "..."},
-    ...
-]
-```
-
-### 分布式锁
-
-```
-Key: lock:{resource_id}
-Value: {lock_holder_id}
-TTL: 30 (30秒)
-```
-
----
-
-## 📊 MongoDB 集合设计
-
-### AI 分析结果 (ai_results)
-
-```json
-{
-    "_id": ObjectId,
-    "meeting_id": 456,
-    "participant_id": 789,
-    "analysis_type": "emotion_detection",
-    "result": {
-        "emotion": "happy",
-        "confidence": 0.95,
-        "timestamp": 1234567890
-    },
-    "created_at": ISODate("2024-01-01T00:00:00Z")
-}
-```
-
-### 聊天记录 (chat_history)
-
-```json
-{
-    "_id": ObjectId,
-    "meeting_id": 456,
-    "sender_id": 123,
-    "message": "Hello everyone!",
-    "timestamp": 1234567890,
-    "created_at": ISODate("2024-01-01T00:00:00Z")
-}
-```
-
-### 日志数据 (logs)
-
-```json
-{
-    "_id": ObjectId,
-    "service": "media-service",
-    "level": "info",
-    "message": "Recording started",
-    "timestamp": 1234567890,
-    "created_at": ISODate("2024-01-01T00:00:00Z")
-}
-```
-
----
-
-## 📦 MinIO 对象存储结构
+## MinIO 结构（建议）
 
 ```
 meeting-system/
-├── recordings/
-│   ├── meeting_456/
-│   │   ├── recording_20240101_120000.mp4
-│   │   └── recording_20240101_120000.log
-│   └── meeting_789/
-├── media/
-│   ├── avatars/
-│   │   ├── user_123.jpg
-│   │   └── user_456.jpg
-│   └── documents/
-│       ├── meeting_456_notes.pdf
-│       └── meeting_456_slides.pptx
+├── recordings/<meeting_id>/xxx.m3u8|mp4|log
+├── media/uploads/<uuid>.<ext>
+├── media/avatars/<user_id>.jpg
 └── temp/
-    └── uploads/
 ```
 
----
+桶与目录在 `backend/config/media-service.yaml` 中配置；上传/录制接口返回对象路径供前端访问。
 
-## 🔧 etcd 配置存储
+## MongoDB（可选）
+
+AI 结果或分析可落在 `ai_results` 等集合，字段由实际模型输出决定；未启用 MongoDB 时不会影响主业务链路。
+
+## etcd 命名空间（示例）
 
 ```
-/meeting-system/config/
-├── /services/user-service/
-│   ├── /host: "0.0.0.0"
-│   ├── /port: "8080"
-│   └── /grpc_port: "50051"
-├── /services/meeting-service/
-│   ├── /host: "0.0.0.0"
-│   ├── /port: "8082"
-│   └── /grpc_port: "50052"
-└── /services/media-service/
-    ├── /host: "0.0.0.0"
-    ├── /port: "8083"
-    └── /grpc_port: "50053"
-
-/meeting-system/services/
-├── /user-service/
-│   ├── /instance_1: {host, port, metadata}
-│   └── /instance_2: {host, port, metadata}
-├── /meeting-service/
-│   ├── /instance_1: {host, port, metadata}
-│   └── /instance_2: {host, port, metadata}
-└── /media-service/
-    ├── /instance_1: {host, port, metadata}
-    └── /instance_2: {host, port, metadata}
+/meeting-system/config/services/<service>/{host,port,grpc_port}
+/meeting-system/services/<service>/instance_<id> -> {host,port,metadata}
 ```
 
----
+服务发现/注册可按需开启；生产部署可改用外部配置中心。
 
-## 📈 数据库性能优化
+## 数据安全与备份
 
-### 索引策略
+- 替换默认数据库/MinIO/Kafka/Redis 凭据；生产仅暴露必要端口。
+- 定期备份 PostgreSQL（全量+增量）与 MinIO；etcd 建议定时快照。
+- 清理策略：录制/日志按存储配额定期归档或删除，避免桶无限增长。
 
-| 表 | 索引 | 用途 |
-|------|------|------|
-| users | email, username | 快速查询用户 |
-| meetings | creator_id, status, start_time | 查询会议列表 |
-| participants | meeting_id, user_id | 查询参与者 |
-| recordings | meeting_id, status | 查询录制 |
-| media_streams | meeting_id, participant_id | 查询媒体流 |
+## 连接与性能建议
 
-### 连接池配置
-
-```yaml
-database:
-  max_idle_conns: 10
-  max_open_conns: 100
-  conn_max_lifetime: 3600
-```
-
-### 缓存策略
-
-- **热数据**: 用户信息、会议信息 (TTL: 1小时)
-- **温数据**: 参与者列表、媒体流 (TTL: 30分钟)
-- **冷数据**: 历史录制、分析结果 (TTL: 7天)
-
----
-
-## 🔄 数据一致性
-
-### 事务处理
-
-- 用户注册: 创建用户 + 初始化权限
-- 会议创建: 创建会议 + 添加创建者为参与者
-- 参与者加入: 更新参与者列表 + 更新房间状态
-
-### 缓存同步
-
-- 写入 PostgreSQL 后更新 Redis 缓存
-- 缓存失效时重新从数据库加载
-- 使用 TTL 自动过期缓存
-
----
-
-## 📊 数据备份策略
-
-- **PostgreSQL**: 每天全量备份 + 每小时增量备份
-- **MongoDB**: 每天全量备份
-- **MinIO**: 跨区域复制
-- **etcd**: 每小时快照备份
-
+- PostgreSQL 连接池：`max_idle_conns=10`、`max_open_conns=100`、`conn_max_lifetime=3600s` 可作为起点，根据负载调整。
+- 索引维护：定期 `VACUUM ANALYZE`，对高频写表监控膨胀；新增查询路径时补充覆盖索引。
+- Redis：为会话/房间设置合理 TTL，避免键数量无限增长；限流/锁务必设置过期时间。
+- Kafka：监控消费滞后并按需扩容分区/消费者；死信队列需定期消费或清理。

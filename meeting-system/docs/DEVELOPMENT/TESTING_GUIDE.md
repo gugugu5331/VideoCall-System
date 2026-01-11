@@ -1,108 +1,61 @@
-# 微服务集成测试
+# 微服务测试指南
 
-## 快速开始
+覆盖集成测试脚本、执行顺序与排查方法。测试脚本位于 `meeting-system/backend/tests`。
+
+## 前置条件
+
+- 依赖容器已启动：`docker compose up -d`（至少 PostgreSQL/Redis/Kafka/etcd/MinIO/Nginx）
+- `JWT_SECRET` 等环境变量已设置
+- 需要 AI 测试时，确保 `ai-inference-service` 与 Triton 可访问
+
+## 主要脚本
+
+- `run_all_tests.sh`：覆盖网关与主要业务流程的集成测试
+- `quick_integration_test.sh`：快速连通性与基础 API 验证
+- `test_nginx_gateway.sh`：网关路由与 upstream 校验
+- 其他：`test_services_direct.sh`、`verify_ai_service.sh`、`complete_integration_test.py`（更细粒度或 AI 专用）
+
+执行示例：
 
 ```bash
 cd meeting-system/backend/tests
-./run_all_tests.sh          # 完整验证（推荐）
-./quick_integration_test.sh # 仅连通性/基础检查
-./test_nginx_gateway.sh     # 网关路由校验
+./run_all_tests.sh
 ```
 
-运行前确保依赖容器已启动（PostgreSQL、Redis、etcd、Nginx 等），可直接使用 `docker compose up -d`。
+## 推荐流程
 
-## 测试脚本说明
+1. `docker compose up -d` 启动依赖与服务
+2. `quick_integration_test.sh`（快速检查）
+3. `run_all_tests.sh` 或按需运行 AI/网关专项脚本
+4. 查看输出与容器日志，确认健康检查通过
 
-- **run_all_tests.sh**：整合服务发现、网关、HTTP 端点与基础业务流程。
-- **quick_integration_test.sh**：快速连通性，耗时短，适合开发自检。
-- **test_nginx_gateway.sh**：验证网关转发与 upstream 配置。
-- 其他脚本：`test_services_direct.sh`、`verify_ai_service.sh`、`complete_integration_test.py` 等覆盖特定场景。
-
-## 参考流程
-
-1. `docker compose up -d`（或按需启动基础设施/服务）
-2. `cd meeting-system/backend/tests && ./run_all_tests.sh`
-3. 查看输出/日志；若失败，排查容器状态与配置（JWT_SECRET、端口等）
+> 部分脚本允许覆盖基础地址（`BASE_URL`/`GATEWAY_URL`）、账号、AI 上游等参数，可在执行前通过环境变量传入或临时 `.env` 文件加载。
 
 ## 故障排查
 
-1. 检查容器：`docker compose ps`
-2. 查看服务日志：`docker compose logs -f <service>`
-3. 直接调用健康检查：`curl http://localhost:8800/health`
-4. 重新运行测试，确保已拉起依赖
+- **容器未就绪**：`docker compose ps` 查看状态；必要时 `docker compose logs -f <service>`
+- **认证失败**：确认 `JWT_SECRET` 配置一致；重置测试数据或重新注册登录
+- **AI 相关错误**：检查 `http://<triton>:8000/v2/health/ready` 与 `/api/v1/ai/health`
+- **队列异常**：确认 Kafka 端口/健康，或在配置中将队列切换为 `memory` 进行定位
 
-测试结果未固化在文档中，请按需执行并记录到自己的环境。
+> 本目录不包含固定的测试报告文件；请根据当前运行结果记录。
 
-## 服务列表
+## 性能巡检 / CI 快捷入口
 
-### 基础设施服务
-- PostgreSQL (数据库)
-- Redis (缓存)
-- MongoDB (文档存储)
-- etcd (服务注册中心)
-- MinIO (对象存储)
+- `scripts/perf_smoke.sh`：串行执行网关性能（`nginx/scripts/test-gateway.sh --performance`）、信令快压（`backend/signaling-service/run_stress_test.sh --quick`）、业务 HTTP 压测（`backend/stress-test`）。输出落在 `perf-results/<timestamp>/`，可用于 GitHub Actions/cron。
+- 常用环境变量：`SIGNALING_URL`、`SIGNALING_SECRET`、`SIGNALING_MEETING_ID`、`USER_SERVICE_URL`、`MEETING_SERVICE_URL`、`STRESS_CONCURRENT_USERS`（逗号分隔），`STABILITY_USERS`、`STABILITY_DURATION`。
 
-### 微服务
-- user-service (用户服务) - 端口 8080
-- meeting-service (会议服务) - 端口 8082
-- signaling-service (信令服务) - 端口 8081
-- media-service (媒体服务) - 端口 8083
-- ai-inference-service (AI 推理服务) - 端口 8085
+## 深挖瓶颈（pprof / Prom）
 
-### API 网关
-- Nginx (API 网关) - 端口 8800
+- pprof 建议在单服务中临时开启：
+  ```go
+  import _ "net/http/pprof"
+  go func() { _ = http.ListenAndServe(":6060", nil) }()
+  ```
+  然后用 `go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30` 抓热点，或 `pprof -http=:8088` 可视化。
+- Prometheus GoCollector：在服务 init 前注册 `prometheus.MustRegister(prometheus.NewGoCollector(), prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))`，便于抓取 GC/协程数等 runtime 指标。
 
----
+## 长时间稳压
 
-## 故障排查
-
-### 如果测试失败
-
-1. **检查 Docker 容器状态**
-   ```bash
-   docker ps -a
-   ```
-
-2. **检查服务日志**
-   ```bash
-   docker compose logs -f <container-name>
-   ```
-
-3. **重启服务**
-   ```bash
-   cd meeting-system
-   docker compose restart
-   ```
-
-4. **重新运行测试**
-   ```bash
-   cd meeting-system/backend/tests
-   ./run_all_tests.sh
-   ```
-
----
-
-## 详细报告
-
-查看完整的测试报告：
-```bash
-cat INTEGRATION_TEST_REPORT.md
-```
-
----
-
-## 生产就绪
-
-微服务架构已经具备以下生产环境能力：
-- ✅ 服务自动注册与发现 (etcd)
-- ✅ API 网关路由 (Nginx)
-- ✅ 健康检查与故障恢复
-- ✅ 多实例部署支持
-- ✅ 真实的数据持久化
-- ✅ 完整的服务间通信
-- ✅ 负载均衡 (Nginx upstream)
-
----
-
-**最后更新**: 2025-10-05 00:54  
-**测试版本**: v1.1.0
+- `backend/stress-test` 长压时间与用户数可通过环境变量调整，示例：`STABILITY_USERS=300 STABILITY_DURATION=1h go run .`。
+- 建议结合 `GODEBUG=gctrace=1`、`docker stats`、`ss -s` 观察 GC 抖动、内存是否回收、TIME_WAIT 是否堆积；将关键指标（p95、错误率、CPU/内存）与 5/30/60 分钟时刻对比。

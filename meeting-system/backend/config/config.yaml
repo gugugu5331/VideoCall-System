@@ -28,10 +28,26 @@ redis:
   db: 0
   pool_size: 10
 
+# Kafka 配置（可选）
+kafka:
+  enabled: true
+  brokers:
+    - "kafka:9092"
+  topic_prefix: "meeting"
+  group_id: "meeting-system"
+  sasl:
+    enabled: false
+    mechanism: "PLAIN"
+    username: ""
+    password: ""
+  tls:
+    enabled: false
+    insecure_skip_verify: false
+
 # 消息队列配置
 message_queue:
   enabled: true
-  type: "redis"  # redis, memory
+  type: "kafka"  # kafka, memory
   queue_name: "meeting_system"
   workers: 4
   visibility_timeout: 30  # 秒
@@ -49,7 +65,7 @@ task_scheduler:
 # 事件总线配置
 event_bus:
   enabled: true
-  type: "redis_pubsub"  # redis_pubsub, local
+  type: "kafka"  # kafka, local
   buffer_size: 1000
   workers: 4
 

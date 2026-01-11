@@ -1,0 +1,32 @@
+namespace: meeting-system
+
+resources:
+  - infra.yaml
+  - services.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: meeting-config
+    files:
+      - ../../backend/config/config.yaml
+      - ../../backend/config/user-service.yaml
+      - ../../backend/config/meeting-service.yaml
+      - ../../backend/config/signaling-service.yaml
+      - ../../backend/config/media-service.yaml
+  - name: ai-config
+    files:
+      - ../../backend/ai-inference-service/config/ai-inference-service.yaml
+  - name: nginx-config
+    files:
+      - ../../nginx/nginx.conf
+      - ../../nginx/conf.d
+
+secretGenerator:
+  - name: meeting-secrets
+    literals:
+      - JWT_SECRET=change-me-please-with-32-characters!!
+      - POSTGRES_PASSWORD=password
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin

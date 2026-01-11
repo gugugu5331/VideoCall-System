@@ -1,9 +1,9 @@
 package queue
 
 import (
+	"fmt"
 	"sync"
 
-	"github.com/redis/go-redis/v9"
 	"meeting-system/shared/config"
 	"meeting-system/shared/logger"
 )
@@ -12,9 +12,9 @@ import (
 type QueueManager struct {
 	config *config.Config
 
-	// Redis队列
-	redisMessageQueue *RedisMessageQueue
-	redisPubSubQueue  *RedisPubSubQueue
+	// Kafka 队列
+	kafkaMessageQueue *KafkaMessageQueue
+	kafkaEventBus     *KafkaPubSub
 
 	// 内存队列（向后兼容）
 	memoryMessageQueue *MemoryMessageQueue
@@ -33,47 +33,41 @@ type QueueManager struct {
 }
 
 // NewQueueManager 创建队列管理器
-func NewQueueManager(cfg *config.Config, redisClient *redis.Client) *QueueManager {
+func NewQueueManager(cfg *config.Config) *QueueManager {
 	qm := &QueueManager{
 		config: cfg,
-	}
-
-	// 如果提供了Redis客户端，初始化Redis队列
-	if redisClient != nil {
-		qm.initRedisQueues(redisClient)
 	}
 
 	return qm
 }
 
-// initRedisQueues 初始化Redis队列
-func (qm *QueueManager) initRedisQueues(redisClient *redis.Client) {
-	// 初始化Redis消息队列
-	qm.redisMessageQueue = NewRedisMessageQueue(redisClient, RedisMessageQueueConfig{
-		QueueName:         "default",
-		Workers:           4,
-		VisibilityTimeout: 30,
-		PollInterval:      100,
+// InitKafkaMessageQueue 初始化 Kafka 消息队列
+func (qm *QueueManager) InitKafkaMessageQueue(kafkaCfg config.KafkaConfig, mqCfg config.MessageQueueConfig) {
+	qm.mu.Lock()
+	defer qm.mu.Unlock()
+
+	transport := buildKafkaTransport(kafkaCfg)
+	qm.kafkaMessageQueue = NewKafkaMessageQueue(KafkaMessageQueueConfig{
+		Brokers:         kafkaCfg.Brokers,
+		Topic:           fmt.Sprintf("%s.tasks", kafkaCfg.TopicPrefix),
+		DeadLetterTopic: fmt.Sprintf("%s.tasks.dlq", kafkaCfg.TopicPrefix),
+		GroupID:         kafkaCfg.GroupID,
+		Workers:         mqCfg.Workers,
+		Transport:       transport,
 	})
-
-	// 初始化Redis发布订阅队列
-	qm.redisPubSubQueue = NewRedisPubSubQueue(redisClient)
-
-	logger.Info("Redis queues initialized")
 }
 
-// InitRedisMessageQueue 初始化Redis消息队列（自定义配置）
-func (qm *QueueManager) InitRedisMessageQueue(redisClient *redis.Client, config RedisMessageQueueConfig) {
+// InitKafkaEventBus 初始化 Kafka 事件总线
+func (qm *QueueManager) InitKafkaEventBus(kafkaCfg config.KafkaConfig) {
 	qm.mu.Lock()
 	defer qm.mu.Unlock()
-	qm.redisMessageQueue = NewRedisMessageQueue(redisClient, config)
-}
 
-// InitRedisPubSubQueue 初始化Redis发布订阅队列
-func (qm *QueueManager) InitRedisPubSubQueue(redisClient *redis.Client) {
-	qm.mu.Lock()
-	defer qm.mu.Unlock()
-	qm.redisPubSubQueue = NewRedisPubSubQueue(redisClient)
+	qm.kafkaEventBus = NewKafkaPubSub(KafkaPubSubConfig{
+		Brokers:     kafkaCfg.Brokers,
+		TopicPrefix: kafkaCfg.TopicPrefix,
+		GroupID:     kafkaCfg.GroupID,
+		Transport:   buildKafkaTransport(kafkaCfg),
+	})
 }
 
 // InitMessageQueue 初始化内存消息队列（向后兼容）
@@ -113,14 +107,14 @@ func (qm *QueueManager) Start() error {
 		return nil
 	}
 
-	// 启动Redis队列
-	if qm.redisMessageQueue != nil {
-		if err := qm.redisMessageQueue.Start(); err != nil {
+	// 启动 Kafka 组件
+	if qm.kafkaMessageQueue != nil {
+		if err := qm.kafkaMessageQueue.Start(); err != nil {
 			return err
 		}
 	}
-	if qm.redisPubSubQueue != nil {
-		if err := qm.redisPubSubQueue.Start(); err != nil {
+	if qm.kafkaEventBus != nil {
+		if err := qm.kafkaEventBus.Start(); err != nil {
 			return err
 		}
 	}
@@ -174,21 +168,21 @@ func (qm *QueueManager) Stop() error {
 		qm.localEventBus.Stop()
 	}
 
+	// 停止 Kafka 组件
+	if qm.kafkaEventBus != nil {
+		if err := qm.kafkaEventBus.Stop(); err != nil {
+			logger.Error("Failed to stop Kafka event bus: " + err.Error())
+		}
+	}
+	if qm.kafkaMessageQueue != nil {
+		if err := qm.kafkaMessageQueue.Stop(); err != nil {
+			logger.Error("Failed to stop Kafka message queue: " + err.Error())
+		}
+	}
+
 	// 停止内存队列
 	if qm.memoryMessageQueue != nil {
 		_ = qm.memoryMessageQueue.Stop()
-	}
-
-	// 停止Redis队列
-	if qm.redisPubSubQueue != nil {
-		if err := qm.redisPubSubQueue.Stop(); err != nil {
-			logger.Error("Failed to stop Redis PubSub queue: " + err.Error())
-		}
-	}
-	if qm.redisMessageQueue != nil {
-		if err := qm.redisMessageQueue.Stop(); err != nil {
-			logger.Error("Failed to stop Redis message queue: " + err.Error())
-		}
 	}
 
 	qm.started = false
@@ -196,18 +190,18 @@ func (qm *QueueManager) Stop() error {
 	return nil
 }
 
-// GetRedisMessageQueue 获取Redis消息队列
-func (qm *QueueManager) GetRedisMessageQueue() *RedisMessageQueue {
+// GetKafkaMessageQueue 获取 Kafka 消息队列
+func (qm *QueueManager) GetKafkaMessageQueue() *KafkaMessageQueue {
 	qm.mu.Lock()
 	defer qm.mu.Unlock()
-	return qm.redisMessageQueue
+	return qm.kafkaMessageQueue
 }
 
-// GetRedisPubSubQueue 获取Redis发布订阅队列
-func (qm *QueueManager) GetRedisPubSubQueue() *RedisPubSubQueue {
+// GetKafkaEventBus 获取 Kafka 事件总线
+func (qm *QueueManager) GetKafkaEventBus() *KafkaPubSub {
 	qm.mu.Lock()
 	defer qm.mu.Unlock()
-	return qm.redisPubSubQueue
+	return qm.kafkaEventBus
 }
 
 // GetMessageQueue 获取内存消息队列（向后兼容）
@@ -245,11 +239,11 @@ func (qm *QueueManager) GetStats() map[string]interface{} {
 
 	stats := make(map[string]interface{})
 
-	if qm.redisMessageQueue != nil {
-		stats["redis_message_queue"] = qm.redisMessageQueue.GetStats()
+	if qm.kafkaMessageQueue != nil {
+		stats["kafka_message_queue"] = qm.kafkaMessageQueue.GetStats()
 	}
-	if qm.redisPubSubQueue != nil {
-		stats["redis_pubsub_queue"] = qm.redisPubSubQueue.GetStats()
+	if qm.kafkaEventBus != nil {
+		stats["kafka_event_bus"] = qm.kafkaEventBus.GetStats()
 	}
 	if qm.memoryMessageQueue != nil {
 		stats["memory_message_queue"] = qm.memoryMessageQueue.GetStats()
@@ -273,9 +267,9 @@ var (
 )
 
 // InitGlobalQueueManager 初始化全局队列管理器
-func InitGlobalQueueManager(cfg *config.Config, redisClient *redis.Client) {
+func InitGlobalQueueManager(cfg *config.Config) {
 	queueManagerOnce.Do(func() {
-		globalQueueManager = NewQueueManager(cfg, redisClient)
+		globalQueueManager = NewQueueManager(cfg)
 	})
 }
 

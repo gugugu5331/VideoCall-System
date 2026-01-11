@@ -1,34 +1,18 @@
 # GPU 服务器部署（AI 推理节点）
 
-本目录用于在 **单台 GPU 服务器** 上部署一套 AI 推理节点（Triton Inference Server + TensorRT）：
+在单台 GPU 服务器上启动 Triton + `ai-inference-service`。适用于为主站提供 AI 上游；基础 compose 未启用 AI，需要本方案或远程部署。
 
-- `triton`（Triton Inference Server，TensorRT GPU 推理）
-- `ai-inference-service`（Go 服务，提供 `/api/v1/ai/*` 与 gRPC 流）
+## 端口（默认）
 
----
+- `AI_HTTP_PORT` 8800 → `ai-inference-service:8085`
+- `AI_GRPC_PORT` 9800 → `ai-inference-service:9085`
+- `TRITON_HTTP_PORT` 8000 → `triton:8000`
+- `TRITON_GRPC_PORT` 8001 → `triton:8001`
+- `TRITON_METRICS_PORT` 8002 → `triton:8002`
 
-## 端口约定（建议）
+## 启动步骤
 
-建议在 GPU 服务器上预留一组内网端口（例如 `8800~8805`），再由你的 NAT/安全组映射到公网端口。
-
-本部署默认使用：
-
-- `AI_HTTP_PORT`（默认 `8800`）：映射到容器 `ai-inference-service:8085`
-- `AI_GRPC_PORT`（默认 `9800`）：映射到容器 `ai-inference-service:9085`
-- `TRITON_HTTP_PORT`（默认 `8000`）：映射到容器 `triton:8000`
-- `TRITON_GRPC_PORT`（默认 `8001`）：映射到容器 `triton:8001`
-- `TRITON_METRICS_PORT`（默认 `8002`）：映射到容器 `triton:8002`
-
----
-
-## 在单台 GPU 服务器上启动
-
-前置条件：
-
-- 已安装 `docker` + `docker compose` 插件
-- 服务器上已有模型目录（默认挂载 `MODEL_DIR=/models` 到容器 `/models`）
-
-启动：
+前置：服务器已安装 Docker + Compose，模型仓库挂载目录 `MODEL_DIR` 已准备好（与 `ai-inference-service` 配置匹配）。
 
 ```bash
 cd /root/VideoCall-System/meeting-system
@@ -44,45 +28,38 @@ docker compose -f deployment/gpu-ai/docker-compose.gpu-ai.yml up -d --build
 ```
 
 自检：
-
 ```bash
 curl -s http://localhost:${AI_HTTP_PORT}/health
 curl -s http://localhost:${AI_HTTP_PORT}/api/v1/ai/info
 curl -s http://localhost:${AI_HTTP_PORT}/api/v1/ai/health
+docker compose -f deployment/gpu-ai/docker-compose.gpu-ai.yml logs -f triton ai-inference-service
 ```
 
----
+## 接入主站
 
-## 多台 GPU 服务器协作方式（推荐）
-
-1. 在 GPU-1、GPU-2 各自运行一套本目录的 `docker-compose.gpu-ai.yml`
-2. 在主站 Nginx（或任何网关）里将 `/api/v1/ai/*` 代理到两个节点的 `AI_HTTP_PORT`
-3. gRPC 流式建议走 L4 负载均衡或 gRPC-aware 代理
-
-本项目网关已在 `meeting-system/nginx/nginx.conf` 中把 `/api/v1/ai/*` 代理到 upstream `ai_inference_service`，并通过 `include /etc/nginx/conf.d/ai_inference_service.servers*.conf` 读取上游列表。
-
-推荐做法：在主站生成一个本地私有文件（已加入 `.gitignore`）：
+在主站 Nginx 配置 `/api/v1/ai/*` 上游：
 
 ```bash
-AI_INFERENCE_UPSTREAMS="<gpu-node-1-host>:<public-port> <gpu-node-2-host>:<public-port>" \
+AI_INFERENCE_UPSTREAMS="<gpu-host>:<public-port>" \
 bash meeting-system/nginx/scripts/gen_ai_inference_service_servers_conf.sh
 ```
 
-生成后会写入：`meeting-system/nginx/conf.d/ai_inference_service.servers.local.conf`，然后重启/重载网关 Nginx 即可生效。
+生成的 `nginx/conf.d/ai_inference_service.servers.local.conf` 会被自动包含，重启/重载 Nginx 生效。
 
----
+## SSH 自动化
 
-## SSH 自动化说明
-
-为避免在命令/日志中泄露敏感信息，本目录的自动化脚本默认 **仅支持 SSH 公钥登录**（`authorized_keys`），不在仓库内保存任何远程主机/账号/密码。
-
-已提供基于公钥登录的一键部署脚本：`meeting-system/deployment/gpu-ai/deploy_gpu_ai_nodes.sh`。
-
-示例：
+`deploy_gpu_ai_nodes.sh` 支持基于公钥的批量部署（需提前配置 `authorized_keys`）：
 
 ```bash
-cd /root/VideoCall-System/meeting-system/deployment/gpu-ai
+cd meeting-system/deployment/gpu-ai
 GPU_AI_NODES_FILE=./nodes.example.txt \
-MODEL_DIR=/models AI_HTTP_PORT=8800 AI_GRPC_PORT=9800 TRITON_HTTP_PORT=8000 TRITON_GRPC_PORT=8001 TRITON_METRICS_PORT=8002 \
+MODEL_DIR=/models AI_HTTP_PORT=8800 AI_GRPC_PORT=9800 \
+TRITON_HTTP_PORT=8000 TRITON_GRPC_PORT=8001 TRITON_METRICS_PORT=8002 \
 ./deploy_gpu_ai_nodes.sh
 ```
+
+## 常见问题
+
+- **Triton 无法加载模型**：确认 `/models` 挂载正确且 `config.pbtxt` 与 `ai-inference-service` 配置一致。
+- **GPU 不可见**：`nvidia-smi` 与 `docker run --rm --gpus all nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04 nvidia-smi` 检查。
+- **上游不可达**：确认 AI 节点公网/NAT 端口映射，或在主站使用内网地址。

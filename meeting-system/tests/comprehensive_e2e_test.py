@@ -10,7 +10,9 @@ import time
 import json
 import base64
 import requests
-import redis
+import socket
+import subprocess
+import shlex
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import threading
@@ -27,8 +29,8 @@ logger = logging.getLogger(__name__)
 # 配置
 NGINX_URL = "http://localhost:8800"
 API_BASE = f"{NGINX_URL}/api/v1"
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379
+KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
+COMPOSE_CMD = os.getenv("COMPOSE_CMD", "docker compose")
 TEST_VIDEO_DIR = "/root/meeting-system-server/meeting-system/backend/media-service/test_video"
 
 # 测试用户
@@ -41,7 +43,7 @@ class E2ETestRunner:
     def __init__(self):
         self.session = requests.Session()
         self.csrf_token = None
-        self.redis_client = None
+        self.kafka_bootstrap = KAFKA_BOOTSTRAP
         self.users = {}  # {username: {user_info, token}}
         self.meeting_id = None
         self.test_results = {
@@ -77,13 +79,8 @@ class E2ETestRunner:
         logger.info("开始完整的端到端消息队列集成测试")
         logger.info("=" * 60)
         
-        # 连接 Redis
-        try:
-            self.redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
-            self.redis_client.ping()
-            logger.info("✅ Redis 连接成功")
-        except Exception as e:
-            logger.error(f"❌ Redis 连接失败: {e}")
+        # 检查 Kafka
+        if not self.check_kafka():
             sys.exit(1)
         
         # 获取 CSRF token
@@ -97,32 +94,78 @@ class E2ETestRunner:
                 logger.warning(f"⚠️ 获取 CSRF token 失败: {response.status_code}")
         except Exception as e:
             logger.error(f"❌ 获取 CSRF token 异常: {e}")
-    
-    def get_queue_stats(self) -> Dict:
-        """获取 Redis 队列统计"""
-        stats = {}
-        queues = [
-            "meeting_system:critical_queue",
-            "meeting_system:high_queue",
-            "meeting_system:normal_queue",
-            "meeting_system:low_queue",
-            "meeting_system:dead_letter_queue",
-            "meeting_system:processing_queue"
+
+    def check_kafka(self) -> bool:
+        """检查 Kafka 端口并尝试列出主题"""
+        host, port = self.kafka_bootstrap.split(":") if ":" in self.kafka_bootstrap else (self.kafka_bootstrap, "9092")
+        try:
+            conn = socket.create_connection((host, int(port)), timeout=5)
+            conn.close()
+            logger.info(f"✅ Kafka {self.kafka_bootstrap} 端口可用")
+        except Exception as e:
+            logger.error(f"❌ Kafka {self.kafka_bootstrap} 不可用: {e}")
+            return False
+
+        topics = self.fetch_kafka_topics()
+        if topics:
+            logger.info(f"Kafka 主题: {', '.join(topics)}")
+        else:
+            logger.warning("Kafka 主题获取失败或为空，继续测试")
+        return True
+
+    def fetch_kafka_topics(self) -> List[str]:
+        """通过 kafka-python 或 CLI 获取主题列表"""
+        try:
+            from kafka import KafkaAdminClient
+
+            admin = KafkaAdminClient(
+                bootstrap_servers=self.kafka_bootstrap,
+                client_id="meeting-e2e-runner",
+                request_timeout_ms=4000,
+            )
+            topics = sorted(admin.list_topics())
+            admin.close()
+            return topics
+        except ImportError:
+            logger.warning("未安装 kafka-python，尝试使用 CLI 获取主题")
+        except Exception as e:
+            logger.warning(f"Kafka 管理接口获取主题失败: {e}")
+
+        commands = [
+            ["kafka-topics.sh", "--bootstrap-server", self.kafka_bootstrap, "--list"],
+            ["kafka-topics", "--bootstrap-server", self.kafka_bootstrap, "--list"],
         ]
-        for queue in queues:
+        try:
+            commands.append(shlex.split(COMPOSE_CMD) + ["exec", "-T", "kafka", "bash", "-c", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"])
+        except Exception:
+            pass
+
+        for cmd in commands:
             try:
-                length = self.redis_client.llen(queue)
-                stats[queue.split(':')[1]] = length
-            except:
-                stats[queue.split(':')[1]] = 0
-        return stats
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout:
+                    topics = [t.strip() for t in result.stdout.splitlines() if t.strip()]
+                    if topics:
+                        return topics
+            except FileNotFoundError:
+                continue
+            except Exception as e:
+                logger.warning(f"执行 {' '.join(cmd)} 失败: {e}")
+                continue
+
+        return []
     
-    def print_queue_stats(self, prefix=""):
-        """打印队列统计"""
-        stats = self.get_queue_stats()
-        logger.info(f"{prefix}Redis 队列状态:")
-        for queue, length in stats.items():
-            logger.info(f"  {queue}: {length}")
+    def get_kafka_topics(self) -> List[str]:
+        """获取 Kafka 主题列表"""
+        return self.fetch_kafka_topics()
+
+    def print_kafka_topics(self, prefix=""):
+        """打印 Kafka 主题"""
+        topics = self.get_kafka_topics()
+        if topics:
+            logger.info(f"{prefix}Kafka 主题: {', '.join(topics)}")
+        else:
+            logger.info(f"{prefix}Kafka 主题: 无或未能获取")
     
     def make_request(self, method: str, url: str, **kwargs) -> requests.Response:
         """发送 HTTP 请求"""
@@ -220,7 +263,7 @@ class E2ETestRunner:
                 self.log_result("获取资料", first_user, False, str(e))
         
         time.sleep(1)
-        self.print_queue_stats("用户服务测试后 - ")
+        self.print_kafka_topics("用户服务测试后 - ")
     
     def test_meeting_service(self):
         """测试会议服务"""
@@ -271,7 +314,7 @@ class E2ETestRunner:
             self.log_result("创建会议", creator, False, str(e))
         
         time.sleep(2)
-        self.print_queue_stats("创建会议后 - ")
+        self.print_kafka_topics("创建会议后 - ")
 
         if not self.meeting_id:
             logger.error("会议创建失败，跳过后续会议测试")
@@ -316,7 +359,7 @@ class E2ETestRunner:
             self.log_result("获取会议信息", "meeting-service", False, str(e))
 
         time.sleep(1)
-        self.print_queue_stats("会议服务测试后 - ")
+        self.print_kafka_topics("会议服务测试后 - ")
 
     def test_ai_service(self):
         """测试 AI 服务 - 模拟客户端周期性推理请求"""
@@ -431,7 +474,7 @@ class E2ETestRunner:
                 time.sleep(0.5)
 
         time.sleep(2)
-        self.print_queue_stats("AI 服务测试后 - ")
+        self.print_kafka_topics("AI 服务测试后 - ")
 
     def generate_report(self):
         """生成测试报告"""
@@ -471,11 +514,14 @@ class E2ETestRunner:
                 status = "✅" if test['success'] else "❌"
                 report += f"- {status} {test['test']}: {test['message']}\n"
 
-        # Redis 队列统计
-        report += "\n## Redis 队列最终状态\n\n"
-        stats = self.get_queue_stats()
-        for queue, length in stats.items():
-            report += f"- {queue}: {length}\n"
+        # Kafka 主题统计
+        report += "\n## Kafka 主题\n\n"
+        topics = self.get_kafka_topics()
+        if topics:
+            for topic in topics:
+                report += f"- {topic}\n"
+        else:
+            report += "- 无可用主题或未能获取\n"
 
         # 保存报告
         report_file = f"comprehensive_e2e_test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
@@ -489,7 +535,7 @@ class E2ETestRunner:
         """运行所有测试"""
         try:
             self.setup()
-            self.print_queue_stats("初始 - ")
+            self.print_kafka_topics("初始 - ")
 
             self.test_user_service()
             self.test_meeting_service()
@@ -509,5 +555,3 @@ class E2ETestRunner:
 if __name__ == "__main__":
     runner = E2ETestRunner()
     runner.run()
-
-

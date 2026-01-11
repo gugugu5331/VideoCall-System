@@ -3,7 +3,7 @@ version: '3.3'
 services:
   # 数据库服务
   postgres:
-    image: postgres:15-alpine
+    image: docker.m.daocloud.io/library/postgres:15-alpine
     container_name: meeting-postgres
     environment:
       POSTGRES_DB: meeting_system
@@ -24,7 +24,7 @@ services:
 
   # Redis缓存
   redis:
-    image: redis:7-alpine
+    image: docker.m.daocloud.io/library/redis:7-alpine
     container_name: meeting-redis
     command: redis-server --appendonly yes --requirepass ""
     volumes:
@@ -40,7 +40,7 @@ services:
 
   # etcd 服务注册中心
   etcd:
-    image: quay.io/coreos/etcd:v3.5.15
+    image: docker.m.daocloud.io/quay.io/coreos/etcd:v3.5.15
     container_name: meeting-etcd
     environment:
       - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
@@ -63,7 +63,7 @@ services:
 
   # MongoDB (AI数据)
   mongodb:
-    image: mongo:6.0.14
+    image: docker.m.daocloud.io/library/mongo:6.0.14
     container_name: meeting-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
@@ -82,7 +82,7 @@ services:
 
   # MinIO对象存储
   minio:
-    image: minio/minio:latest
+    image: docker.m.daocloud.io/minio/minio:latest
     container_name: meeting-minio
     command: server /data --console-address ":9001"
     environment:
@@ -100,6 +100,27 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+
+  # Kafka (KRaft 单节点，用于队列/事件总线)
+  kafka:
+    build:
+      context: ./deployment/docker/kafka
+    container_name: meeting-kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - meeting-network
+    healthcheck:
+      test: ["CMD-SHELL", "sleep 5 && ${KAFKA_HOME:-/opt/kafka}/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 15s
+    restart: unless-stopped
 
   # Jaeger 分布式追踪
   jaeger:
@@ -265,11 +286,14 @@ services:
     volumes:
       - ./backend/config:/app/config
       - ./backend/logs:/app/logs
-    # 端口不暴露，仅通过 Nginx 访问
+    ports:
+      - "8080:8080"  # 测试/压测直连
+    # 端口同时可通过 Nginx 访问
     depends_on:
       - postgres
       - redis
       - etcd
+      - kafka
       - jaeger
     networks:
       - meeting-network
@@ -301,9 +325,12 @@ services:
     volumes:
       - ./backend/config:/app/config
       - ./backend/logs:/app/logs
-    # 端口不暴露，仅通过 Nginx 访问
+    ports:
+      - "8081:8081"  # 测试/压测直连
+    # 端口同时可通过 Nginx 访问
     depends_on:
       - redis
+      - kafka
       - user-service
       - jaeger
     networks:
@@ -339,12 +366,15 @@ services:
     volumes:
       - ./backend/config:/app/config
       - ./backend/logs:/app/logs
-    # 端口不暴露，仅通过 Nginx 访问
+    ports:
+      - "8082:8082"  # 测试/压测直连
+    # 端口同时可通过 Nginx 访问
     depends_on:
       - postgres
       - redis
       - user-service
       - etcd
+      - kafka
       - jaeger
     networks:
       - meeting-network
@@ -381,6 +411,7 @@ services:
       - postgres
       - minio
       - signaling-service
+      - kafka
       - jaeger
     networks:
       - meeting-network
@@ -391,68 +422,62 @@ services:
       retries: 3
     restart: unless-stopped
 
-  # Triton Inference Server (GPU 推理后端)
-  triton:
-    image: nvcr.io/nvidia/tritonserver:23.10-py3
-    container_name: meeting-triton
-    command:
-      - tritonserver
-      - --model-repository=/models
-      - --log-verbose=0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    volumes:
-      - ai-models:/models:ro
-    networks:
-      - meeting-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
+  # Triton Inference Server (CPU 镜像，避免 nvcr 拉取/证书问题)
+  # triton:  # 暂停 AI 组件，需镜像后再启用
+  #   image: rivia/tritonserver:22.04
+  #   container_name: meeting-triton
+  #   command:
+  #     - tritonserver
+  #     - --model-repository=/models
+  #     - --log-verbose=0
+  #   volumes:
+  #     - ai-models:/models:ro
+  #   networks:
+  #     - meeting-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #   restart: unless-stopped
 
   # AI Inference Service (Go微服务，调用 Triton/TensorRT)
-  ai-inference-service:
-    build:
-      context: ./backend
-      dockerfile: ai-inference-service/Dockerfile
-    container_name: meeting-ai-inference-service
-    environment:
-      - CONFIG_PATH=/app/config/ai-inference-service.yaml
-      - DATABASE_HOST=postgres
-      - DATABASE_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - ETCD_ENDPOINTS=etcd:2379
-      # 安全配置
-      - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
-      # Jaeger 追踪配置
-      - JAEGER_AGENT_HOST=jaeger
-      - JAEGER_AGENT_PORT=6831
-    volumes:
-      - ./backend/ai-inference-service/config:/app/config
-      - ./backend/ai-inference-service/logs:/app/logs
-      - ai-models:/models:ro
-    ports:
-      - "8085:8085"  # AI Inference Service API
-    depends_on:
-      - triton
-      - postgres
-      - redis
-      - etcd
-      - jaeger
-    networks:
-      - meeting-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # 允许访问宿主机
-    restart: unless-stopped
+  # ai-inference-service:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: ai-inference-service/Dockerfile
+  #   container_name: meeting-ai-inference-service
+  #   environment:
+  #     - CONFIG_PATH=/app/config/ai-inference-service.yaml
+  #     - DATABASE_HOST=postgres
+  #     - DATABASE_PORT=5432
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - ETCD_ENDPOINTS=etcd:2379
+  #     # 安全配置
+  #     - JWT_SECRET=${JWT_SECRET:-please-set-jwt-secret-in-env-file}
+  #     - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+  #     # Jaeger 追踪配置
+  #     - JAEGER_AGENT_HOST=jaeger
+  #     - JAEGER_AGENT_PORT=6831
+  #   volumes:
+  #     - ./backend/ai-inference-service/config:/app/config
+  #     - ./backend/ai-inference-service/logs:/app/logs
+  #     - ai-models:/models:ro
+  #   ports:
+  #     - "8085:8085"  # AI Inference Service API
+  #   depends_on:
+  #     - triton
+  #     - postgres
+  #     - redis
+  #     - etcd
+  #     - kafka
+  #     - jaeger
+  #   networks:
+  #     - meeting-network
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"  # 允许访问宿主机
+  #   restart: unless-stopped
 
   # Nginx API网关
   nginx:
@@ -472,7 +497,6 @@ services:
       - signaling-service
       - meeting-service
       - media-service
-      - ai-inference-service
     networks:
       - meeting-network
     healthcheck:
@@ -517,4 +541,6 @@ volumes:
   etcd_data:
     driver: local
   ai-models:
+    driver: local
+  kafka_data:
     driver: local

@@ -31,7 +31,7 @@ type LocalEventBus struct {
 	wg           sync.WaitGroup
 	ctx          context.Context
 	cancel       context.CancelFunc
-	
+
 	// 统计信息
 	stats struct {
 		sync.RWMutex
@@ -65,7 +65,7 @@ func (bus *LocalEventBus) On(eventType string, handler LocalEventHandler) {
 		bus.handlers[eventType] = make([]LocalEventHandler, 0)
 	}
 	bus.handlers[eventType] = append(bus.handlers[eventType], handler)
-	
+
 	logger.Debug(fmt.Sprintf("Registered local event handler for: %s", eventType))
 }
 
@@ -132,13 +132,13 @@ func (bus *LocalEventBus) Stop() {
 	logger.Info("Stopping local event bus...")
 	bus.cancel()
 	close(bus.stopCh)
-	
+
 	// 等待所有事件处理完成
 	bus.wg.Wait()
-	
+
 	// 关闭事件通道
 	close(bus.eventChan)
-	
+
 	logger.Info("Local event bus stopped")
 }
 
@@ -237,13 +237,13 @@ func (bus *LocalEventBus) GetStats() map[string]int64 {
 type PriorityLocalEventBus struct {
 	handlers     map[string][]LocalEventHandler
 	handlerMutex sync.RWMutex
-	
+
 	// 不同优先级的事件通道
 	criticalChan chan *LocalEvent
 	highChan     chan *LocalEvent
 	normalChan   chan *LocalEvent
 	lowChan      chan *LocalEvent
-	
+
 	workers int
 	stopCh  chan struct{}
 	wg      sync.WaitGroup
@@ -333,6 +333,21 @@ func (bus *PriorityLocalEventBus) priorityWorker(id int) {
 	defer bus.wg.Done()
 
 	for {
+		// 尝试非阻塞地按优先级获取事件
+		if bus.tryProcess(bus.criticalChan) {
+			continue
+		}
+		if bus.tryProcess(bus.highChan) {
+			continue
+		}
+		if bus.tryProcess(bus.normalChan) {
+			continue
+		}
+		if bus.tryProcess(bus.lowChan) {
+			continue
+		}
+
+		// 阻塞等待下一个事件或停止信号
 		select {
 		case <-bus.stopCh:
 			return
@@ -347,6 +362,16 @@ func (bus *PriorityLocalEventBus) priorityWorker(id int) {
 		case event := <-bus.lowChan:
 			bus.processEvent(event)
 		}
+	}
+}
+
+func (bus *PriorityLocalEventBus) tryProcess(ch chan *LocalEvent) bool {
+	select {
+	case event := <-ch:
+		bus.processEvent(event)
+		return true
+	default:
+		return false
 	}
 }
 
@@ -368,4 +393,3 @@ func (bus *PriorityLocalEventBus) processEvent(event *LocalEvent) {
 		cancel()
 	}
 }
-

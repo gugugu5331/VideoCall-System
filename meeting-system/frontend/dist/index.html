@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Meeting System Web</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260110b" />
   </head>
   <body>
     <header class="topbar">
@@ -74,15 +74,43 @@
       </section>
 
       <section id="mainCard" class="layout hidden">
-        <section class="card panel">
-          <div class="card__header">
+        <section class="card video">
+          <div class="card__header card__header--with-actions">
+            <div>
+              <h2>视频</h2>
+              <div class="hint">提示：多人会议为 SFU 连接（每台设备只连 media-service 一条 PeerConnection）。</div>
+            </div>
+            <div class="card__actions">
+              <div class="toolbar">
+                <button id="startMediaBtn" class="btn btn--ghost btn--xs" type="button">开启音视频</button>
+                <button id="openFxDrawer" class="btn btn--ghost btn--xs" type="button">美颜滤镜</button>
+                <button id="openAiDrawer" class="btn btn--ghost btn--xs" type="button">AI 字幕</button>
+                <button id="openPanelDrawer" class="btn btn--ghost btn--xs" type="button">控制台</button>
+              </div>
+            </div>
+          </div>
+          <div id="videoGrid" class="videogrid"></div>
+          <div id="aiDanmaku" class="danmaku" aria-live="polite"></div>
+        </section>
+      </section>
+    </main>
+
+      <!-- 悬浮窗：控制台 -->
+      <section class="card drawer" id="panelDrawer">
+        <div class="card__header card__header--with-actions">
+          <div>
             <h2>控制台</h2>
             <div class="meta">
               <span class="meta__item">当前用户：<strong id="currentUser">-</strong></span>
               <span class="meta__item">会议：<strong id="currentMeeting">-</strong></span>
             </div>
           </div>
+          <div class="card__actions">
+            <button id="closePanelDrawer" class="btn btn--ghost btn--xs" type="button">关闭</button>
+          </div>
+        </div>
 
+        <div class="card__body">
           <div class="stack">
             <div class="subcard subcard--grid">
               <h3>创建会议</h3>
@@ -118,7 +146,6 @@
             <div class="subcard subcard--grid subcard--controls">
               <h3>通话控制</h3>
               <div class="controls">
-                <button id="startMediaBtn" class="btn btn--secondary" type="button">打开摄像头/麦克风</button>
                 <button id="leaveBtn" class="btn btn--danger" type="button" disabled>离开会议</button>
                 <button id="muteBtn" class="btn btn--ghost" type="button" disabled>静音</button>
                 <button id="videoBtn" class="btn btn--ghost" type="button" disabled>关摄像头</button>
@@ -144,14 +171,83 @@
               </form>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section class="card ai">
-          <div class="card__header">
-            <h2>实时 AI</h2>
-            <div class="hint">实时标签：语音识别 / 情绪 / 合成检测，结果会贴在字幕行上</div>
+      <!-- 悬浮窗：美颜 / 滤镜 -->
+      <section id="fxDrawer" class="card drawer">
+        <div class="card__header card__header--with-actions">
+          <div>
+            <h2>美颜 / 滤镜</h2>
+            <div class="hint">可独立开关，类似腾讯会议悬浮窗</div>
           </div>
+          <div class="card__actions">
+            <button id="closeFxDrawer" class="btn btn--ghost btn--xs" type="button">关闭</button>
+          </div>
+        </div>
+        <div id="fxPanelBody" class="card__body">
+          <div class="fx__head">
+            <label class="check check--mini">
+              <input id="fxEnableBeauty" type="checkbox" checked />
+              <span>美颜</span>
+            </label>
+            <label class="check check--mini">
+              <input id="fxEnableFilter" type="checkbox" />
+              <span>滤镜</span>
+            </label>
+            <div class="small fx__status">SEI：<strong id="seiStatus">-</strong></div>
+            <button id="toggleFxPanel" class="btn btn--ghost btn--xs" type="button">收起</button>
+          </div>
+          <div class="form__grid fx__grid" id="fxPanelContent">
+            <label class="field">
+              <span>美颜类型</span>
+              <select id="fxBeautyType">
+                <option value="natural" selected>自然</option>
+                <option value="smooth">磨皮</option>
+                <option value="strong">重磨皮</option>
+                <option value="bright">提亮</option>
+                <option value="soft">柔和</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>滤镜类型</span>
+              <select id="fxFilter">
+                <option value="none" selected>无</option>
+                <option value="warm">暖色</option>
+                <option value="cool">冷色</option>
+                <option value="gray">黑白</option>
+                <option value="vivid">鲜艳</option>
+                <option value="retro">复古</option>
+                <option value="film">胶片</option>
+                <option value="soft">柔光</option>
+                <option value="cyber">霓虹</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>美颜强度 <strong id="fxBeautyVal">20</strong></span>
+              <input id="fxBeauty" type="range" min="0" max="100" value="20" />
+            </label>
+            <label class="field">
+              <span>瘦脸强度 <strong id="fxSlimVal">0</strong></span>
+              <input id="fxSlim" type="range" min="0" max="100" value="0" />
+            </label>
+            <div class="hint fx__hint">参数通过 H264 SEI(user_data_unregistered) 同步；仅本地渲染（SFU 不改码流）。</div>
+          </div>
+        </div>
+      </section>
 
+      <!-- 悬浮窗：AI 字幕 / 调试 -->
+      <section id="aiDrawer" class="card drawer">
+        <div class="card__header card__header--with-actions">
+          <div>
+            <h2>实时 AI</h2>
+            <div class="hint">语音识别 / 情绪 / 合成检测字幕</div>
+          </div>
+          <div class="card__actions">
+            <button id="closeAiDrawer" class="btn btn--ghost btn--xs" type="button">关闭</button>
+          </div>
+        </div>
+        <div id="aiPanelBody" class="card__body">
           <div class="stack">
             <div class="subcard subcard--grid">
               <h3>实时检测（当前说话人）</h3>
@@ -261,67 +357,9 @@
               </div>
             </details>
           </div>
-        </section>
-
-        <section class="card video">
-          <div class="card__header">
-            <h2>视频</h2>
-            <div class="hint">提示：多人会议为 SFU 连接（每台设备只连 media-service 一条 PeerConnection）。</div>
-          </div>
-          <div class="subcard fx">
-            <div class="fx__head">
-              <h3 class="fx__title">美颜 / 滤镜</h3>
-              <label class="check check--mini">
-                <input id="fxEnableBeauty" type="checkbox" checked />
-                <span>美颜</span>
-              </label>
-              <label class="check check--mini">
-                <input id="fxEnableFilter" type="checkbox" />
-                <span>滤镜</span>
-              </label>
-              <div class="small fx__status">SEI：<strong id="seiStatus">-</strong></div>
-            </div>
-
-            <div class="form__grid fx__grid">
-              <label class="field">
-                <span>美颜类型</span>
-                <select id="fxBeautyType">
-                  <option value="natural" selected>自然</option>
-                  <option value="smooth">磨皮</option>
-                  <option value="strong">重磨皮</option>
-                  <option value="bright">提亮</option>
-                  <option value="soft">柔和</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>滤镜类型</span>
-                <select id="fxFilter">
-                  <option value="none" selected>无</option>
-                  <option value="warm">暖色</option>
-                  <option value="cool">冷色</option>
-                  <option value="gray">黑白</option>
-                  <option value="vivid">鲜艳</option>
-                  <option value="retro">复古</option>
-                  <option value="film">胶片</option>
-                  <option value="soft">柔光</option>
-                  <option value="cyber">霓虹</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>美颜强度 <strong id="fxBeautyVal">20</strong></span>
-                <input id="fxBeauty" type="range" min="0" max="100" value="20" />
-              </label>
-              <label class="field">
-                <span>瘦脸强度 <strong id="fxSlimVal">0</strong></span>
-                <input id="fxSlim" type="range" min="0" max="100" value="0" />
-              </label>
-              <div class="hint fx__hint">参数通过 H264 SEI(user_data_unregistered) 同步；仅本地渲染（SFU 不改码流）。</div>
-            </div>
-          </div>
-          <div id="videoGrid" class="videogrid"></div>
-          <div id="aiDanmaku" class="danmaku" aria-live="polite"></div>
-        </section>
+        </div>
       </section>
+
     </main>
 
     <footer class="footer">

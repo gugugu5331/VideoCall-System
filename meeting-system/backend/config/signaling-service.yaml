@@ -32,6 +32,22 @@ redis:
   message_prefix: "message:"
   session_ttl: 3600
 
+# Kafka 配置
+kafka:
+  enabled: true
+  brokers:
+    - "kafka:9092"
+  topic_prefix: "meeting"
+  group_id: "meeting-system"
+  sasl:
+    enabled: false
+    mechanism: "PLAIN"
+    username: ""
+    password: ""
+  tls:
+    enabled: false
+    insecure_skip_verify: false
+
 # WebSocket配置
 websocket:
   path: "/ws/signaling"
@@ -115,7 +131,7 @@ jwt:
 # 消息队列配置
 message_queue:
   enabled: true
-  type: "redis"
+  type: "kafka"  # kafka, memory
   queue_name: "meeting_system"
   workers: 4
   visibility_timeout: 30
@@ -132,7 +148,7 @@ task_scheduler:
 # 事件总线配置
 event_bus:
   enabled: true
-  type: "redis_pubsub"
+  type: "kafka"  # kafka, local
   buffer_size: 100
   workers: 2
 

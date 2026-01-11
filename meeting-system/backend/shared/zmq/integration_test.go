@@ -1,4 +1,5 @@
-// +build integration
+//go:build zmq && integration
+// +build zmq,integration
 
 package zmq
 
@@ -167,7 +168,7 @@ func TestZMQClient_LoadTesting(t *testing.T) {
 	requests := 50
 
 	results := make(chan error, concurrency*requests)
-	
+
 	for i := 0; i < concurrency; i++ {
 		go func(workerID int) {
 			for j := 0; j < requests; j++ {
@@ -182,7 +183,7 @@ func TestZMQClient_LoadTesting(t *testing.T) {
 	// 收集结果
 	successCount := 0
 	errorCount := 0
-	
+
 	for i := 0; i < concurrency*requests; i++ {
 		err := <-results
 		if err == nil {
@@ -194,7 +195,7 @@ func TestZMQClient_LoadTesting(t *testing.T) {
 	}
 
 	t.Logf("Load test results: %d success, %d errors", successCount, errorCount)
-	
+
 	// 至少80%的请求应该成功
 	successRate := float64(successCount) / float64(concurrency*requests)
 	assert.GreaterOrEqual(t, successRate, 0.8, "Success rate should be at least 80%")
@@ -231,15 +232,15 @@ func TestZMQClient_ConnectionRecovery(t *testing.T) {
 	// 模拟网络中断后的恢复
 	// 注意：这个测试需要手动中断和恢复Edge-LLM-Infra服务来验证
 	t.Log("Testing connection recovery - this requires manual intervention")
-	
+
 	// 等待一段时间，让心跳检测有机会运行
 	time.Sleep(35 * time.Second)
-	
+
 	// 再次尝试健康检查
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
 	err = client.HealthCheck(ctx)
 	cancel()
-	
+
 	if err != nil {
 		t.Logf("Health check failed after recovery period: %v", err)
 	} else {

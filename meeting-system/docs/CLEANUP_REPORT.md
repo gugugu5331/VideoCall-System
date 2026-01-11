@@ -1,31 +1,24 @@
-# 文档同步记录
+# 文档重写记录
 
-本次调整将文档与当前仓库实际内容保持一致，清理了缺失目录/过时引用，并更新了端口、服务名称和客户端形态。
+此次更新统一了仓库内所有文档，聚焦当前代码与部署形态（Go 微服务 + Nginx + Kafka + 可选 AI/Triton），清理了过时的 Python 推理路径和缺失目录引用。
 
-## 关键变更
+## 主要改动
 
-- **入口文档**：根 README 与 `meeting-system/README.md` 现描述真实的服务列表、端口、前端位置（`frontend/dist`）与部署方式。
-- **索引修正**：`docs/README.md` 去除不存在的目录（如 `INTERVIEW/`、Qt 客户端），仅保留现有文件。
-- **架构文档**：`ARCHITECTURE_DIAGRAM.md` 与 `BACKEND_ARCHITECTURE.md` 对齐 `docker-compose.yml`，删除通知服务/Qt 客户端等无效节点。
-- **API 文档**：`API/README.md`、`API/API_DOCUMENTATION.md` 更新为实际端点（user/meeting/signaling/media/ai），基础 URL 改为 `http://localhost:8800`。
-- **客户端文档**：改为 Web 客户端说明，移除 Qt/C++ API；新增当前 AI/通信/贴图状态说明。
+- **总览与架构**：重写根 README、`meeting-system/README.md`、`docs/ARCHITECTURE_DIAGRAM.md`、`BACKEND_ARCHITECTURE.md`，明确可选 AI 组件、Kafka 队列与端口映射。
+- **API 与数据**：更新 `docs/API/*`、`DATABASE_SCHEMA.md`，对齐现有端点、存储职责与 Kafka/Redis 约定。
+- **客户端**：重新编写 Web 调用/通信/AI/SEI/贴图文档，强调同源访问与降级策略。
+- **部署**：新增完整的本地/远程/GPU/K8s 说明，替换过期的模型部署指南为 Triton 方案，整理 GPU 节点与自动化脚本用法。
+- **开发与测试**：刷新测试流程、队列指南、AI 服务文档，去除不存在的报告文件与历史日期。
+- **附加**：更新媒体测试文件说明、清理无效示例列表。
 
-## 现有文档结构
+## 细化补充（本次）
 
-```
-docs/
-├── README.md
-├── ARCHITECTURE_DIAGRAM.md
-├── BACKEND_ARCHITECTURE.md
-├── DATABASE_SCHEMA.md
-├── API/
-├── DEPLOYMENT/
-├── DEVELOPMENT/
-└── CLIENT/
-```
+- 增加前置要求、环境变量与故障排查提示（根 README、meeting-system/README、部署文档）。
+- 在架构、数据、API、客户端文档中补充调用示例、浏览器要求、索引与性能建议。
+- 部署与 AI 模型文档添加验证命令、.env 示例、上游负载与健康检查步骤。
 
 ## 后续维护建议
 
-- 新增或修改端口/服务时同步更新 `docker-compose.yml` 与相关文档。
-- 若引入新客户端形态（Native/移动端），单独补充目录并在 `docs/README.md` 增加索引。
-- 生产部署前确认环境变量（`JWT_SECRET` 等）已设置，避免文档与配置偏差。
+- 修改端口、上游或配置时同步更新对应文档与 compose/kustomize。
+- 准备或更换 AI 模型时先更新 `ai-inference-service` 配置与 Triton 仓库，再补充文档说明。
+- 引入新客户端形态或存储结构时按现有分类新增文档并补充索引。

@@ -1,0 +1,397 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: meeting-system/user-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/user-service.yaml
+            - name: DATABASE_HOST
+              value: postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ETCD_ENDPOINTS
+              value: etcd:2379
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: meeting-secrets
+                  key: JWT_SECRET
+            - name: ALLOWED_ORIGINS
+              value: http://localhost:8800,http://meeting-nginx
+            - name: MESSAGE_QUEUE_TYPE
+              value: kafka
+            - name: EVENT_BUS_TYPE
+              value: kafka
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_PREFIX
+              value: meeting
+            - name: KAFKA_GROUP_ID
+              value: meeting-system
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: meeting-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: meeting-system
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling-service
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: signaling-service
+  template:
+    metadata:
+      labels:
+        app: signaling-service
+    spec:
+      containers:
+        - name: signaling-service
+          image: meeting-system/signaling-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/signaling-service.yaml
+            - name: REDIS_HOST
+              value: redis
+            - name: ETCD_ENDPOINTS
+              value: etcd:2379
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: meeting-secrets
+                  key: JWT_SECRET
+            - name: ALLOWED_ORIGINS
+              value: http://localhost:8800,http://meeting-nginx
+            - name: MESSAGE_QUEUE_TYPE
+              value: kafka
+            - name: EVENT_BUS_TYPE
+              value: kafka
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_PREFIX
+              value: meeting
+            - name: KAFKA_GROUP_ID
+              value: meeting-system
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: meeting-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling-service
+  namespace: meeting-system
+spec:
+  selector:
+    app: signaling-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meeting-service
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meeting-service
+  template:
+    metadata:
+      labels:
+        app: meeting-service
+    spec:
+      containers:
+        - name: meeting-service
+          image: meeting-system/meeting-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/meeting-service.yaml
+            - name: DATABASE_HOST
+              value: postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ETCD_ENDPOINTS
+              value: etcd:2379
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: meeting-secrets
+                  key: JWT_SECRET
+            - name: ALLOWED_ORIGINS
+              value: http://localhost:8800,http://meeting-nginx
+            - name: MESSAGE_QUEUE_TYPE
+              value: kafka
+            - name: EVENT_BUS_TYPE
+              value: kafka
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_PREFIX
+              value: meeting
+            - name: KAFKA_GROUP_ID
+              value: meeting-system
+          ports:
+            - containerPort: 8082
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          configMap:
+            name: meeting-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meeting-service
+  namespace: meeting-system
+spec:
+  selector:
+    app: meeting-service
+  ports:
+    - port: 8082
+      targetPort: 8082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-service
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-service
+  template:
+    metadata:
+      labels:
+        app: media-service
+    spec:
+      containers:
+        - name: media-service
+          image: meeting-system/media-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/media-service.yaml
+            - name: DB_HOST
+              value: postgres
+            - name: MINIO_HOST
+              value: minio
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: meeting-secrets
+                  key: JWT_SECRET
+            - name: MESSAGE_QUEUE_TYPE
+              value: kafka
+            - name: EVENT_BUS_TYPE
+              value: kafka
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_PREFIX
+              value: meeting
+            - name: KAFKA_GROUP_ID
+              value: meeting-system
+          ports:
+            - containerPort: 8083
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+            - name: recordings
+              mountPath: /data/recordings
+            - name: media-temp
+              mountPath: /tmp/media
+      volumes:
+        - name: config
+          configMap:
+            name: meeting-config
+        - name: recordings
+          emptyDir: {}
+        - name: media-temp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-service
+  namespace: meeting-system
+spec:
+  selector:
+    app: media-service
+  ports:
+    - port: 8083
+      targetPort: 8083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-inference-service
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-inference-service
+  template:
+    metadata:
+      labels:
+        app: ai-inference-service
+    spec:
+      containers:
+        - name: ai-inference-service
+          image: meeting-system/ai-inference-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_PATH
+              value: /app/config/ai-inference-service.yaml
+            - name: DATABASE_HOST
+              value: postgres
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ETCD_ENDPOINTS
+              value: etcd:2379
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: meeting-secrets
+                  key: JWT_SECRET
+            - name: ALLOWED_ORIGINS
+              value: http://localhost:8800,http://meeting-nginx
+            - name: MESSAGE_QUEUE_TYPE
+              value: kafka
+            - name: EVENT_BUS_TYPE
+              value: kafka
+            - name: KAFKA_BROKERS
+              value: kafka:9092
+            - name: KAFKA_TOPIC_PREFIX
+              value: meeting
+            - name: KAFKA_GROUP_ID
+              value: meeting-system
+          ports:
+            - containerPort: 8085
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: config
+          configMap:
+            name: ai-config
+        - name: models
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-inference-service
+  namespace: meeting-system
+spec:
+  selector:
+    app: ai-inference-service
+  ports:
+    - port: 8085
+      targetPort: 8085
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meeting-nginx
+  namespace: meeting-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meeting-nginx
+  template:
+    metadata:
+      labels:
+        app: meeting-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx
+            - name: recordings
+              mountPath: /var/www/hls
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: recordings
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meeting-nginx
+  namespace: meeting-system
+spec:
+  selector:
+    app: meeting-nginx
+  ports:
+    - port: 80
+      targetPort: 80
+  type: LoadBalancer

@@ -88,38 +88,31 @@ func main() {
 
 	fmt.Println("✅ Database initialized")
 
-	// 初始化Redis
+	// 初始化Redis（仅用于缓存，可选）
 	fmt.Println("Initializing Redis...")
-	var redisInitialized bool
 	if err := database.InitRedis(cfg.Redis); err != nil {
 		logger.Warn("Failed to initialize Redis: " + err.Error())
 		fmt.Printf("⚠️  Redis initialization failed: %v\n", err)
 	} else {
-		redisInitialized = true
 		defer database.CloseRedis()
 		logger.Info("Redis initialized successfully")
 		fmt.Println("✅ Redis initialized")
 	}
 
 	// 初始化消息队列系统
-	var queueManager *queue.QueueManager
-	if redisInitialized {
-		logger.Info("Initializing message queue system...")
-		fmt.Println("Initializing message queue system...")
-		redisClient := database.GetRedis()
-		var err error
-		queueManager, err = queue.InitializeQueueSystem(cfg, redisClient)
-		if err != nil {
-			logger.Warn("Failed to initialize queue system: " + err.Error())
-			fmt.Printf("⚠️  Queue system initialization failed: %v\n", err)
-		} else {
-			defer queueManager.Stop()
-			logger.Info("Message queue system initialized successfully")
-			fmt.Println("✅ Message queue system initialized")
+	logger.Info("Initializing message queue system...")
+	fmt.Println("Initializing message queue system...")
+	queueManager, err := queue.InitializeQueueSystem(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize queue system: " + err.Error())
+		fmt.Printf("⚠️  Queue system initialization failed: %v\n", err)
+	} else {
+		defer queueManager.Stop()
+		logger.Info("Message queue system initialized successfully")
+		fmt.Println("✅ Message queue system initialized")
 
-			// 注册媒体任务处理器
-			registerMediaTaskHandlers(queueManager)
-		}
+		// 注册媒体任务处理器
+		registerMediaTaskHandlers(queueManager)
 	}
 
 	// 初始化MinIO存储
@@ -402,17 +395,17 @@ func resolveAdvertiseHost(host string) string {
 func registerMediaTaskHandlers(qm *queue.QueueManager) {
 	logger.Info("Registering media task handlers...")
 
-	// 注册Redis消息队列处理器
-	if redisQueue := qm.GetRedisMessageQueue(); redisQueue != nil {
+	// 注册Kafka消息队列处理器
+	if kafkaQueue := qm.GetKafkaMessageQueue(); kafkaQueue != nil {
 		// 媒体流处理任务
-		redisQueue.RegisterHandler("media_stream_process", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("media_stream_process", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing media stream task: %s", msg.ID))
 
 			streamID := msg.Payload["stream_id"]
 			logger.Info(fmt.Sprintf("Processing stream: %v", streamID))
 
 			// 发布流处理完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "media_events", &queue.PubSubMessage{
 					Type: "stream.processed",
 					Payload: map[string]interface{}{
@@ -427,14 +420,14 @@ func registerMediaTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 录制任务
-		redisQueue.RegisterHandler("media_recording_start", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("media_recording_start", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing recording start task: %s", msg.ID))
 
 			meetingID := msg.Payload["meeting_id"]
 			logger.Info(fmt.Sprintf("Starting recording for meeting: %v", meetingID))
 
 			// 发布录制开始事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "media_events", &queue.PubSubMessage{
 					Type: "recording.started",
 					Payload: map[string]interface{}{
@@ -449,14 +442,14 @@ func registerMediaTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 录制停止任务
-		redisQueue.RegisterHandler("media_recording_stop", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("media_recording_stop", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing recording stop task: %s", msg.ID))
 
 			meetingID := msg.Payload["meeting_id"]
 			logger.Info(fmt.Sprintf("Stopping recording for meeting: %v", meetingID))
 
 			// 发布录制停止事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "media_events", &queue.PubSubMessage{
 					Type: "recording.stopped",
 					Payload: map[string]interface{}{
@@ -471,7 +464,7 @@ func registerMediaTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 转码任务
-		redisQueue.RegisterHandler("media_transcode", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("media_transcode", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing transcode task: %s", msg.ID))
 
 			videoID := msg.Payload["video_id"]
@@ -480,7 +473,7 @@ func registerMediaTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Transcoding video %v to format %v", videoID, format))
 
 			// 发布转码完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "media_events", &queue.PubSubMessage{
 					Type: "transcode.completed",
 					Payload: map[string]interface{}{
@@ -499,7 +492,7 @@ func registerMediaTaskHandlers(qm *queue.QueueManager) {
 	}
 
 	// 注册发布订阅处理器
-	if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+	if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 		// 订阅会议事件
 		pubsub.Subscribe("meeting_events", func(ctx context.Context, msg *queue.PubSubMessage) error {
 			logger.Info(fmt.Sprintf("Received meeting event: %s", msg.Type))

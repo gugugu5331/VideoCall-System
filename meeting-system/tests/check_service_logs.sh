@@ -18,6 +18,9 @@ SERVICES=("user-service" "meeting-service" "media-service" "signaling-service" "
 # 日志目录
 LOG_DIR="../backend"
 
+# Kafka 地址（可通过环境变量覆盖）
+KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-localhost:9092}"
+
 # 输出文件
 OUTPUT_FILE="service_logs_check_$(date +%Y%m%d_%H%M%S).md"
 
@@ -73,22 +76,22 @@ check_service_log() {
         echo "❌ 未找到任务处理器注册日志" >> "$OUTPUT_FILE"
     fi
     
-    # 检查 Redis 消息队列
-    if grep -q "Redis message queue handlers registered" "$log_file" 2>/dev/null; then
-        log_success "  ✅ Redis 消息队列处理器"
-        echo "✅ Redis 消息队列处理器注册成功" >> "$OUTPUT_FILE"
+    # 检查 Kafka 消息队列
+    if grep -qi "Kafka message queue" "$log_file" 2>/dev/null; then
+        log_success "  ✅ Kafka 消息队列"
+        echo "✅ Kafka 消息队列初始化/处理器就绪" >> "$OUTPUT_FILE"
     else
-        log_warning "  ❌ 未找到 Redis 消息队列处理器日志"
-        echo "❌ 未找到 Redis 消息队列处理器日志" >> "$OUTPUT_FILE"
+        log_warning "  ❌ 未找到 Kafka 消息队列相关日志"
+        echo "❌ 未找到 Kafka 消息队列相关日志" >> "$OUTPUT_FILE"
     fi
     
-    # 检查 PubSub 订阅
-    if grep -q "PubSub handlers registered" "$log_file" 2>/dev/null; then
-        log_success "  ✅ PubSub 处理器"
-        echo "✅ PubSub 处理器注册成功" >> "$OUTPUT_FILE"
+    # 检查 Kafka 事件总线
+    if grep -qi "Kafka event bus" "$log_file" 2>/dev/null; then
+        log_success "  ✅ Kafka 事件总线"
+        echo "✅ Kafka 事件总线初始化/订阅成功" >> "$OUTPUT_FILE"
     else
-        log_warning "  ❌ 未找到 PubSub 处理器日志"
-        echo "❌ 未找到 PubSub 处理器日志" >> "$OUTPUT_FILE"
+        log_warning "  ❌ 未找到 Kafka 事件总线日志"
+        echo "❌ 未找到 Kafka 事件总线日志" >> "$OUTPUT_FILE"
     fi
     
     # 检查本地事件总线
@@ -157,36 +160,33 @@ check_docker_logs() {
     done
 }
 
-# 检查 Redis 统计
-check_redis_stats() {
-    log "检查 Redis 统计..."
+# 检查 Kafka 主题
+check_kafka_topics() {
+    log "检查 Kafka 主题..."
     
-    echo "# Redis 队列统计" >> "$OUTPUT_FILE"
+    echo "# Kafka 主题" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
-    
-    # 检查队列长度
-    echo "## 队列长度" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
-    echo "| 队列名称 | 长度 |" >> "$OUTPUT_FILE"
-    echo "|---------|------|" >> "$OUTPUT_FILE"
-    
-    for queue in "critical_queue" "high_queue" "normal_queue" "low_queue" "dead_letter_queue"; do
-        local length=$(redis-cli LLEN "meeting_system:${queue}" 2>/dev/null || echo "N/A")
-        echo "| ${queue} | ${length} |" >> "$OUTPUT_FILE"
-        log "  ${queue}: ${length}"
-    done
-    
-    echo "" >> "$OUTPUT_FILE"
-    
-    # 检查 Pub/Sub 频道
-    echo "## Pub/Sub 频道" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
-    
-    local channels=$(redis-cli PUBSUB CHANNELS "meeting_system:*" 2>/dev/null || echo "无")
-    echo "\`\`\`" >> "$OUTPUT_FILE"
-    echo "$channels" >> "$OUTPUT_FILE"
-    echo "\`\`\`" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
+
+    if command -v kafka-topics.sh >/dev/null 2>&1; then
+        kafka-topics.sh --bootstrap-server "${KAFKA_BOOTSTRAP:-localhost:9092}" --list 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        echo "" >> "$OUTPUT_FILE"
+        return
+    fi
+
+    if command -v kafka-topics >/dev/null 2>&1; then
+        kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP:-localhost:9092}" --list 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        echo "" >> "$OUTPUT_FILE"
+        return
+    fi
+
+    if command -v docker >/dev/null 2>&1 && docker compose ps kafka >/dev/null 2>&1; then
+        docker compose exec -T kafka bash -c "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        echo "" >> "$OUTPUT_FILE"
+        return
+    fi
+
+    log_warning "未找到 kafka-topics 工具，跳过主题检查"
+    echo "⚠️ 未找到 kafka-topics 工具，跳过主题检查" >> "$OUTPUT_FILE"
 }
 
 # 生成总结
@@ -245,8 +245,8 @@ main() {
         check_service_log "$service"
     done
     
-    # 检查 Redis 统计
-    check_redis_stats
+    # 检查 Kafka 主题
+    check_kafka_topics
     
     # 检查 Docker 日志（如果使用 Docker）
     if command -v docker &> /dev/null; then
@@ -267,4 +267,3 @@ main() {
 
 # 运行
 main
-

@@ -1,42 +1,33 @@
 # 💻 Web 客户端文档
 
-当前仓库仅包含已构建的 Web 客户端（`frontend/dist`），由 Nginx 同源提供。无需单独编译，容器启动后即可通过 `http://localhost:8800` 访问。
+仓库已包含构建好的前端（`frontend/dist`），由 Nginx 同源发布，默认入口 `http://localhost:8800`。无需单独编译即可体验。
 
-## 📖 文档列表
+## 文档索引
 
-- **[API_USAGE_GUIDE.md](API_USAGE_GUIDE.md)**：前端调用后端 API 的流程与示例
-- **[COMMUNICATION_DESIGN.md](COMMUNICATION_DESIGN.md)**：HTTP/WebSocket/WebRTC 通信设计
-- **[AI_FEATURES.md](AI_FEATURES.md)**：实时 AI/手动检测能力（ASR/情感/合成检测）
-- **[VIDEO_EFFECTS_SEI.md](VIDEO_EFFECTS_SEI.md)**：H264 SEI 携带滤镜/美颜参数
-- **[STICKER_FEATURE.md](STICKER_FEATURE.md)**：贴图/虚拟形象说明
+- [API_USAGE_GUIDE.md](API_USAGE_GUIDE.md)：调用流程与示例
+- [COMMUNICATION_DESIGN.md](COMMUNICATION_DESIGN.md)：HTTP/WS/WebRTC 设计
+- [AI_FEATURES.md](AI_FEATURES.md)：实时与手动 AI 功能
+- [VIDEO_EFFECTS_SEI.md](VIDEO_EFFECTS_SEI.md)：H264 SEI 美颜/滤镜参数示例
+- [STICKER_FEATURE.md](STICKER_FEATURE.md)：贴图/虚拟形象扩展现状
 
-## 🏗️ 客户端概览
+## 客户端概览
 
-- **资源位置**：`meeting-system/frontend/dist`（`index.html`, `app.js`, `styles.css`）
-- **主要能力**：
-  - 登录/注册、会话保持（JWT）
-  - 创建/加入会议，音视频开关、屏幕共享
-  - WebSocket 信令 `/ws/signaling`，显示房间/参与者状态
-  - 聊天消息、基础控制台数据
-  - 实时 AI：语音识别、情绪、合成检测，字幕/标签展示
-  - H264 SEI 透传本地美颜/滤镜参数（浏览器支持 Encoded Streams 时）
-- **依赖**：同源 API (`http://<host>:8800`)，HTTPS 环境可启用摄像头/麦克风。
+- **位置**：`meeting-system/frontend/dist`（`index.html`、`app.js`、`styles.css`）
+- **能力**：注册/登录、创建/加入会议、音视频/屏幕共享、聊天、房间和参与者状态、AI 字幕/标签、可选 SEI 美颜示例
+- **依赖**：同源 API `/api/v1/*` 与 `ws(s)://<host>/ws/signaling`；生产场景建议 HTTPS 以启用摄像头/麦克风
+- **浏览器要求**：现代 Chromium/Firefox；SEI 示例依赖 Encoded Insertable Streams，仅在支持的浏览器上可用
 
-## 🚀 使用
+## 使用步骤
 
-1. 启动后端与网关：`docker compose up -d`（在 `meeting-system`）。
-2. 浏览器访问 `http://localhost:8800`（生产请使用 HTTPS）。
-3. 注册或使用已有账号登录，创建/加入会议进行通话和 AI 检测。
+1. 在 `meeting-system` 目录执行 `docker compose up -d`
+2. 打开 `http://localhost:8800`（生产请使用 HTTPS 域名）
+3. 注册或登录，创建/加入会议；若需 AI 功能，请确保后端已启用 `ai-inference-service` + Triton 上游
 
-## 🔧 配置与调试
+## 调试提示
 
-- API 基础路径：相对同源（`/api/v1/...`），无需修改前端配置。
-- 若自定义域名/端口，保持 Nginx 同源反代即可；信令使用 `ws(s)://<host>/ws/signaling`。
-- 浏览器需允许获取摄像头/麦克风；非 HTTPS 环境可能被阻止。
+- 前端使用同源相对路径，无需额外环境变量；调整网关域名/端口即可。
+- 浏览器不支持 Encoded Streams 时，SEI 示例会被自动降级，通话功能不受影响。
+- 401/403 多因缺少 JWT 或密钥不一致；确认 `JWT_SECRET` 已在后端设置并重新登录。
+- 页面异常可通过浏览器控制台查看网络/WS 报错；必要时检查 `nginx` 与 `signaling-service` 日志。
 
-## 📚 相关文档
-
-- [API 文档](../API/README.md)
-- [部署指南](../DEPLOYMENT/README.md)
-- [开发/测试](../DEVELOPMENT/README.md)
-- [架构](../ARCHITECTURE_DIAGRAM.md)
+更多接口、部署与测试说明请参考上层文档：`../API/README.md`、`../DEPLOYMENT/README.md`、`../DEVELOPMENT/README.md`。

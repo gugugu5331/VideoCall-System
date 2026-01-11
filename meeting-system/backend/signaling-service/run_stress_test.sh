@@ -13,9 +13,11 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 默认配置
-SERVER_URL="ws://localhost:8083/ws/signaling"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SERVER_URL="ws://localhost:8081/ws/signaling"
 JWT_SECRET="test-secret"
 MEETING_ID=1
+SIGNALING_LOAD_MAIN="$SCRIPT_DIR/../stress-test/signaling_load/main.go"
 
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}信令服务并发压力测试${NC}"
@@ -69,15 +71,26 @@ run_connection_test() {
     echo -e "${YELLOW}客户端数: 50${NC}"
     echo -e "${YELLOW}持续时间: 30秒${NC}"
     echo ""
-    
-    go run stress_test_runner.go \
-        -url="$SERVER_URL" \
-        -clients=50 \
-        -duration=30s \
-        -scenario=connections \
-        -secret="$JWT_SECRET" \
-        -meeting=$MEETING_ID
-    
+
+    if [[ -f "$SCRIPT_DIR/stress_test_runner.go" ]]; then
+        go run stress_test_runner.go \
+            -url="$SERVER_URL" \
+            -clients=50 \
+            -duration=30s \
+            -scenario=connections \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    else
+        echo -e "${YELLOW}未找到 stress_test_runner.go，改用 signaling_load 工具${NC}"
+        go run "$SIGNALING_LOAD_MAIN" \
+            -ws="$SERVER_URL" \
+            -users=50 \
+            -duration=30s \
+            -rate=10 \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    fi
+
     echo -e "${GREEN}✓ 连接测试完成${NC}"
 }
 
@@ -89,19 +102,29 @@ run_messaging_test() {
     
     echo -e "${YELLOW}测试场景: 并发消息${NC}"
     echo -e "${YELLOW}客户端数: 30${NC}"
-    echo -e "${YELLOW}消息速率: 10 msg/s${NC}"
     echo -e "${YELLOW}持续时间: 30秒${NC}"
     echo ""
-    
-    go run stress_test_runner.go \
-        -url="$SERVER_URL" \
-        -clients=30 \
-        -duration=30s \
-        -msg-rate=10 \
-        -scenario=messaging \
-        -secret="$JWT_SECRET" \
-        -meeting=$MEETING_ID
-    
+
+    if [[ -f "$SCRIPT_DIR/stress_test_runner.go" ]]; then
+        go run stress_test_runner.go \
+            -url="$SERVER_URL" \
+            -clients=30 \
+            -duration=30s \
+            -msg-rate=10 \
+            -scenario=messaging \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    else
+        echo -e "${YELLOW}未找到 stress_test_runner.go，改用 signaling_load 进行连接/ACK 压测${NC}"
+        go run "$SIGNALING_LOAD_MAIN" \
+            -ws="$SERVER_URL" \
+            -users=30 \
+            -duration=30s \
+            -rate=10 \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    fi
+
     echo -e "${GREEN}✓ 消息测试完成${NC}"
 }
 
@@ -118,16 +141,26 @@ run_mixed_test() {
     echo -e "${YELLOW}客户端数: 50${NC}"
     echo -e "${YELLOW}持续时间: 45秒${NC}"
     echo ""
-    
-    go run stress_test_runner.go \
-        -url="$SERVER_URL" \
-        -clients=50 \
-        -duration=45s \
-        -msg-rate=5 \
-        -scenario=mixed \
-        -secret="$JWT_SECRET" \
-        -meeting=$MEETING_ID
-    
+    if [[ -f "$SCRIPT_DIR/stress_test_runner.go" ]]; then
+        go run stress_test_runner.go \
+            -url="$SERVER_URL" \
+            -clients=50 \
+            -duration=45s \
+            -msg-rate=5 \
+            -scenario=mixed \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    else
+        echo -e "${YELLOW}未找到 stress_test_runner.go，改用 signaling_load 进行连接/ACK 压测${NC}"
+        go run "$SIGNALING_LOAD_MAIN" \
+            -ws="$SERVER_URL" \
+            -users=50 \
+            -duration=45s \
+            -rate=10 \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    fi
+
     echo -e "${GREEN}✓ 混合场景测试完成${NC}"
 }
 
@@ -151,14 +184,25 @@ run_stress_test() {
         return
     fi
     
-    go run stress_test_runner.go \
-        -url="$SERVER_URL" \
-        -clients=100 \
-        -duration=30s \
-        -scenario=stress \
-        -secret="$JWT_SECRET" \
-        -meeting=$MEETING_ID
-    
+    if [[ -f "$SCRIPT_DIR/stress_test_runner.go" ]]; then
+        go run stress_test_runner.go \
+            -url="$SERVER_URL" \
+            -clients=100 \
+            -duration=30s \
+            -scenario=stress \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    else
+        echo -e "${YELLOW}未找到 stress_test_runner.go，改用 signaling_load 进行连接/ACK 压测${NC}"
+        go run "$SIGNALING_LOAD_MAIN" \
+            -ws="$SERVER_URL" \
+            -users=100 \
+            -duration=30s \
+            -rate=30 \
+            -secret="$JWT_SECRET" \
+            -meeting=$MEETING_ID
+    fi
+
     echo -e "${GREEN}✓ 极限压力测试完成${NC}"
 }
 
@@ -289,4 +333,3 @@ main() {
 
 # 运行主函数
 main "$@"
-

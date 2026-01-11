@@ -13,9 +13,11 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置
-NGINX_URL="http://localhost"
-API_BASE="${NGINX_URL}/api"
-REDIS_CLI="redis-cli"
+NGINX_URL="${NGINX_URL:-https://www.safemeeting.top}"
+API_BASE="${NGINX_URL}/api/v1"
+KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-localhost:9092}"
+COMPOSE_CMD="${COMPOSE_CMD:-docker compose}"
+CURL_OPTS="${CURL_OPTS:---resolve www.safemeeting.top:443:127.0.0.1 -k -s}"
 
 # 日志文件
 LOG_FILE="e2e_test_$(date +%Y%m%d_%H%M%S).log"
@@ -24,15 +26,15 @@ REPORT_FILE="e2e_test_report_$(date +%Y%m%d_%H%M%S).md"
 # 测试数据
 USER1_USERNAME="test_user_1"
 USER1_EMAIL="user1@test.com"
-USER1_PASSWORD="password123"
+USER1_PASSWORD="Test@Pass123"
 
 USER2_USERNAME="test_user_2"
 USER2_EMAIL="user2@test.com"
-USER2_PASSWORD="password123"
+USER2_PASSWORD="Test@Pass123"
 
 USER3_USERNAME="test_user_3"
 USER3_EMAIL="user3@test.com"
-USER3_PASSWORD="password123"
+USER3_PASSWORD="Test@Pass123"
 
 # 全局变量
 USER1_TOKEN=""
@@ -62,40 +64,45 @@ check_services() {
     log "检查服务状态..."
     
     # 检查 Nginx
-    if ! curl -s "${NGINX_URL}/health" > /dev/null 2>&1; then
+    if ! curl ${CURL_OPTS} "${NGINX_URL}/health" > /dev/null 2>&1; then
         log_warning "Nginx 可能未运行或健康检查端点不可用"
     else
         log_success "Nginx 运行正常"
     fi
     
-    # 检查 Redis
-    if ! $REDIS_CLI ping > /dev/null 2>&1; then
-        log_error "Redis 未运行"
-        exit 1
+    # 检查 Kafka 端口
+    KAFKA_HOST="${KAFKA_BOOTSTRAP%%:*}"
+    KAFKA_PORT="${KAFKA_BOOTSTRAP##*:}"
+    if nc -z "$KAFKA_HOST" "$KAFKA_PORT" >/dev/null 2>&1; then
+        log_success "Kafka (${KAFKA_BOOTSTRAP}) 端口可用"
     else
-        log_success "Redis 运行正常"
+        log_error "Kafka (${KAFKA_BOOTSTRAP}) 不可用，请先启动 Kafka"
+        exit 1
     fi
 }
 
-# 检查 Redis 队列状态
-check_redis_queues() {
-    log "检查 Redis 队列状态..."
+# 检查 Kafka 主题/消费组
+check_kafka_topics() {
+    log "检查 Kafka 主题..."
     
-    echo "=== Redis 队列统计 ===" >> "$LOG_FILE"
-    
-    # 检查各个优先级队列
-    CRITICAL_LEN=$($REDIS_CLI LLEN "meeting_system:critical_queue" 2>/dev/null || echo "0")
-    HIGH_LEN=$($REDIS_CLI LLEN "meeting_system:high_queue" 2>/dev/null || echo "0")
-    NORMAL_LEN=$($REDIS_CLI LLEN "meeting_system:normal_queue" 2>/dev/null || echo "0")
-    LOW_LEN=$($REDIS_CLI LLEN "meeting_system:low_queue" 2>/dev/null || echo "0")
-    DLQ_LEN=$($REDIS_CLI LLEN "meeting_system:dead_letter_queue" 2>/dev/null || echo "0")
-    
-    echo "Critical Queue: $CRITICAL_LEN" | tee -a "$LOG_FILE"
-    echo "High Queue: $HIGH_LEN" | tee -a "$LOG_FILE"
-    echo "Normal Queue: $NORMAL_LEN" | tee -a "$LOG_FILE"
-    echo "Low Queue: $LOW_LEN" | tee -a "$LOG_FILE"
-    echo "Dead Letter Queue: $DLQ_LEN" | tee -a "$LOG_FILE"
-    echo "" >> "$LOG_FILE"
+    echo "=== Kafka topics (${KAFKA_BOOTSTRAP}) ===" >> "$LOG_FILE"
+
+    if command -v kafka-topics.sh >/dev/null 2>&1; then
+        kafka-topics.sh --bootstrap-server "$KAFKA_BOOTSTRAP" --list 2>/dev/null | tee -a "$LOG_FILE" || true
+        return
+    fi
+
+    if command -v kafka-topics >/dev/null 2>&1; then
+        kafka-topics --bootstrap-server "$KAFKA_BOOTSTRAP" --list 2>/dev/null | tee -a "$LOG_FILE" || true
+        return
+    fi
+
+    if command -v docker >/dev/null 2>&1 && $COMPOSE_CMD ps kafka >/dev/null 2>&1; then
+        $COMPOSE_CMD exec -T kafka bash -c "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list" 2>/dev/null | tee -a "$LOG_FILE" || true
+        return
+    fi
+
+    log_warning "未找到 kafka-topics 命令，跳过主题列举"
 }
 
 # 用户注册
@@ -106,7 +113,7 @@ register_user() {
     
     log "注册用户: $username"
     
-    local response=$(curl -s -X POST "${API_BASE}/users/register" \
+    local response=$(curl ${CURL_OPTS} -X POST "${API_BASE}/auth/register" \
         -H "Content-Type: application/json" \
         -d "{\"username\":\"$username\",\"email\":\"$email\",\"password\":\"$password\"}")
     
@@ -126,9 +133,10 @@ login_user() {
     local username=$1
     local password=$2
     
-    log "用户登录: $username"
+    # 将日志输出到 stderr，避免命令替换时污染 token
+    log "用户登录: $username" >&2
     
-    local response=$(curl -s -X POST "${API_BASE}/users/login" \
+    local response=$(curl ${CURL_OPTS} -X POST "${API_BASE}/auth/login" \
         -H "Content-Type: application/json" \
         -d "{\"username\":\"$username\",\"password\":\"$password\"}")
     
@@ -138,11 +146,11 @@ login_user() {
     local token=$(echo "$response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
     
     if [ -n "$token" ]; then
-        log_success "用户 $username 登录成功"
+        log_success "用户 $username 登录成功" >&2
         echo "$token"
         return 0
     else
-        log_error "用户 $username 登录失败: $response"
+        log_error "用户 $username 登录失败: $response" >&2
         return 1
     fi
 }
@@ -152,12 +160,16 @@ create_meeting() {
     local token=$1
     local title=$2
     
-    log "创建会议: $title"
+    # 输出日志到 stderr，避免污染命令替换
+    log "创建会议: $title" >&2
+
+    local start_time=$(date -u -d "+5 minutes" +%Y-%m-%dT%H:%M:%SZ)
+    local end_time=$(date -u -d "+65 minutes" +%Y-%m-%dT%H:%M:%SZ)
     
-    local response=$(curl -s -X POST "${API_BASE}/meetings" \
+    local response=$(curl ${CURL_OPTS} -X POST "${API_BASE}/meetings" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $token" \
-        -d "{\"title\":\"$title\",\"description\":\"E2E Test Meeting\",\"start_time\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}")
+        -d "{\"title\":\"$title\",\"description\":\"E2E Test Meeting\",\"start_time\":\"${start_time}\",\"end_time\":\"${end_time}\",\"meeting_type\":\"video\",\"max_participants\":10}")
     
     echo "Response: $response" >> "$LOG_FILE"
     
@@ -165,11 +177,11 @@ create_meeting() {
     local meeting_id=$(echo "$response" | grep -o '"id":[0-9]*' | head -1 | cut -d':' -f2)
     
     if [ -n "$meeting_id" ]; then
-        log_success "会议创建成功，ID: $meeting_id"
+        log_success "会议创建成功，ID: $meeting_id" >&2
         echo "$meeting_id"
         return 0
     else
-        log_error "会议创建失败: $response"
+        log_error "会议创建失败: $response" >&2
         return 1
     fi
 }
@@ -180,19 +192,19 @@ join_meeting() {
     local meeting_id=$2
     local username=$3
     
-    log "用户 $username 加入会议 $meeting_id"
+    log "用户 $username 加入会议 $meeting_id" >&2
     
-    local response=$(curl -s -X POST "${API_BASE}/meetings/${meeting_id}/join" \
+    local response=$(curl ${CURL_OPTS} -s -X POST "${API_BASE}/meetings/${meeting_id}/join" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $token")
     
     echo "Response: $response" >> "$LOG_FILE"
     
     if echo "$response" | grep -q "success\|joined"; then
-        log_success "用户 $username 成功加入会议"
+        log_success "用户 $username 成功加入会议" >&2
         return 0
     else
-        log_warning "用户 $username 加入会议响应: $response"
+        log_warning "用户 $username 加入会议响应: $response" >&2
         return 0  # 继续测试
     fi
 }
@@ -223,7 +235,7 @@ call_ai_service() {
             ;;
     esac
     
-    local response=$(curl -s -X POST "$endpoint" \
+    local response=$(curl ${CURL_OPTS} -X POST "$endpoint" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $token" \
         -d "$payload")
@@ -274,10 +286,10 @@ generate_report() {
 - User2: 情绪检测
 - User3: 音频降噪
 
-## Redis 队列统计
+## Kafka 主题
 
 \`\`\`
-$(check_redis_queues 2>&1)
+$(check_kafka_topics 2>&1)
 \`\`\`
 
 ## 测试结论
@@ -288,7 +300,7 @@ $(check_redis_queues 2>&1)
 
 1. 检查各服务日志，确认消息队列系统正常工作
 2. 验证事件流转是否符合预期
-3. 监控 Redis 队列长度和死信队列
+3. 监控 Kafka 主题和消费组状态
 
 EOF
 
@@ -304,9 +316,9 @@ main() {
     # 检查服务
     check_services
     
-    # 检查初始队列状态
-    log "=== 初始队列状态 ==="
-    check_redis_queues
+    # 检查初始 Kafka 主题
+    log "=== 初始 Kafka 主题 ==="
+    check_kafka_topics
     
     # 阶段 1: 用户注册
     log "=== 阶段 1: 用户注册 ==="
@@ -317,7 +329,7 @@ main() {
     register_user "$USER3_USERNAME" "$USER3_EMAIL" "$USER3_PASSWORD" || true
     sleep 2
     
-    check_redis_queues
+    check_kafka_topics
     
     # 阶段 2: 用户登录
     log "=== 阶段 2: 用户登录 ==="
@@ -333,7 +345,7 @@ main() {
     if [ -n "$USER1_TOKEN" ]; then
         MEETING_ID=$(create_meeting "$USER1_TOKEN" "E2E Test Meeting")
         sleep 2
-        check_redis_queues
+        check_kafka_topics
     else
         log_error "User1 token 为空，无法创建会议"
     fi
@@ -347,7 +359,7 @@ main() {
         sleep 1
         [ -n "$USER3_TOKEN" ] && join_meeting "$USER3_TOKEN" "$MEETING_ID" "$USER3_USERNAME"
         sleep 2
-        check_redis_queues
+        check_kafka_topics
     else
         log_error "会议 ID 为空，跳过加入会议阶段"
     fi
@@ -361,9 +373,9 @@ main() {
     [ -n "$USER3_TOKEN" ] && call_ai_service "$USER3_TOKEN" "audio_denoising" "$USER3_USERNAME"
     sleep 2
     
-    # 最终队列状态
-    log "=== 最终队列状态 ==="
-    check_redis_queues
+    # 最终 Kafka 主题
+    log "=== 最终 Kafka 主题 ==="
+    check_kafka_topics
     
     # 生成报告
     generate_report
@@ -377,4 +389,3 @@ main() {
 
 # 运行测试
 main
-

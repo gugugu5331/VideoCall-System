@@ -123,25 +123,20 @@ func main() {
 		}
 	}()
 
-	// 初始化消息队列系统
-	var queueManager *queue.QueueManager
-	if redisInitialized {
-		logger.Info("Initializing message queue system...")
-		log.Println("Initializing message queue system...")
-		redisClient := database.GetRedis()
-		var err error
-		queueManager, err = queue.InitializeQueueSystem(cfg, redisClient)
-		if err != nil {
-			logger.Warn("Failed to initialize queue system: " + err.Error())
-			log.Printf("Failed to initialize queue system: %v", err)
-		} else {
-			defer queueManager.Stop()
-			logger.Info("Message queue system initialized successfully")
-			log.Println("Message queue system initialized successfully")
+	// 初始化消息队列系统（Kafka 优先，不依赖 Redis）
+	logger.Info("Initializing message queue system...")
+	log.Println("Initializing message queue system...")
+	queueManager, err := queue.InitializeQueueSystem(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize queue system: " + err.Error())
+		log.Printf("Failed to initialize queue system: %v", err)
+	} else {
+		defer queueManager.Stop()
+		logger.Info("Message queue system initialized successfully")
+		log.Println("Message queue system initialized successfully")
 
-			// 注册信令任务处理器
-			registerSignalingTaskHandlers(queueManager)
-		}
+		// 注册信令任务处理器
+		registerSignalingTaskHandlers(queueManager)
 	}
 
 	// MongoDB和MinIO不是信令服务的必需依赖，跳过初始化
@@ -482,10 +477,10 @@ func resolveAdvertiseHost(host string) string {
 func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 	logger.Info("Registering signaling task handlers...")
 
-	// 注册Redis消息队列处理器
-	if redisQueue := qm.GetRedisMessageQueue(); redisQueue != nil {
+	// 注册Kafka消息队列处理器
+	if kafkaQueue := qm.GetKafkaMessageQueue(); kafkaQueue != nil {
 		// WebRTC信令处理任务
-		redisQueue.RegisterHandler("signaling_webrtc_offer", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("signaling_webrtc_offer", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing WebRTC offer task: %s", msg.ID))
 
 			sessionID := msg.Payload["session_id"]
@@ -494,7 +489,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Processing WebRTC offer for session: %v", sessionID))
 
 			// 发布offer处理完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "signaling_events", &queue.PubSubMessage{
 					Type: "webrtc.offer",
 					Payload: map[string]interface{}{
@@ -510,7 +505,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// WebRTC answer处理任务
-		redisQueue.RegisterHandler("signaling_webrtc_answer", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("signaling_webrtc_answer", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing WebRTC answer task: %s", msg.ID))
 
 			sessionID := msg.Payload["session_id"]
@@ -519,7 +514,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Processing WebRTC answer for session: %v", sessionID))
 
 			// 发布answer处理完成事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "signaling_events", &queue.PubSubMessage{
 					Type: "webrtc.answer",
 					Payload: map[string]interface{}{
@@ -535,7 +530,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// ICE candidate处理任务
-		redisQueue.RegisterHandler("signaling_ice_candidate", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("signaling_ice_candidate", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing ICE candidate task: %s", msg.ID))
 
 			sessionID := msg.Payload["session_id"]
@@ -544,7 +539,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Processing ICE candidate for session: %v", sessionID))
 
 			// 发布ICE candidate事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				pubsub.Publish(ctx, "signaling_events", &queue.PubSubMessage{
 					Type: "webrtc.ice_candidate",
 					Payload: map[string]interface{}{
@@ -560,7 +555,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 		})
 
 		// 连接管理任务
-		redisQueue.RegisterHandler("signaling_connection_manage", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("signaling_connection_manage", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing connection management task: %s", msg.ID))
 
 			action := msg.Payload["action"]
@@ -569,7 +564,7 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 			logger.Info(fmt.Sprintf("Managing connection: action=%v, session=%v", action, sessionID))
 
 			// 发布连接管理事件
-			if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+			if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 				eventType := "webrtc.connected"
 				if action == "disconnect" {
 					eventType = "webrtc.disconnected"
@@ -588,11 +583,11 @@ func registerSignalingTaskHandlers(qm *queue.QueueManager) {
 			return nil
 		})
 
-		logger.Info("Redis message queue handlers registered")
+		logger.Info("Kafka message queue handlers registered")
 	}
 
 	// 注册发布订阅处理器
-	if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+	if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 		// 订阅会议事件
 		pubsub.Subscribe("meeting_events", func(ctx context.Context, msg *queue.PubSubMessage) error {
 			logger.Info(fmt.Sprintf("Received meeting event: %s", msg.Type))

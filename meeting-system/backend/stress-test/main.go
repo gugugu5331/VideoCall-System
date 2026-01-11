@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,10 +10,14 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+const testPassword = "Passw0rd!123"
 
 // 测试配置
 type StressTestConfig struct {
@@ -21,6 +26,9 @@ type StressTestConfig struct {
 	ConcurrentUsers   []int // 并发用户数级别
 	TestDuration      time.Duration
 	RequestTimeout    time.Duration
+	StabilityUsers    int
+	StabilityDuration time.Duration
+	PeakUsers         []int
 }
 
 // 性能指标
@@ -74,12 +82,13 @@ type LoginResponse struct {
 
 // 会议创建请求
 type CreateMeetingRequest struct {
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time"`
-	Type        int       `json:"type"`
-	Password    string    `json:"password"`
+	Title           string    `json:"title"`
+	Description     string    `json:"description"`
+	StartTime       time.Time `json:"start_time"`
+	EndTime         time.Time `json:"end_time"`
+	MaxParticipants int       `json:"max_participants"`
+	MeetingType     string    `json:"meeting_type"`
+	Password        string    `json:"password"`
 }
 
 // 压力测试器
@@ -88,16 +97,22 @@ type StressTester struct {
 	client  *http.Client
 	results []TestResult
 	mu      sync.Mutex
+	runID   string
 }
 
 // 创建新的压力测试器
 func NewStressTester(config StressTestConfig) *StressTester {
+	rand.Seed(time.Now().UnixNano())
 	return &StressTester{
 		config: config,
 		client: &http.Client{
 			Timeout: config.RequestTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // 本地自签证书跳过校验
+			},
 		},
 		results: make([]TestResult, 0),
+		runID:   fmt.Sprintf("%06d", rand.Intn(1000000)),
 	}
 }
 
@@ -134,9 +149,9 @@ func (st *StressTester) testUserRegistration(userID int, metrics *PerformanceMet
 	defer wg.Done()
 
 	req := RegisterRequest{
-		Username: fmt.Sprintf("testuser%d", userID),
-		Email:    fmt.Sprintf("testuser%d@example.com", userID),
-		Password: "password123",
+		Username: st.username(userID),
+		Email:    st.email(userID),
+		Password: testPassword,
 		Nickname: fmt.Sprintf("Test User %d", userID),
 		Phone:    "", // 可选字段
 	}
@@ -146,7 +161,7 @@ func (st *StressTester) testUserRegistration(userID int, metrics *PerformanceMet
 	atomic.AddInt64(&metrics.TotalRequests, 1)
 	atomic.AddInt64(&metrics.TotalResponseTime, duration.Nanoseconds())
 
-	if err != nil || resp.StatusCode != http.StatusOK {
+	if err != nil || resp == nil {
 		atomic.AddInt64(&metrics.FailedRequests, 1)
 		if resp != nil {
 			resp.Body.Close()
@@ -154,8 +169,19 @@ func (st *StressTester) testUserRegistration(userID int, metrics *PerformanceMet
 		return
 	}
 
-	atomic.AddInt64(&metrics.SuccessRequests, 1)
-	resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		atomic.AddInt64(&metrics.SuccessRequests, 1)
+		resp.Body.Close()
+	} else {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		// 已存在用户视作成功（避免重复注册导致的误报）
+		if bytes.Contains(bytes.ToLower(body), []byte("exists")) {
+			atomic.AddInt64(&metrics.SuccessRequests, 1)
+		} else {
+			atomic.AddInt64(&metrics.FailedRequests, 1)
+		}
+	}
 
 	// 更新最小/最大响应时间
 	for {
@@ -186,8 +212,8 @@ func (st *StressTester) testUserLogin(userID int, metrics *PerformanceMetrics, w
 	defer wg.Done()
 
 	req := LoginRequest{
-		Username: fmt.Sprintf("testuser%d", userID),
-		Password: "password123",
+		Username: st.username(userID),
+		Password: testPassword,
 	}
 
 	resp, duration, err := st.sendRequest("POST", st.config.UserServiceURL+"/api/v1/auth/login", req, "")
@@ -220,12 +246,13 @@ func (st *StressTester) testMeetingCreation(userID int, token string, metrics *P
 	defer wg.Done()
 
 	req := CreateMeetingRequest{
-		Title:       fmt.Sprintf("Test Meeting %d", userID),
-		Description: fmt.Sprintf("This is a test meeting created by user %d", userID),
-		StartTime:   time.Now().Add(time.Hour),
-		EndTime:     time.Now().Add(2 * time.Hour),
-		Type:        1,
-		Password:    "meeting123",
+		Title:           fmt.Sprintf("Test Meeting %d", userID),
+		Description:     fmt.Sprintf("This is a test meeting created by user %d", userID),
+		StartTime:       time.Now().Add(time.Hour),
+		EndTime:         time.Now().Add(2 * time.Hour),
+		MaxParticipants: 20,
+		MeetingType:     "video",
+		Password:        "meeting123",
 	}
 
 	resp, duration, err := st.sendRequest("POST", st.config.MeetingServiceURL+"/api/v1/meetings", req, token)
@@ -323,11 +350,7 @@ func (st *StressTester) RunAllTests() {
 		time.Sleep(2 * time.Second)
 
 		// 3. 会议创建压力测试（需要先登录获取token）
-		// 这里简化处理，使用固定token进行测试
-		st.runConcurrentTest("会议创建", concurrentUsers, func(userID int, metrics *PerformanceMetrics, wg *sync.WaitGroup) {
-			// 在实际测试中，这里应该先登录获取真实token
-			st.testMeetingCreation(userID, "test-token", metrics, wg)
-		})
+		st.runConcurrentTest("会议创建", concurrentUsers, st.createMeetingWithLogin)
 
 		time.Sleep(5 * time.Second) // 更长的恢复时间
 	}
@@ -451,9 +474,7 @@ func (st *StressTester) runProgressiveLoadTests() {
 		time.Sleep(2 * time.Second)
 
 		// 会议创建测试
-		st.runConcurrentTest(fmt.Sprintf("渐进-会议创建-%d", concurrentUsers), concurrentUsers, func(userID int, metrics *PerformanceMetrics, wg *sync.WaitGroup) {
-			st.testMeetingCreation(userID, "test-token", metrics, wg)
-		})
+		st.runConcurrentTest(fmt.Sprintf("渐进-会议创建-%d", concurrentUsers), concurrentUsers, st.createMeetingWithLogin)
 		time.Sleep(3 * time.Second)
 	}
 }
@@ -463,7 +484,7 @@ func (st *StressTester) runPeakLoadTests() {
 	fmt.Println("🚀 3. 峰值负载测试")
 	fmt.Println("----------------------------------------")
 
-	peakUsers := []int{1000, 1500, 2000}
+	peakUsers := st.config.PeakUsers
 	for _, users := range peakUsers {
 		fmt.Printf("⚡ 峰值测试: %d 并发用户\n", users)
 
@@ -481,7 +502,7 @@ func (st *StressTester) runStabilityTests() {
 	fmt.Println("----------------------------------------")
 
 	// 长时间稳定性测试
-	st.runLongRunningTest("稳定性-持续负载", 100, 60*time.Second)
+	st.runLongRunningTest("稳定性-持续负载", st.config.StabilityUsers, st.config.StabilityDuration)
 }
 
 // 混合场景测试
@@ -595,7 +616,7 @@ func (st *StressTester) runMixedScenarioTest(testName string, concurrentUsers in
 			case 2:
 				// 创建会议
 				localWg.Add(1)
-				st.testMeetingCreation(userID, "test-token", &metrics, &localWg)
+				st.createMeetingWithLogin(userID, &metrics, &localWg)
 			case 3:
 				// 完整用户工作流
 				st.performUserWorkflow(userID, &metrics)
@@ -677,6 +698,24 @@ func (st *StressTester) testMeetingList(token string, metrics *PerformanceMetric
 	resp.Body.Close()
 }
 
+// 登录后创建会议
+func (st *StressTester) createMeetingWithLogin(userID int, metrics *PerformanceMetrics, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var loginWG sync.WaitGroup
+	loginWG.Add(1)
+	token, err := st.testUserLogin(userID, metrics, &loginWG)
+	loginWG.Wait()
+	if err != nil || token == nil {
+		return
+	}
+
+	var createWG sync.WaitGroup
+	createWG.Add(1)
+	st.testMeetingCreation(userID, *token, metrics, &createWG)
+	createWG.Wait()
+}
+
 // 检查服务可用性
 func (st *StressTester) checkServiceAvailability() bool {
 	userServiceOK := false
@@ -684,30 +723,58 @@ func (st *StressTester) checkServiceAvailability() bool {
 
 	// 检查用户服务
 	fmt.Println("  检查用户服务...")
-	resp, _, err := st.sendRequest("GET", st.config.UserServiceURL+"/health", nil, "")
-	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
-		fmt.Printf("  ❌ 用户服务不可用: %v\n", err)
-		if resp != nil {
-			resp.Body.Close()
-		}
-	} else {
+	userHealthURL := st.config.UserServiceURL + "/api/v1/users/health"
+	if strings.Contains(st.config.UserServiceURL, "/api") {
+		userHealthURL = st.config.UserServiceURL + "/health"
+	}
+	resp, _, err := st.sendRequest("GET", userHealthURL, nil, "")
+	if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
 		fmt.Println("  ✅ 用户服务可用")
 		userServiceOK = true
 		resp.Body.Close()
+	} else {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		fallbackResp, _, fallbackErr := st.sendRequest("GET", st.config.UserServiceURL+"/health", nil, "")
+		if fallbackErr == nil && fallbackResp != nil && fallbackResp.StatusCode == http.StatusOK {
+			fmt.Println("  ⚠️ 用户服务健康端点不可用，网关健康检查通过")
+			userServiceOK = true
+			fallbackResp.Body.Close()
+		} else {
+			fmt.Printf("  ❌ 用户服务不可用: %v\n", err)
+			if fallbackResp != nil {
+				fallbackResp.Body.Close()
+			}
+		}
 	}
 
 	// 检查会议服务
 	fmt.Println("  检查会议服务...")
-	resp, _, err = st.sendRequest("GET", st.config.MeetingServiceURL+"/health", nil, "")
-	if err != nil || resp == nil || resp.StatusCode != http.StatusOK {
-		fmt.Printf("  ⚠️ 会议服务不可用: %v (将跳过会议相关测试)\n", err)
-		if resp != nil {
-			resp.Body.Close()
-		}
-	} else {
+	meetingHealthURL := st.config.MeetingServiceURL + "/api/v1/meetings/health"
+	if strings.Contains(st.config.MeetingServiceURL, "/api") {
+		meetingHealthURL = st.config.MeetingServiceURL + "/health"
+	}
+	resp, _, err = st.sendRequest("GET", meetingHealthURL, nil, "")
+	if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
 		fmt.Println("  ✅ 会议服务可用")
 		meetingServiceOK = true
 		resp.Body.Close()
+	} else {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		fallbackResp, _, fallbackErr := st.sendRequest("GET", st.config.MeetingServiceURL+"/health", nil, "")
+		if fallbackErr == nil && fallbackResp != nil && fallbackResp.StatusCode == http.StatusOK {
+			fmt.Println("  ⚠️ 会议服务健康端点不可用，网关健康检查通过")
+			meetingServiceOK = true
+			fallbackResp.Body.Close()
+		} else {
+			fmt.Printf("  ⚠️ 会议服务不可用: %v (将跳过会议相关测试)\n", err)
+			if fallbackResp != nil {
+				fallbackResp.Body.Close()
+			}
+		}
 	}
 
 	// 至少需要用户服务可用
@@ -782,11 +849,14 @@ func main() {
 	fmt.Println()
 
 	config := StressTestConfig{
-		UserServiceURL:    "http://localhost:8081",
-		MeetingServiceURL: "http://localhost:8082",
-		ConcurrentUsers:   []int{10, 50, 100, 200, 500},
-		TestDuration:      30 * time.Second,
-		RequestTimeout:    10 * time.Second,
+		UserServiceURL:    envOrDefault("USER_SERVICE_URL", "http://localhost:8080"),
+		MeetingServiceURL: envOrDefault("MEETING_SERVICE_URL", "http://localhost:8082"),
+		ConcurrentUsers:   parseConcurrentUsersEnv("STRESS_CONCURRENT_USERS", []int{10, 50, 100, 200, 500}),
+		TestDuration:      parseDurationEnv("TEST_DURATION", 30*time.Second),
+		RequestTimeout:    parseDurationEnv("REQUEST_TIMEOUT", 10*time.Second),
+		StabilityUsers:    parseIntEnv("STABILITY_USERS", 100),
+		StabilityDuration: parseDurationEnv("STABILITY_DURATION", 60*time.Second),
+		PeakUsers:         parseConcurrentUsersEnv("PEAK_USERS", []int{1000, 1500, 2000}),
 	}
 
 	tester := NewStressTester(config)
@@ -808,4 +878,53 @@ func main() {
 	tester.generateDetailedReport()
 
 	fmt.Printf("结束时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+}
+
+func (st *StressTester) username(userID int) string {
+	return fmt.Sprintf("tu%s%04d", st.runID, userID%10000)
+}
+
+func (st *StressTester) email(userID int) string {
+	return fmt.Sprintf("%s@example.com", st.username(userID))
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); strings.TrimSpace(v) != "" {
+		return v
+	}
+	return fallback
+}
+
+func parseDurationEnv(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); strings.TrimSpace(v) != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return fallback
+}
+
+func parseIntEnv(key string, fallback int) int {
+	if v := os.Getenv(key); strings.TrimSpace(v) != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			return n
+		}
+	}
+	return fallback
+}
+
+func parseConcurrentUsersEnv(key string, defaults []int) []int {
+	if v := os.Getenv(key); strings.TrimSpace(v) != "" {
+		parts := strings.Split(v, ",")
+		users := make([]int, 0, len(parts))
+		for _, p := range parts {
+			if n, err := strconv.Atoi(strings.TrimSpace(p)); err == nil && n > 0 {
+				users = append(users, n)
+			}
+		}
+		if len(users) > 0 {
+			return users
+		}
+	}
+	return defaults
 }

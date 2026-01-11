@@ -1,94 +1,53 @@
 # 🔧 开发指南
 
-本目录包含核心模块设计、实现和测试相关的文档。
+面向后端开发与联调，涵盖核心模块、测试入口与常见任务。仓库主代码位于 `meeting-system/backend`。
 
-## 📖 文档列表
+## 文档索引
 
-- **核心**：`AI_INFERENCE_SERVICE.md`、`TASK_DISPATCHER_GUIDE.md`
-- **测试**：`TESTING_GUIDE.md`、`E2E_TESTING_GUIDE.md`
+- AI 推理服务：`AI_INFERENCE_SERVICE.md`
+- 任务分发/队列：`TASK_DISPATCHER_GUIDE.md`
+- 测试：`TESTING_GUIDE.md`、`E2E_TESTING_GUIDE.md`
 
-## 🏗️ 核心模块
+## 核心模块概览
 
-### 任务分发与队列
-代码位于 `backend/shared/queue`，使用 Redis 实现消息队列与 Pub/Sub；调度与任务分发参考 `TASK_DISPATCHER_GUIDE.md`。未提供单独队列文档，使用时以源码为准。
+- **队列/事件**：Kafka 为默认实现（`message_queue.type=kafka`、`event_bus.type=kafka`），封装在 `backend/shared/queue`。内存模式仅用于本地开发。
+- **AI 推理**：`backend/ai-inference-service` 通过 Triton 提供 ASR/情绪/合成检测，需独立部署或使用 GPU compose。
+- **WebRTC/SFU**：媒体链路由 `media-service` 与 `signaling-service` 协作；录制与媒资落地 Postgres + MinIO。
+- **配置**：服务配置位于 `backend/config/*.yaml`（AI 在 `backend/ai-inference-service/config`），可用环境变量覆盖。
 
-### AI 推理服务
-基于 Triton/TensorRT 的 AI 推理微服务，支持：
-- 语音识别 (ASR)
-- 情感检测
-- 合成检测
+## 本地开发流程
 
-**相关文档**:
-- [AI_INFERENCE_SERVICE.md](AI_INFERENCE_SERVICE.md) - 服务文档
+1. 启动依赖
+   ```bash
+   docker compose up -d postgres redis kafka etcd minio
+   ```
+2. 启动单个服务
+   ```bash
+   cd meeting-system/backend/user-service
+   go run . -config=../config/config.yaml
+   ```
+3. 前端同源访问 `/api/v1/*` 与 `/ws/signaling`；如需直连服务，调整浏览器地址即可。
+4. 如需 AI，单独启动 `deployment/gpu-ai/docker-compose.gpu-ai.yml` 或远程节点。
 
-### WebRTC SFU
-媒体转发单元实现，支持：
-- 多人音视频通话
-- 媒体流转发
-- 会议录制
+> 配置可通过环境变量覆盖 `backend/config/*.yaml` 中的字段；如需本地 `.env`，确保未提交敏感信息。
 
-## 🧪 测试
+## 测试入口
 
-### 运行单元测试
-```bash
-cd meeting-system/backend
-go test ./...
-```
+- 集成测试：`backend/tests/run_all_tests.sh`、`quick_integration_test.sh`、`test_nginx_gateway.sh`
+- E2E（含信令/队列）：`tests/e2e_queue_integration_test.{sh,py}`，详见 `E2E_TESTING_GUIDE.md`
+- AI 自测：`backend/ai-inference-service/test_ai_service.py`、`scripts/e2e_stream_pcm.sh`
 
-### 运行集成测试
-```bash
-cd meeting-system/backend/tests
-./run_all_tests.sh          # 或 quick_integration_test.sh / test_nginx_gateway.sh
-```
+## 常见开发任务
 
-### 运行 E2E 测试
-```bash
-cd meeting-system/tests
-./e2e_queue_integration_test.sh   # 结合队列/信令
-# 其他 python 脚本参考目录说明
-```
+- **新增 API**：实现业务逻辑 → handler → 路由注册 → 测试 → 更新 `docs/API/*`
+- **添加队列任务**：在 `shared/queue` 注册处理器，发布任务/事件，确保 Kafka 配置正确
+- **接入新模型**：准备 Triton 模型仓库，更新 `ai-inference-service` 配置，补充前后处理逻辑与文档
 
-## 📚 开发流程
+提交前建议运行：`go test ./...`（对应服务或 shared），必要时运行 `backend/tests/quick_integration_test.sh`。
 
-1. **理解架构** - 阅读相关模块文档
-2. **本地开发** - 在本地环境中开发和测试
-3. **单元测试** - 编写和运行单元测试
-4. **集成测试** - 运行集成测试验证
-5. **E2E 测试** - 执行端到端测试
-6. **提交代码** - 提交 Git 提交
+## 参考链接
 
-## 🔍 常见开发任务
-
-### 添加新的 API 端点
-1. 在相应的 service 中实现业务逻辑
-2. 在 handler 中添加 HTTP 处理器
-3. 在路由中注册端点
-4. 编写测试用例
-5. 更新 API 文档
-
-### 添加新的消息队列任务
-1. 定义任务类型
-2. 实现任务处理器
-3. 在需要的地方发布任务
-4. 编写测试用例
-
-### 集成新的 AI 模型
-1. 准备 Triton 模型仓库并放入模型目录
-2. 在 AI Inference Service 中配置 `model_name` / 输入输出节点
-3. 在处理器中接入预处理/后处理逻辑
-4. 编写测试用例
-5. 更新文档
-
-## 📚 相关文档
-
-- [API 文档](../API/README.md) - API 接口参考
-- [部署指南](../DEPLOYMENT/README.md) - 部署和配置
-- [客户端文档](../CLIENT/README.md) - 客户端相关
-- [文档中心](../README.md) - 所有文档
-
-## 🔗 相关链接
-
-- [项目主 README](../../README.md)
-- [后端系统 README](../README.md)
-- [Go 官方文档](https://golang.org/doc/)
-- [Gin Web 框架](https://gin-gonic.com/)
+- API 文档：`../API/README.md`
+- 部署：`../DEPLOYMENT/README.md`
+- 客户端：`../CLIENT/README.md`
+- 架构：`../ARCHITECTURE_DIAGRAM.md`

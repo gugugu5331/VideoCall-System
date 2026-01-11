@@ -1,3 +1,6 @@
+//go:build zmq
+// +build zmq
+
 package zmq
 
 import (
@@ -61,7 +64,7 @@ func (s *MockZMQServer) handleRequests() {
 		default:
 			// 设置接收超时
 			s.socket.SetRcvtimeo(100 * time.Millisecond)
-			
+
 			data, err := s.socket.RecvBytes(0)
 			if err != nil {
 				continue // 超时或其他错误，继续循环
@@ -100,7 +103,7 @@ func (s *MockZMQServer) Close() {
 	case s.stopCh <- true:
 	default:
 	}
-	
+
 	if s.socket != nil {
 		s.socket.Close()
 	}

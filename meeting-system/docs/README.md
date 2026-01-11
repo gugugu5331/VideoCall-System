@@ -1,53 +1,49 @@
-# 📚 文档中心
+# 📚 文档中心（meeting-system）
 
-涵盖当前仓库内的架构、API、部署、开发测试和 Web 客户端说明，全部基于 `meeting-system` 目录下的实际代码与配置。
+围绕当前代码与配置的官方文档索引：架构、数据、API、部署、开发/测试、Web 客户端与 AI。默认入口参考 `../README.md`。
 
----
+## 导航速览
 
-## 🚀 导航
+- 总览：`../../README.md`（仓库根）、`../README.md`（后端/运维）
+- 架构与数据：`ARCHITECTURE_DIAGRAM.md`、`BACKEND_ARCHITECTURE.md`、`DATABASE_SCHEMA.md`
+- API：`API/API_DOCUMENTATION.md`
+- 部署：`DEPLOYMENT/README.md`（本地/远程/K8s/GPU AI、模型与上游说明）
+- 开发与测试：`DEVELOPMENT/README.md`
+- 客户端：`CLIENT/README.md`（调用、通信、AI/特效）
 
-- **总览**：`../../README.md`（仓库根）、`../README.md`（meeting-system 说明）
-- **架构**：`ARCHITECTURE_DIAGRAM.md`、`BACKEND_ARCHITECTURE.md`、`DATABASE_SCHEMA.md`
-- **API**：`API/API_DOCUMENTATION.md`
-- **部署**：`DEPLOYMENT/README.md`（含远程、GPU/模型指南）
-- **开发/测试**：`DEVELOPMENT/README.md`
-- **客户端**：`CLIENT/README.md`（Web 客户端说明，静态资源位于 `frontend/dist`）
+## 分类
 
----
+- **架构**：系统拓扑、服务职责、数据与可观测性
+- **数据**：PostgreSQL/Redis/Mongo/MinIO/etcd 结构与约定
+- **API**：用户、会议、信令、媒体、AI 端点清单与示例
+- **部署**：本地 compose、远程一键部署、GPU/Triton 节点、K8s
+- **开发/测试**：任务调度、AI 服务实现、集成/E2E 测试流程
+- **客户端**：Web 端调用约定、WS/WebRTC、AI 特性、SEI/贴图扩展
 
-## 📁 分类
-
-### 🔌 API (`API/`)
-- `API_DOCUMENTATION.md`：用户/会议/信令/媒体/AI 现有接口列表与示例。
-
-### 🚀 部署 (`DEPLOYMENT/`)
-- `README.md`：本地与生产部署概览。
-- `REMOTE_DEPLOYMENT_GUIDE.md`：远程主机部署变量与命令。
-- `AI_MODELS_DEPLOYMENT_GUIDE.md`、`GPU_AI_NODES.md`：Triton/AI 节点与模型准备。
-
-### 🔧 开发 (`DEVELOPMENT/`)
-- 任务/AI：`TASK_DISPATCHER_GUIDE.md`、`AI_INFERENCE_SERVICE.md`
-- 测试：`TESTING_GUIDE.md`、`E2E_TESTING_GUIDE.md`
-
-### 💻 客户端 (`CLIENT/`)
-- Web 客户端调用与协议：`API_USAGE_GUIDE.md`、`COMMUNICATION_DESIGN.md`
-- AI/特效：`AI_FEATURES.md`、`VIDEO_EFFECTS_SEI.md`、`STICKER_FEATURE.md`
-
----
-
-## 🧭 快速上手
+## 快速上手
 
 ```bash
-cd ..                # 仓库根
+cd ..  # repo 根
 docker compose -f meeting-system/docker-compose.yml up -d
 ```
 
-默认入口：`http://localhost:8800`（API + 前端）。更多服务端口见 `docker-compose.yml`。
+默认入口 `http://localhost:8800`。验证：
 
----
+```bash
+curl http://localhost:8800/health
+docker compose -f meeting-system/docker-compose.yml ps
+```
 
-## 📝 维护说明
+AI 组件需参考部署文档启用并准备 Triton 模型。端口/凭据以对应 compose 文件为准。
 
-- 文件位置与名称以当前目录结构为准；不存在 `INTERVIEW/` 或 Qt 客户端文档。
-- 更新文档时同步校验链接与端口配置是否与 `docker-compose.yml`、服务源码一致。
-- 需要新文档时按现有分类新增，并在本索引补充链接。
+## 贡献与更新
+
+- 更新端口、上游、队列或存储配置时，请同步修改相关文档与 compose/kustomize。
+- 新增文档遵循现有分类，并在本索引补充链接。
+- 文档中的命令默认在仓库根或 `meeting-system/` 目录执行，需结合自身环境调整变量。
+
+## 维护提示
+
+- 端口、上游与环境变量以 compose 与 `backend/config/*.yaml` 为准；调整后同步更新相关文档。
+- 修改队列类型（Kafka/内存）、AI 上游或存储凭据时，需同步修改对应配置、Nginx upstream 与部署清单。
+- 新增文档请按分类补充到本索引；不再存在 Qt/原生客户端说明。

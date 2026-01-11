@@ -1,60 +1,25 @@
-# Test Video Files
+# Test Video/Audio Assets
 
-This directory contains test video and audio files for media service testing.
+This directory is reserved for local test media used by the media service (upload/download, recording, FFmpeg helpers). Files are **not** tracked in Git.
 
-## Purpose
+## Usage
 
-These files are used for:
-- Media upload/download testing
-- Video processing testing
-- FFmpeg integration testing
-- Recording functionality testing
+- Place small demo files here when running integration tests locally.
+- Suggested formats: MP4/MOV/MKV for video; MP3/WAV/AAC for audio.
+- Keep files under ~50MB and 10–60 seconds to speed up pipelines.
 
-## File Requirements
-
-Test files should be:
-- **Video formats**: MP4, AVI, MOV, MKV
-- **Audio formats**: MP3, WAV, AAC
-- **Size**: Keep test files under 50MB each
-- **Duration**: 10-60 seconds recommended
-
-## Note
-
-Test media files are **not included in the Git repository** due to their large size.
-
-### To add test files:
-
-1. Place your test video/audio files in this directory
-2. Files will be automatically ignored by Git (see `.gitignore`)
-3. For CI/CD, download test files from external storage or generate them programmatically
-
-### Sample test file generation:
+## Generate samples with FFmpeg
 
 ```bash
-# Generate a test video using FFmpeg
+# 10s color bars + tone
 ffmpeg -f lavfi -i testsrc=duration=10:size=1280x720:rate=30 \
        -f lavfi -i sine=frequency=1000:duration=10 \
        -pix_fmt yuv420p test_video.mp4
 
-# Generate a test audio file
+# 10s sine wave
 ffmpeg -f lavfi -i sine=frequency=1000:duration=10 test_audio.mp3
 ```
 
-## Existing Test Files (Not in Git)
+For CI/CD, download test files from external storage or generate them on the fly to avoid repository bloat.
 
-The following files may exist locally but are not tracked:
-- `20250602_215504.mp3` - Audio test file
-- `20250827_093242.mp4` - Video test file
-- `20250827_104938.mp4` - Video test file
-- `20250827_105955.mp4` - Video test file
-- `20250928_164722.mp4` - Video test file
-- `20250928_164800.mp4` - Video test file
-- `20250928_165500.mp4` - Video test file
-
-## Alternative: Use External Test Files
-
-For production testing, consider using:
-- Public domain test videos from [Sample Videos](https://sample-videos.com/)
-- Generate test files on-the-fly in test scripts
-- Store test files in cloud storage (S3, MinIO, etc.)
-
+Cleanup tip: remove large artifacts after local runs to keep the workspace small (files are gitignored).

@@ -117,24 +117,19 @@ func main() {
 	}
 
 	// 初始化消息队列系统
-	var queueManager *queue.QueueManager
-	if redisInitialized {
-		logger.Info("Initializing message queue system...")
-		fmt.Println("Initializing message queue system...")
-		redisClient := database.GetRedis()
-		var err error
-		queueManager, err = queue.InitializeQueueSystem(cfg, redisClient)
-		if err != nil {
-			logger.Warn("Failed to initialize queue system: " + err.Error())
-			fmt.Printf("⚠️  Queue system initialization failed: %v\n", err)
-		} else {
-			defer queueManager.Stop()
-			logger.Info("Message queue system initialized successfully")
-			fmt.Println("✅ Message queue system initialized")
+	logger.Info("Initializing message queue system...")
+	fmt.Println("Initializing message queue system...")
+	queueManager, err := queue.InitializeQueueSystem(cfg)
+	if err != nil {
+		logger.Warn("Failed to initialize queue system: " + err.Error())
+		fmt.Printf("⚠️  Queue system initialization failed: %v\n", err)
+	} else {
+		defer queueManager.Stop()
+		logger.Info("Message queue system initialized successfully")
+		fmt.Println("✅ Message queue system initialized")
 
-			// 注册 AI 任务处理器
-			registerAITaskHandlers(queueManager)
-		}
+		// 注册 AI 任务处理器
+		registerAITaskHandlers(queueManager)
 	}
 
 	// 初始化 AI 推理服务
@@ -317,34 +312,34 @@ func setupRoutes(r *gin.Engine, aiHandler *handlers.AIHandler) {
 func registerAITaskHandlers(qm *queue.QueueManager) {
 	logger.Info("Registering AI task handlers...")
 
-	// 注册 Redis 消息队列处理器
-	if redisQueue := qm.GetRedisMessageQueue(); redisQueue != nil {
+	// 注册 Kafka 消息队列处理器
+	if kafkaQueue := qm.GetKafkaMessageQueue(); kafkaQueue != nil {
 		// ASR 任务
-		redisQueue.RegisterHandler("ai_asr", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("ai_asr", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing ASR task: %s", msg.ID))
 			// 处理 ASR 任务逻辑
 			return nil
 		})
 
 		// 情感检测任务
-		redisQueue.RegisterHandler("ai_emotion", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("ai_emotion", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing emotion detection task: %s", msg.ID))
 			// 处理情感检测任务逻辑
 			return nil
 		})
 
 		// 深度伪造检测任务
-		redisQueue.RegisterHandler("ai_synthesis", func(ctx context.Context, msg *queue.Message) error {
+		kafkaQueue.RegisterHandler("ai_synthesis", func(ctx context.Context, msg *queue.Message) error {
 			logger.Info(fmt.Sprintf("Processing synthesis detection task: %s", msg.ID))
 			// 处理深度伪造检测任务逻辑
 			return nil
 		})
 
-		logger.Info("Redis message queue handlers registered")
+		logger.Info("Kafka message queue handlers registered")
 	}
 
 	// 注册发布订阅处理器
-	if pubsub := qm.GetRedisPubSubQueue(); pubsub != nil {
+	if pubsub := qm.GetKafkaEventBus(); pubsub != nil {
 		// 订阅会议事件
 		pubsub.Subscribe("meeting_events", func(ctx context.Context, msg *queue.PubSubMessage) error {
 			logger.Info(fmt.Sprintf("Received meeting event: %s", msg.Type))

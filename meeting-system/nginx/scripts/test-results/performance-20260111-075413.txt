@@ -1,0 +1,59 @@
+This is ApacheBench, Version 2.3 <$Revision: 1879490 $>
+Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+Licensed to The Apache Software Foundation, http://www.apache.org/
+
+Benchmarking localhost (be patient)
+Completed 5000 requests
+Completed 10000 requests
+Completed 15000 requests
+Completed 20000 requests
+Completed 25000 requests
+Completed 30000 requests
+Completed 35000 requests
+Completed 40000 requests
+Completed 45000 requests
+Completed 50000 requests
+Finished 50000 requests
+
+
+Server Software:        nginx
+Server Hostname:        localhost
+Server Port:            443
+SSL/TLS Protocol:       TLSv1.2,ECDHE-RSA-AES256-GCM-SHA384,2048,256
+Server Temp Key:        X25519 253 bits
+TLS Server Name:        localhost
+
+Document Path:          /health
+Document Length:        60 bytes
+
+Concurrency Level:      10
+Time taken for tests:   2.712 seconds
+Complete requests:      50000
+Failed requests:        0
+Keep-Alive requests:    49504
+Total transferred:      12347520 bytes
+HTML transferred:       3000000 bytes
+Requests per second:    18439.64 [#/sec] (mean)
+Time per request:       0.542 [ms] (mean)
+Time per request:       0.054 [ms] (mean, across all concurrent requests)
+Transfer rate:          4446.95 [Kbytes/sec] received
+
+Connection Times (ms)
+              min  mean[+/-sd] median   max
+Connect:        0    0   0.5      0      21
+Processing:     0    0   0.6      0       9
+Waiting:        0    0   0.6      0       9
+Total:          0    1   0.8      0      21
+WARNING: The median and mean for the total time are not within a normal deviation
+        These results are probably not that reliable.
+
+Percentage of the requests served within a certain time (ms)
+  50%      0
+  66%      0
+  75%      0
+  80%      1
+  90%      1
+  95%      2
+  98%      3
+  99%      4
+ 100%     21 (longest request)

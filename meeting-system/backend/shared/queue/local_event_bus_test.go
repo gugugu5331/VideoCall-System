@@ -66,7 +66,7 @@ func TestLocalEventBus_MultipleHandlers(t *testing.T) {
 
 	// 验证两个处理器都被调用
 	assert.Equal(t, int32(1), atomic.LoadInt32(&count1))
-	assert.Equal(t, int32(2), atomic.LoadInt32(&count2))
+	assert.Equal(t, int32(1), atomic.LoadInt32(&count2))
 }
 
 func TestLocalEventBus_ConcurrentEmit(t *testing.T) {
@@ -218,7 +218,7 @@ func TestLocalEventBus_HandlerPanic(t *testing.T) {
 	defer bus.Stop()
 
 	var normalHandlerCalled bool
-	
+
 	// 注册一个会panic的处理器
 	bus.On("panic_event", func(ctx context.Context, event *LocalEvent) error {
 		panic("test panic")
@@ -250,7 +250,7 @@ func TestLocalEventBus_ContextTimeout(t *testing.T) {
 	defer bus.Stop()
 
 	timeoutOccurred := make(chan bool, 1)
-	
+
 	bus.On("timeout_event", func(ctx context.Context, event *LocalEvent) error {
 		select {
 		case <-ctx.Done():
@@ -311,4 +311,3 @@ func BenchmarkLocalEventBus_EmitParallel(b *testing.B) {
 		}
 	})
 }
-

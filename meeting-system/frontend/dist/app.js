@@ -102,6 +102,19 @@ const els = {
   aiSynthSampleRate: document.getElementById("aiSynthSampleRate"),
   aiSynthBtn: document.getElementById("aiSynthBtn"),
   aiOutput: document.getElementById("aiOutput"),
+  aiPanelBody: document.getElementById("aiPanelBody"),
+  fxPanelBody: document.getElementById("fxPanelBody"),
+  fxPanelContent: document.getElementById("fxPanelContent"),
+  toggleFxPanel: document.getElementById("toggleFxPanel"),
+  openPanelDrawer: document.getElementById("openPanelDrawer"),
+  openFxDrawer: document.getElementById("openFxDrawer"),
+  openAiDrawer: document.getElementById("openAiDrawer"),
+  closePanelDrawer: document.getElementById("closePanelDrawer"),
+  closeFxDrawer: document.getElementById("closeFxDrawer"),
+  closeAiDrawer: document.getElementById("closeAiDrawer"),
+  panelDrawer: document.getElementById("panelDrawer"),
+  fxDrawer: document.getElementById("fxDrawer"),
+  aiDrawer: document.getElementById("aiDrawer"),
 };
 
 const state = {
@@ -2032,6 +2045,42 @@ function setAuthTab(tab) {
   setAuthMsg("");
 }
 
+function openDrawer(name) {
+  const drawers = {
+    panel: els.panelDrawer,
+    fx: els.fxDrawer,
+    ai: els.aiDrawer,
+  };
+  Object.entries(drawers).forEach(([key, el]) => {
+    if (!el) return;
+    el.classList.toggle("open", key === name);
+  });
+}
+
+function setupPanelToggles() {
+  const bindToggle = (btn, target, showLabel, hideLabel) => {
+    if (!btn || !target) return;
+    btn.addEventListener("click", () => {
+      const collapsed = target.classList.toggle("collapsed");
+      btn.textContent = collapsed ? showLabel : hideLabel;
+    });
+  };
+
+  // 美颜面板仅折叠参数区域，保留标题和开关
+  bindToggle(els.toggleFxPanel, els.fxPanelContent, "展开美颜", "收起");
+}
+
+function setupDrawers() {
+  if (els.openPanelDrawer) els.openPanelDrawer.addEventListener("click", () => openDrawer("panel"));
+  if (els.openFxDrawer) els.openFxDrawer.addEventListener("click", () => openDrawer("fx"));
+  if (els.openAiDrawer) els.openAiDrawer.addEventListener("click", () => openDrawer("ai"));
+  if (els.closePanelDrawer) els.closePanelDrawer.addEventListener("click", () => openDrawer(null));
+  if (els.closeFxDrawer) els.closeFxDrawer.addEventListener("click", () => openDrawer(null));
+  if (els.closeAiDrawer) els.closeAiDrawer.addEventListener("click", () => openDrawer(null));
+  // 默认显示控制台，便于快速创建/加入会议
+  openDrawer("panel");
+}
+
 function ensureLocalPeerId() {
   state.peerId = state.peerId || `web_${uuid().slice(0, 8)}`;
   return state.peerId;
@@ -3258,6 +3307,8 @@ async function boot() {
   loadSession();
   setAuthTab("login");
   initFxControls();
+  setupPanelToggles();
+  setupDrawers();
 
   // 页面关闭/刷新时做一次 best-effort 离会，减少“用户关闭页面仍在线/僵尸轨道”与卡顿。
   window.addEventListener("pagehide", bestEffortLeaveOnPageHide);

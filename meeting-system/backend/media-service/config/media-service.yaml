@@ -34,6 +34,22 @@ redis:
   pool_timeout: 4s
   idle_timeout: 300s
 
+# Kafka 配置（用于消息队列/事件总线）
+kafka:
+  enabled: true
+  brokers:
+    - "kafka:9092"
+  topic_prefix: "meeting"
+  group_id: "meeting-system"
+  sasl:
+    enabled: false
+    mechanism: "PLAIN"
+    username: ""
+    password: ""
+  tls:
+    enabled: false
+    insecure_skip_verify: false
+
 # MinIO对象存储配置
 minio:
   endpoint: "localhost:9000"
@@ -273,7 +289,7 @@ ai_processing:
 # 消息队列配置
 message_queue:
   enabled: true
-  type: "redis"
+  type: "kafka"  # kafka, memory
   queue_name: "meeting_system"
   workers: 4
   visibility_timeout: 30
@@ -290,7 +306,7 @@ task_scheduler:
 # 事件总线配置
 event_bus:
   enabled: true
-  type: "redis_pubsub"
+  type: "kafka"  # kafka, local
   buffer_size: 100
   workers: 2
 
